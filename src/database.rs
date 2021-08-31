@@ -1,7 +1,7 @@
 use crate::processor::{AlertContext, UserConfirmation};
 use crate::webhook::Alert;
 use crate::{AlertId, Result};
-use rocksdb::{ColumnFamilyDescriptor, Options, DB};
+use rocksdb::{ColumnFamilyDescriptor, IteratorMode, Options, DB};
 use std::collections::HashMap;
 
 const PENDING: &'static str = "pending_alerts";
@@ -20,18 +20,18 @@ impl Database {
 
         let mut db = DB::open_default(path)?;
         db.create_cf(PENDING, &ops);
+        db.create_cf(HISTORY, &ops);
 
         Ok(Database { db: db })
     }
     pub fn insert_alerts(&self, alerts: Vec<Alert>) -> Result<()> {
-        let cf = self.db.cf_handle(PENDING).unwrap();
+        let pending = self.db.cf_handle(PENDING).unwrap();
 
         for alert in alerts {
-            self.db.put_cf(
-                &cf,
-                AlertId::new(),
-                AlertContext::new(alert).to_bytes().as_slice(),
-            );
+            let alert = AlertContext::new(alert);
+
+            self.db
+                .put_cf(&pending, alert.id, alert.to_bytes().as_slice());
         }
 
         Ok(())
@@ -58,7 +58,14 @@ impl Database {
             Ok(UserConfirmation::AlertNotFound)
         }
     }
-    pub fn get_pending(&self) -> Result<()> {
-        unimplemented!()
+    pub fn get_pending(&self) -> Result<Vec<AlertContext>> {
+        let pending = self.db.cf_handle(PENDING).unwrap();
+
+        let mut alerts = vec![];
+        for (_, alert) in self.db.iterator_cf(pending, IteratorMode::Start) {
+            alerts.push(AlertContext::from_bytes(&alert)?);
+        }
+
+        Ok(alerts)
     }
 }

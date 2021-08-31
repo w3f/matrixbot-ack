@@ -52,6 +52,7 @@ pub enum UserAction {
 }
 
 pub enum UserConfirmation {
+    PendingAlerts(Vec<AlertContext>),
     AlertOutOfScope,
     AlertAcknowledged,
     AlertNotFound,
