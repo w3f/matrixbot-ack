@@ -59,8 +59,8 @@ impl Supervised for Processor {}
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "UserConfirmation")]
 pub struct UserAction {
-    escalation_idx: usize,
-    command: Command,
+    pub escalation_idx: usize,
+    pub command: Command,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

@@ -25,6 +25,9 @@ impl AlertId {
     fn new() -> Self {
         AlertId(uuid::Uuid::new_v4())
     }
+    fn from_bytes(slice: &[u8]) -> Result<Self> {
+        Ok(AlertId(uuid::Uuid::from_slice(slice)?))
+    }
 }
 
 impl AsRef<[u8]> for AlertId {

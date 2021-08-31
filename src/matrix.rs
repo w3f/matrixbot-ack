@@ -1,10 +1,13 @@
-use crate::Result;
+use crate::processor::{Command, Processor, UserAction};
+use crate::{AlertId, Result};
+use actix::SystemService;
 use matrix_sdk::events::room::member::MemberEventContent;
 use matrix_sdk::events::room::message::MessageEventContent;
 use matrix_sdk::events::{StrippedStateEvent, SyncMessageEvent};
-use matrix_sdk::room::Room;
+use matrix_sdk::room::{Joined, Room};
 use matrix_sdk::{Client, ClientConfig, EventHandler, SyncSettings};
 use ruma::events::room::message::{MessageType, TextMessageEventContent};
+use ruma::events::AnyMessageEventContent;
 use url::Url;
 
 #[derive(Clone)]
@@ -59,7 +62,7 @@ pub struct Listener;
 #[async_trait]
 impl EventHandler for Listener {
     async fn on_room_message(&self, room: Room, event: &SyncMessageEvent<MessageEventContent>) {
-        if let Room::Joined(_) = room {
+        if let Room::Joined(room) = room {
             let msg_body = if let SyncMessageEvent {
                 content:
                     MessageEventContent {
@@ -69,13 +72,52 @@ impl EventHandler for Listener {
                 ..
             } = event
             {
-                msg_body
+                msg_body.to_string()
             } else {
                 debug!("Received unacceptable message type from {}", event.sender);
                 return;
             };
 
             debug!("Received message from {}", event.sender);
+
+            let cmd = match msg_body.trim() {
+                "pending" => Command::Pending,
+                "help" => Command::Help,
+                txt @ _ => {
+                    if txt.starts_with("ack") || txt.starts_with("acknowledge") {
+                        let parts: Vec<&str> = txt.split(" ").collect();
+                        if parts.len() != 2 {
+                            bad_msg(&room).await;
+                        }
+
+                        if let Ok(id) = AlertId::from_bytes(parts[1].as_bytes()) {
+                            Command::Ack(id)
+                        } else {
+                            bad_msg(&room).await
+                        }
+                    } else {
+                        bad_msg(&room).await
+                    }
+                }
+            };
+
+            // Prepare action type.
+            let action = UserAction {
+                escalation_idx: 0,
+                command: cmd,
+            };
+
+            Processor::from_registry().send(action).await.unwrap();
         }
     }
+}
+
+async fn bad_msg(room: &Joined) -> Command {
+    let content = AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(
+        "I don't understand 🤔",
+    ));
+
+    room.send(content, None).await.unwrap();
+
+    Command::Help
 }
