@@ -6,6 +6,8 @@ extern crate anyhow;
 extern crate serde;
 #[macro_use]
 extern crate actix_web;
+#[macro_use]
+extern crate async_trait;
 
 use actix::{prelude::*, SystemRegistry};
 
@@ -39,7 +41,7 @@ pub async fn run() -> Result<()> {
     let proc = processor::Processor::new(db);
     SystemRegistry::set(proc.start());
 
-    info!("Adding message processor to system registry");
+    info!("Adding Matrix listener to system registry");
 
     info!("Starting API server");
     webhook::run_api_server("127.0.0.1:8000").await?;

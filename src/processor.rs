@@ -81,7 +81,7 @@ pub enum UserConfirmation {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Message)]
-#[rtype(result = "()")]
+#[rtype(result = "Result<()>")]
 pub struct InsertAlerts {
     alerts: Vec<Alert>,
 }
@@ -113,14 +113,12 @@ impl Handler<UserAction> for Processor {
 }
 
 impl Handler<InsertAlerts> for Processor {
-    type Result = ();
+    type Result = Result<()>;
 
     fn handle(&mut self, msg: InsertAlerts, _ctx: &mut Self::Context) -> Self::Result {
-        self.db
-            .insert_alerts(msg.alerts)
-            .map_err(|err| {
-                error!("Failed to insert alerts into database: {:?}", err);
-            })
-            .unwrap()
+        self.db.insert_alerts(msg.alerts).map_err(|err| {
+            error!("Failed to insert alerts into database: {:?}", err);
+            err
+        })
     }
 }

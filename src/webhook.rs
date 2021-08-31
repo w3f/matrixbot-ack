@@ -39,10 +39,13 @@ async fn healthcheck() -> HttpResponse {
 }
 
 async fn insert_alerts(req: web::Json<InsertAlerts>) -> HttpResponse {
-    Processor::from_registry()
+    let res = Processor::from_registry()
         .send(req.into_inner())
         .await
         .unwrap();
 
-    HttpResponse::Ok().body("OK")
+    match res {
+        Ok(_) => HttpResponse::Ok().body("OK"),
+        Err(_) => HttpResponse::InternalServerError().finish(),
+    }
 }
