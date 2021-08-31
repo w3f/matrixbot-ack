@@ -80,7 +80,7 @@ pub enum UserConfirmation {
     InternalError,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Message)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Message)]
 #[rtype(result = "()")]
 pub struct InsertAlerts {
     alerts: Vec<Alert>,

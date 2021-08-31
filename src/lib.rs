@@ -4,6 +4,8 @@ extern crate log;
 extern crate anyhow;
 #[macro_use]
 extern crate serde;
+#[macro_use]
+extern crate actix_web;
 
 use actix::{prelude::*, SystemRegistry};
 
@@ -29,13 +31,18 @@ impl AsRef<[u8]> for AlertId {
     }
 }
 
-pub fn run() -> Result<()> {
+pub async fn run() -> Result<()> {
     info!("Setting up database");
     let db = database::Database::new("")?;
 
     info!("Adding message processor to system registry");
     let proc = processor::Processor::new(db);
     SystemRegistry::set(proc.start());
+
+    info!("Adding message processor to system registry");
+
+    info!("Starting API server");
+    webhook::run_api_server("127.0.0.1:8000").await?;
 
     Ok(())
 }
