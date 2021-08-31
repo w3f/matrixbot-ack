@@ -70,16 +70,6 @@ pub enum Command {
     Help,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum UserConfirmation {
-    PendingAlerts(Vec<AlertContext>),
-    AlertOutOfScope,
-    AlertAcknowledged(AlertId),
-    AlertNotFound,
-    Help,
-    InternalError,
-}
-
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Message)]
 #[rtype(result = "Result<()>")]
 pub struct InsertAlerts {
@@ -120,5 +110,21 @@ impl Handler<InsertAlerts> for Processor {
             error!("Failed to insert alerts into database: {:?}", err);
             err
         })
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum UserConfirmation {
+    PendingAlerts(Vec<AlertContext>),
+    AlertOutOfScope,
+    AlertAcknowledged(AlertId),
+    AlertNotFound,
+    Help,
+    InternalError,
+}
+
+impl ToString for UserConfirmation {
+    fn to_string(&self) -> String {
+        unimplemented!()
     }
 }

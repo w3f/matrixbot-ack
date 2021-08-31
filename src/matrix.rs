@@ -1,4 +1,4 @@
-use crate::processor::{Command, Processor, UserAction};
+use crate::processor::{Command, Processor, UserAction, UserConfirmation};
 use crate::{AlertId, Result};
 use actix::SystemService;
 use matrix_sdk::events::room::member::MemberEventContent;
@@ -107,7 +107,15 @@ impl EventHandler for Listener {
                 command: cmd,
             };
 
-            Processor::from_registry().send(action).await.unwrap();
+            // Send action to processor.
+            let confirmation = Processor::from_registry().send(action).await.unwrap();
+
+            let content = AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(
+                confirmation.to_string(),
+            ));
+
+            // Notify the room.
+            room.send(content, None).await.unwrap();
         }
     }
 }
