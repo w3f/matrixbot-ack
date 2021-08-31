@@ -33,6 +33,12 @@ pub struct Processor {
     db: Database,
 }
 
+impl Processor {
+    pub fn new(db: Database) -> Self {
+        Processor { db: db }
+    }
+}
+
 impl Default for Processor {
     fn default() -> Self {
         panic!("Processor was not initialized");

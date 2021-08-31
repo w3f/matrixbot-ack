@@ -5,6 +5,8 @@ extern crate anyhow;
 #[macro_use]
 extern crate serde;
 
+use actix::{prelude::*, SystemRegistry};
+
 mod database;
 mod matrix;
 mod processor;
@@ -25,4 +27,15 @@ impl AsRef<[u8]> for AlertId {
     fn as_ref(&self) -> &[u8] {
         &self.0.as_bytes()[..]
     }
+}
+
+pub fn run() -> Result<()> {
+    info!("Setting up database");
+    let db = database::Database::new("")?;
+
+    info!("Adding message processor to system registry");
+    let proc = processor::Processor::new(db);
+    SystemRegistry::set(proc.start());
+
+    Ok(())
 }
