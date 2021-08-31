@@ -11,7 +11,7 @@ mod webhook;
 type Result<T> = std::result::Result<T, anyhow::Error>;
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
-struct AlertId(uuid::Uuid);
+pub struct AlertId(uuid::Uuid);
 
 impl AlertId {
     fn new() -> Self {

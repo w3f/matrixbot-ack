@@ -5,9 +5,9 @@ use actix::prelude::*;
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AlertContext {
-    id: AlertId,
-    alert: Alert,
-    escalation_idx: usize,
+    pub id: AlertId,
+    pub alert: Alert,
+    pub escalation_idx: usize,
 }
 
 impl AlertContext {
@@ -52,6 +52,9 @@ pub enum UserAction {
 }
 
 pub enum UserConfirmation {
+    AlertOutOfScope,
+    AlertAcknowledged,
+    AlertNotFound,
     InternalError,
 }
 
