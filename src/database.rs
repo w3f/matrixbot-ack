@@ -19,8 +19,8 @@ impl Database {
         let ops = Options::default();
 
         let mut db = DB::open_default(path)?;
-        db.create_cf(PENDING, &ops);
-        db.create_cf(HISTORY, &ops);
+        db.create_cf(PENDING, &ops)?;
+        db.create_cf(HISTORY, &ops)?;
 
         Ok(Database { db: db })
     }
@@ -31,7 +31,7 @@ impl Database {
             let alert = AlertContext::new(alert);
 
             self.db
-                .put_cf(&pending, alert.id, alert.to_bytes().as_slice());
+                .put_cf(&pending, alert.id, alert.to_bytes().as_slice())?;
         }
 
         Ok(())
@@ -53,7 +53,7 @@ impl Database {
             self.db.put_cf(history, id, &alert)?;
             self.db.delete_cf(pending, id)?;
 
-            Ok(UserConfirmation::AlertAcknowledged)
+            Ok(UserConfirmation::AlertAcknowledged(*id))
         } else {
             Ok(UserConfirmation::AlertNotFound)
         }

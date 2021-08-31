@@ -2,6 +2,9 @@ use crate::database::Database;
 use crate::webhook::Alert;
 use crate::{AlertId, Result};
 use actix::prelude::*;
+use std::time::Duration;
+
+const CRON_JON_INTERVAL: u64 = 60;
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AlertContext {
@@ -38,6 +41,10 @@ impl Default for Processor {
 
 impl Actor for Processor {
     type Context = Context<Self>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        ctx.run_interval(Duration::from_secs(CRON_JON_INTERVAL), |_proc, _ctx| {});
+    }
 }
 
 impl SystemService for Processor {}
@@ -45,17 +52,25 @@ impl Supervised for Processor {}
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "UserConfirmation")]
-pub enum UserAction {
+pub struct UserAction {
+    escalation_idx: usize,
+    command: Command,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Command {
     Ack(AlertId),
     Pending,
     Help,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum UserConfirmation {
     PendingAlerts(Vec<AlertContext>),
     AlertOutOfScope,
-    AlertAcknowledged,
+    AlertAcknowledged(AlertId),
     AlertNotFound,
+    Help,
     InternalError,
 }
 
@@ -66,34 +81,40 @@ pub struct InsertAlerts {
 }
 
 impl Handler<UserAction> for Processor {
-    type Result = ResponseActFuture<Self, UserConfirmation>;
+    type Result = MessageResult<UserAction>;
 
     fn handle(&mut self, msg: UserAction, _ctx: &mut Self::Context) -> Self::Result {
-        unimplemented!()
-        /*
-        match msg {
-            UserAction::Ack(id) => {
-
-            }
-            UserAction::Pending => {
-
-            }
-            UserAction::Help => {
-
+        fn local(proc: &Processor, msg: UserAction) -> Result<UserConfirmation> {
+            match msg.command {
+                Command::Ack(id) => proc.db.acknowledge_alert(msg.escalation_idx, &id),
+                Command::Pending => proc
+                    .db
+                    .get_pending()
+                    .map(|ctxs| UserConfirmation::PendingAlerts(ctxs)),
+                Command::Help => Ok(UserConfirmation::Help),
             }
         }
-        */
+
+        MessageResult(
+            local(&self, msg)
+                .map_err(|err| {
+                    error!("{:?}", err);
+                    UserConfirmation::InternalError
+                })
+                .unwrap(),
+        )
     }
 }
 
 impl Handler<InsertAlerts> for Processor {
-    type Result = ResponseActFuture<Self, ()>;
+    type Result = ();
 
-    fn handle(&mut self, _msg: InsertAlerts, _ctx: &mut Self::Context) -> Self::Result {
-        let f = async move {};
-
-        Box::pin(f);
-
-        unimplemented!()
+    fn handle(&mut self, msg: InsertAlerts, _ctx: &mut Self::Context) -> Self::Result {
+        self.db
+            .insert_alerts(msg.alerts)
+            .map_err(|err| {
+                error!("Failed to insert alerts into database: {:?}", err);
+            })
+            .unwrap()
     }
 }
