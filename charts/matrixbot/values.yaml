@@ -1,0 +1,26 @@
+environment: production
+
+image:
+  repository: lamafab/matrixbot-finance
+  tag: v0.1.0
+  pullPolicy: Always
+
+config:
+  db_path: matrixbot.db
+  matrix:
+    homeserver: homeserver
+    username: user
+    password: password
+    db_path: matrix.db
+  listener: 127.0.0.1:8000
+  rooms:
+    - "!abcdefg:matrix.org"
+    - "!hijklmn:matrix.org"
+
+resources:
+  requests:
+    cpu: "300m"
+    memory: "500Mi"
+  limits:
+    cpu: "500m"
+    memory: "700Mi"
