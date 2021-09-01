@@ -2,7 +2,7 @@ environment: production
 
 image:
   repository: lamafab/matrixbot-finance
-  tag: v0.1.0
+  tag: v0.1.1
   pullPolicy: Always
 
 config:

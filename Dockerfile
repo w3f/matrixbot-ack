@@ -32,6 +32,8 @@ RUN cargo build --release
 
 FROM debian:buster-slim
 
+WORKDIR /app
+
 RUN apt-get update && apt-get install -y libssl-dev ca-certificates
 RUN update-ca-certificates --fresh
 
