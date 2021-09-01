@@ -8,6 +8,7 @@ use matrix_sdk::room::{Joined, Room};
 use matrix_sdk::{Client, ClientConfig, EventHandler, SyncSettings};
 use ruma::events::room::message::{MessageType, TextMessageEventContent};
 use ruma::events::AnyMessageEventContent;
+use ruma::RoomId;
 use url::Url;
 
 #[derive(Clone)]
@@ -37,7 +38,9 @@ impl MatrixClient {
         client.sync_once(SyncSettings::default()).await?;
 
         // Add event handler
-        client.set_event_handler(Box::new(Listener)).await;
+        client
+            .set_event_handler(Box::new(Listener { rooms: vec![] }))
+            .await;
 
         // Start backend syncing service
         info!("Executing background sync");
@@ -57,7 +60,9 @@ impl MatrixClient {
     }
 }
 
-pub struct Listener;
+pub struct Listener {
+    rooms: Vec<RoomId>,
+}
 
 #[async_trait]
 impl EventHandler for Listener {
@@ -101,9 +106,18 @@ impl EventHandler for Listener {
                 }
             };
 
+            // Determine the escalation index based on ordering of rooms.
+            let escalation_idx =
+                if let Some(room_id) = self.rooms.iter().position(|id| id == room.room_id()) {
+                    room_id
+                } else {
+                    // Silent return.
+                    return;
+                };
+
             // Prepare action type.
             let action = UserAction {
-                escalation_idx: 0,
+                escalation_idx: escalation_idx,
                 command: cmd,
             };
 
