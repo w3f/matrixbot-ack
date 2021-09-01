@@ -1,0 +1,11 @@
+config:
+  db_path: matrixbot.db
+  matrix:
+    homeserver: {{ env "MATRIX_HOMESERVER" }}
+    username: {{ env "MATRIX_USERNAME" }}
+    password: {{ env "MATRIX_PASSWORD" }}
+    db_path: matrix.db
+  listener: 127.0.0.1:8000
+  rooms:
+    - {{ env "ESCALATION_ROOM_1" }}
+    - {{ env "ESCALATION_ROOM_2" }}
