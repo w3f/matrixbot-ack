@@ -10,6 +10,7 @@ use matrix_sdk::{Client, ClientConfig, EventHandler, SyncSettings};
 use ruma::events::room::message::{MessageType, TextMessageEventContent};
 use ruma::events::AnyMessageEventContent;
 use ruma::RoomId;
+use std::convert::TryFrom;
 use std::sync::Arc;
 use url::Url;
 
@@ -25,6 +26,7 @@ impl MatrixClient {
         username: &str,
         password: &str,
         db_path: &str,
+        rooms: Vec<String>,
     ) -> Result<Self> {
         info!("Setting up Matrix client");
         // Setup client
@@ -42,9 +44,17 @@ impl MatrixClient {
         info!("Syncing client");
         client.sync_once(SyncSettings::default()).await?;
 
+        debug!("Attempting to parse room ids");
+        let rooms: Vec<RoomId> = rooms
+            .into_iter()
+            .map(|room| RoomId::try_from(room).map_err(|err| err.into()))
+            .collect::<Result<Vec<RoomId>>>()?;
+
         // Add event handler
         client
-            .set_event_handler(Box::new(Listener { rooms: vec![] }))
+            .set_event_handler(Box::new(Listener {
+                rooms: rooms.clone(),
+            }))
             .await;
 
         // Start backend syncing service

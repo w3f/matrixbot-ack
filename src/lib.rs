@@ -18,7 +18,7 @@ mod matrix;
 mod processor;
 mod webhook;
 
-type Result<T> = std::result::Result<T, anyhow::Error>;
+pub type Result<T> = std::result::Result<T, anyhow::Error>;
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct AlertId(uuid::Uuid);
@@ -43,6 +43,7 @@ struct Config {
     db_path: String,
     matrix: MatrixConfig,
     listener: String,
+    rooms: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,6 +58,8 @@ pub async fn run() -> Result<()> {
     env_logger::builder()
         .filter_module("system", log::LevelFilter::Debug)
         .init();
+
+    info!("Logger initialized");
 
     info!("Opening config");
     let content = std::fs::read_to_string("config.yaml")?;
@@ -75,8 +78,10 @@ pub async fn run() -> Result<()> {
         &config.matrix.username,
         &config.matrix.password,
         &config.matrix.db_path,
+        config.rooms,
     )
     .await?;
+
     SystemRegistry::set(matrix.start());
 
     info!("Starting API server");
