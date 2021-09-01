@@ -152,6 +152,11 @@ pub struct Listener {
 impl EventHandler for Listener {
     async fn on_room_message(&self, room: Room, event: &SyncMessageEvent<MessageEventContent>) {
         if let Room::Joined(room) = room {
+            // Check whitelisted room.
+            if !self.rooms.contains(room.room_id()) {
+                return;
+            }
+
             let msg_body = if let SyncMessageEvent {
                 content:
                     MessageEventContent {
