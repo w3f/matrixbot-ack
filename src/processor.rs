@@ -24,7 +24,7 @@ pub struct AlertContext {
     pub id: AlertId,
     pub alert: Alert,
     pub escalation_idx: usize,
-    pub inserted_at: u64,
+    pub last_notified: u64,
 }
 
 impl AlertContext {
@@ -33,7 +33,7 @@ impl AlertContext {
             id: AlertId::new(),
             alert: alert,
             escalation_idx: 0,
-            inserted_at: unix_time(),
+            last_notified: unix_time(),
         }
     }
     pub fn from_bytes(slice: &[u8]) -> Result<Self> {
@@ -82,7 +82,7 @@ impl Actor for Processor {
                     let now = unix_time();
                     for alert in &mut pending {
                         // If the escalation window of the alert is exceeded...
-                        if now > alert.inserted_at + ESCALATION_WINDOW {
+                        if now > alert.last_notified + ESCALATION_WINDOW {
                             // Send alert to the matrix client.
                             let new_idx = MatrixClient::from_registry()
                                 .send(NotifyPending {
@@ -94,6 +94,7 @@ impl Actor for Processor {
 
                             // Update escalation index.
                             alert.escalation_idx = new_idx.unwrap();
+                            alert.last_notified = now;
                         }
                     }
 
@@ -171,19 +172,33 @@ impl Handler<UserAction> for Processor {
 }
 
 impl Handler<InsertAlerts> for Processor {
-    type Result = Result<()>;
+    type Result = ResponseActFuture<Self, Result<()>>;
 
     fn handle(&mut self, msg: InsertAlerts, _ctx: &mut Self::Context) -> Self::Result {
-        let alerts: Vec<AlertContext> = msg.into();
+        let db = Arc::clone(&self.db);
 
-        // Store alerts in database.
-        self.db.insert_alerts(&alerts).map_err(|err| {
-            error!("Failed to insert alerts into database: {:?}", err);
-            err
-        })
+        let f = async move {
+            let alerts: Vec<AlertContext> = msg.into();
 
-        // Notify rooms.
-        // TODO...
+            // Store alerts in database.
+            db.insert_alerts(&alerts).map_err(|err| {
+                error!("Failed to insert alerts into database: {:?}", err);
+                err
+            })?;
+
+            // Notify rooms.
+            let _ = MatrixClient::from_registry()
+                .send(NotifyPending {
+                    escalation_idx: 0,
+                    alerts: alerts,
+                })
+                .await
+                .unwrap();
+
+            Ok(())
+        };
+
+        Box::pin(f.into_actor(self))
     }
 }
 

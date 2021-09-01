@@ -69,6 +69,24 @@ impl MatrixClient {
     }
 }
 
+/// Convenience trait.
+#[async_trait]
+trait SendMsg {
+    async fn send_msg(&self, room_id: &RoomId, msg: &str) -> Result<()>;
+}
+
+// Implement for matrix client.
+#[async_trait]
+impl SendMsg for Client {
+    async fn send_msg(&self, room_id: &RoomId, msg: &str) -> Result<()> {
+        let content = AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(msg));
+
+        self.room_send(room_id, content, None).await.unwrap();
+
+        Ok(())
+    }
+}
+
 impl Default for MatrixClient {
     fn default() -> Self {
         panic!("Matrix client was not initialized");
@@ -94,13 +112,18 @@ impl Handler<NotifyPending> for MatrixClient {
                 (rooms.last().unwrap(), rooms.len() - 1)
             };
 
+            if new_idx == 0 {
+                client
+                    .send_msg(room_id, "🚨 NEW ALERTS OCCURRED!")
+                    .await
+                    .unwrap();
+            } else {
+                client.send_msg(room_id, "PENDING ALERT:").await.unwrap();
+            }
+
             // Send alerts to room.
             for alert in msg.alerts {
-                let content = AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(
-                    &alert.to_string(),
-                ));
-
-                client.room_send(room_id, content, None).await.unwrap();
+                client.send_msg(room_id, &alert.to_string()).await.unwrap();
             }
 
             Ok(new_idx)
