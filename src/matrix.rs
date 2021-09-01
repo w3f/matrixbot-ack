@@ -10,11 +10,13 @@ use matrix_sdk::{Client, ClientConfig, EventHandler, SyncSettings};
 use ruma::events::room::message::{MessageType, TextMessageEventContent};
 use ruma::events::AnyMessageEventContent;
 use ruma::RoomId;
+use std::sync::Arc;
 use url::Url;
 
 #[derive(Clone)]
 pub struct MatrixClient {
-    client: Client,
+    rooms: Arc<Vec<RoomId>>,
+    client: Arc<Client>,
 }
 
 impl MatrixClient {
@@ -60,7 +62,10 @@ impl MatrixClient {
             t_client.clone().sync(settings).await;
         });
 
-        Ok(MatrixClient { client: client })
+        Ok(MatrixClient {
+            rooms: Arc::new(vec![]),
+            client: Arc::new(client),
+        })
     }
 }
 
@@ -75,10 +80,31 @@ impl Actor for MatrixClient {
 }
 
 impl Handler<NotifyPending> for MatrixClient {
-    type Result = ResponseActFuture<Self, Result<()>>;
+    type Result = ResponseActFuture<Self, Result<usize>>;
 
     fn handle(&mut self, msg: NotifyPending, ctx: &mut Self::Context) -> Self::Result {
-        let f = async move { Ok(()) };
+        let client = Arc::clone(&self.client);
+        let rooms = Arc::clone(&self.rooms);
+
+        let f = async move {
+            // Determine which rooms to send the alerts to.
+            let (room_id, new_idx) = if let Some(room_id) = rooms.get(msg.escalation_idx) {
+                (room_id, msg.escalation_idx)
+            } else {
+                (rooms.last().unwrap(), rooms.len() - 1)
+            };
+
+            // Send alerts to room.
+            for alert in msg.alerts {
+                let content = AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(
+                    &alert.to_string(),
+                ));
+
+                client.room_send(room_id, content, None).await.unwrap();
+            }
+
+            Ok(new_idx)
+        };
 
         Box::pin(f.into_actor(self))
     }

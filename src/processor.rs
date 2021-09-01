@@ -1,9 +1,22 @@
 use crate::database::Database;
+use crate::matrix::MatrixClient;
 use crate::webhook::Alert;
 use crate::{AlertId, Result};
 use actix::prelude::*;
+use std::sync::Arc;
 use std::time::Duration;
 
+fn unix_time() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let start = SystemTime::now();
+    start
+        .duration_since(UNIX_EPOCH)
+        .expect("Failed to calculate UNIX time")
+        .as_secs()
+}
+
+const ESCALATION_WINDOW: u64 = 60 * 60;
 const CRON_JON_INTERVAL: u64 = 60;
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -11,6 +24,7 @@ pub struct AlertContext {
     pub id: AlertId,
     pub alert: Alert,
     pub escalation_idx: usize,
+    pub inserted_at: u64,
 }
 
 impl AlertContext {
@@ -19,6 +33,7 @@ impl AlertContext {
             id: AlertId::new(),
             alert: alert,
             escalation_idx: 0,
+            inserted_at: unix_time(),
         }
     }
     pub fn from_bytes(slice: &[u8]) -> Result<Self> {
@@ -29,13 +44,19 @@ impl AlertContext {
     }
 }
 
+impl ToString for AlertContext {
+    fn to_string(&self) -> String {
+        unimplemented!()
+    }
+}
+
 pub struct Processor {
-    db: Database,
+    db: Arc<Database>,
 }
 
 impl Processor {
     pub fn new(db: Database) -> Self {
-        Processor { db: db }
+        Processor { db: Arc::new(db) }
     }
 }
 
@@ -49,7 +70,38 @@ impl Actor for Processor {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.run_interval(Duration::from_secs(CRON_JON_INTERVAL), |_proc, _ctx| {});
+        let t_db = Arc::clone(&self.db);
+
+        ctx.run_interval(
+            Duration::from_secs(CRON_JON_INTERVAL),
+            move |_proc, _ctx| {
+                let db = Arc::clone(&t_db);
+                futures::executor::block_on(async move {
+                    let mut pending = db.get_pending().unwrap();
+
+                    let now = unix_time();
+                    for alert in &mut pending {
+                        // If the escalation window of the alert is exceeded...
+                        if now > alert.inserted_at + ESCALATION_WINDOW {
+                            // Send alert to the matrix client.
+                            let new_idx = MatrixClient::from_registry()
+                                .send(NotifyPending {
+                                    escalation_idx: alert.escalation_idx + 1,
+                                    alerts: vec![alert.clone()],
+                                })
+                                .await
+                                .unwrap();
+
+                            // Update escalation index.
+                            alert.escalation_idx = new_idx.unwrap();
+                        }
+                    }
+
+                    // Update all alert states.
+                    db.insert_alerts(&pending).unwrap();
+                })
+            },
+        );
     }
 }
 
@@ -71,10 +123,10 @@ pub enum Command {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
-#[rtype(result = "Result<()>")]
+#[rtype(result = "Result<usize>")]
 pub struct NotifyPending {
-    escalation_idx: usize,
-    alerts: Vec<AlertContext>,
+    pub escalation_idx: usize,
+    pub alerts: Vec<AlertContext>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Message)]
