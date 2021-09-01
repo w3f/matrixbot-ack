@@ -1,7 +1,7 @@
 use crate::processor::{InsertAlerts, Processor};
-use crate::{AlertId, Result};
-use actix::{prelude::*, SystemRegistry};
-use actix_web::{web, App, Error as ActixError, HttpRequest, HttpResponse, HttpServer};
+use crate::Result;
+use actix::prelude::*;
+use actix_web::{web, App, HttpResponse, HttpServer};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Alert {

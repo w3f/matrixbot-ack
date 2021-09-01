@@ -1,10 +1,9 @@
-use crate::processor::{Command, Escalation, Processor, UserAction, UserConfirmation};
+use crate::processor::{Command, Escalation, Processor, UserAction};
 use crate::{AlertId, Result};
 use actix::prelude::*;
 use actix::SystemService;
-use matrix_sdk::events::room::member::MemberEventContent;
 use matrix_sdk::events::room::message::MessageEventContent;
-use matrix_sdk::events::{StrippedStateEvent, SyncMessageEvent};
+use matrix_sdk::events::SyncMessageEvent;
 use matrix_sdk::room::{Joined, Room};
 use matrix_sdk::{Client, ClientConfig, EventHandler, SyncSettings};
 use ruma::events::room::message::{MessageType, TextMessageEventContent};
@@ -118,7 +117,7 @@ impl Actor for MatrixClient {
 impl Handler<Escalation> for MatrixClient {
     type Result = ResponseActFuture<Self, Result<usize>>;
 
-    fn handle(&mut self, msg: Escalation, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: Escalation, _ctx: &mut Self::Context) -> Self::Result {
         let client = Arc::clone(&self.client);
         let rooms = Arc::clone(&self.rooms);
 
@@ -128,6 +127,7 @@ impl Handler<Escalation> for MatrixClient {
             let (room_id, new_idx) = if let Some(room_id) = rooms.get(msg.escalation_idx) {
                 (room_id, msg.escalation_idx)
             } else {
+                is_last = true;
                 (rooms.last().unwrap(), rooms.len() - 1)
             };
 

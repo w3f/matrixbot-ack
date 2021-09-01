@@ -1,7 +1,7 @@
 use crate::processor::{AlertContext, UserConfirmation};
 use crate::webhook::Alert;
 use crate::{AlertId, Result};
-use rocksdb::{ColumnFamilyDescriptor, IteratorMode, Options, DB};
+use rocksdb::{IteratorMode, Options, DB};
 use std::collections::HashMap;
 
 const PENDING: &'static str = "pending_alerts";

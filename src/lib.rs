@@ -5,8 +5,6 @@ extern crate anyhow;
 #[macro_use]
 extern crate serde;
 #[macro_use]
-extern crate actix_web;
-#[macro_use]
 extern crate async_trait;
 
 use actix::clock::sleep;
