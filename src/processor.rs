@@ -243,7 +243,11 @@ impl ToString for UserConfirmation {
     fn to_string(&self) -> String {
         match self {
             UserConfirmation::PendingAlerts(alerts) => {
-                let mut content = String::from("Pending alerts!\n");
+                if alerts.is_empty() {
+                    return format!("No pending alerts!");
+                }
+
+                let mut content = String::from("Pending alerts:\n");
                 for alert in alerts {
                     content.push_str(&alert.to_string());
                 }

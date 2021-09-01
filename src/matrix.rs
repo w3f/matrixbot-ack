@@ -9,8 +9,9 @@ use matrix_sdk::room::{Joined, Room};
 use matrix_sdk::{Client, ClientConfig, EventHandler, SyncSettings};
 use ruma::events::room::message::{MessageType, TextMessageEventContent};
 use ruma::events::AnyMessageEventContent;
-use ruma::RoomId;
+use ruma::{RoomId, UserId};
 use std::convert::TryFrom;
+use std::convert::TryInto;
 use std::sync::Arc;
 use url::Url;
 
@@ -32,8 +33,8 @@ impl MatrixClient {
         // Setup client
         let client_config = ClientConfig::new().store_path(db_path);
 
-        let homeserver = Url::parse(homeserver)?;
-        let client = Client::new_with_config(homeserver, client_config)?;
+        let url = Url::parse(homeserver)?;
+        let client = Client::new_with_config(url, client_config)?;
 
         info!("Login with credentials");
         client
@@ -53,6 +54,13 @@ impl MatrixClient {
         // Add event handler
         client
             .set_event_handler(Box::new(Listener {
+                user_id: UserId::parse_with_server_name(
+                    username,
+                    homeserver
+                        .replace("https://matrix.", "")
+                        .as_str()
+                        .try_into()?,
+                )?,
                 rooms: rooms.clone(),
             }))
             .await;
@@ -73,7 +81,7 @@ impl MatrixClient {
         });
 
         Ok(MatrixClient {
-            rooms: Arc::new(vec![]),
+            rooms: Arc::new(rooms),
             client: Arc::new(client),
         })
     }
@@ -145,6 +153,7 @@ impl SystemService for MatrixClient {}
 impl Supervised for MatrixClient {}
 
 pub struct Listener {
+    user_id: UserId,
     rooms: Vec<RoomId>,
 }
 
@@ -154,6 +163,11 @@ impl EventHandler for Listener {
         if let Room::Joined(room) = room {
             // Check whitelisted room.
             if !self.rooms.contains(room.room_id()) {
+                return;
+            }
+
+            // Ignore own messages.
+            if event.sender == self.user_id {
                 return;
             }
 
@@ -184,7 +198,7 @@ impl EventHandler for Listener {
                             bad_msg(&room).await;
                         }
 
-                        if let Ok(id) = AlertId::from_bytes(parts[1].as_bytes()) {
+                        if let Ok(id) = AlertId::parse_str(parts[1]) {
                             Command::Ack(id)
                         } else {
                             bad_msg(&room).await

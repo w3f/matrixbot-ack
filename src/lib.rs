@@ -27,8 +27,8 @@ impl AlertId {
     fn new() -> Self {
         AlertId(uuid::Uuid::new_v4())
     }
-    fn from_bytes(slice: &[u8]) -> Result<Self> {
-        Ok(AlertId(uuid::Uuid::from_slice(slice)?))
+    fn parse_str(input: &str) -> Result<Self> {
+        Ok(AlertId(uuid::Uuid::parse_str(input)?))
     }
 }
 
@@ -70,6 +70,10 @@ pub async fn run() -> Result<()> {
     info!("Opening config");
     let content = std::fs::read_to_string("config.yaml")?;
     let config: Config = serde_yaml::from_str(&content)?;
+
+    if config.rooms.is_empty() {
+        return Err(anyhow!("No alert rooms have been configured"));
+    }
 
     info!("Setting up database");
     let db = database::Database::new(&config.db_path)?;
