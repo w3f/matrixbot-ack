@@ -1,5 +1,6 @@
-use crate::processor::{Command, Processor, UserAction, UserConfirmation};
+use crate::processor::{Command, NotifyPending, Processor, UserAction, UserConfirmation};
 use crate::{AlertId, Result};
+use actix::prelude::*;
 use actix::SystemService;
 use matrix_sdk::events::room::member::MemberEventContent;
 use matrix_sdk::events::room::message::MessageEventContent;
@@ -12,7 +13,9 @@ use ruma::RoomId;
 use url::Url;
 
 #[derive(Clone)]
-pub struct MatrixClient;
+pub struct MatrixClient {
+    client: Client,
+}
 
 impl MatrixClient {
     pub async fn new(
@@ -20,7 +23,7 @@ impl MatrixClient {
         username: &str,
         password: &str,
         db_path: &str,
-    ) -> Result<()> {
+    ) -> Result<Self> {
         info!("Setting up Matrix client");
         // Setup client
         let client_config = ClientConfig::new().store_path(db_path);
@@ -52,13 +55,37 @@ impl MatrixClient {
         );
 
         // Sync in background.
+        let t_client = client.clone();
         actix::spawn(async move {
-            client.clone().sync(settings).await;
+            t_client.clone().sync(settings).await;
         });
 
-        Ok(())
+        Ok(MatrixClient { client: client })
     }
 }
+
+impl Default for MatrixClient {
+    fn default() -> Self {
+        panic!("Matrix client was not initialized");
+    }
+}
+
+impl Actor for MatrixClient {
+    type Context = Context<Self>;
+}
+
+impl Handler<NotifyPending> for MatrixClient {
+    type Result = ResponseActFuture<Self, Result<()>>;
+
+    fn handle(&mut self, msg: NotifyPending, ctx: &mut Self::Context) -> Self::Result {
+        let f = async move { Ok(()) };
+
+        Box::pin(f.into_actor(self))
+    }
+}
+
+impl SystemService for MatrixClient {}
+impl Supervised for MatrixClient {}
 
 pub struct Listener {
     rooms: Vec<RoomId>,

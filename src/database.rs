@@ -24,12 +24,10 @@ impl Database {
 
         Ok(Database { db: db })
     }
-    pub fn insert_alerts(&self, alerts: Vec<Alert>) -> Result<()> {
+    pub fn insert_alerts(&self, alerts: &[AlertContext]) -> Result<()> {
         let pending = self.db.cf_handle(PENDING).unwrap();
 
         for alert in alerts {
-            let alert = AlertContext::new(alert);
-
             self.db
                 .put_cf(&pending, alert.id, alert.to_bytes().as_slice())?;
         }

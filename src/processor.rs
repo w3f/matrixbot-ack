@@ -70,10 +70,26 @@ pub enum Command {
     Help,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Message)]
+#[rtype(result = "Result<()>")]
+pub struct NotifyPending {
+    escalation_idx: usize,
+    alerts: Vec<AlertContext>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Message)]
 #[rtype(result = "Result<()>")]
 pub struct InsertAlerts {
     alerts: Vec<Alert>,
+}
+
+impl From<InsertAlerts> for Vec<AlertContext> {
+    fn from(val: InsertAlerts) -> Self {
+        val.alerts
+            .into_iter()
+            .map(|alert| AlertContext::new(alert))
+            .collect()
+    }
 }
 
 impl Handler<UserAction> for Processor {
@@ -106,10 +122,16 @@ impl Handler<InsertAlerts> for Processor {
     type Result = Result<()>;
 
     fn handle(&mut self, msg: InsertAlerts, _ctx: &mut Self::Context) -> Self::Result {
-        self.db.insert_alerts(msg.alerts).map_err(|err| {
+        let alerts: Vec<AlertContext> = msg.into();
+
+        // Store alerts in database.
+        self.db.insert_alerts(&alerts).map_err(|err| {
             error!("Failed to insert alerts into database: {:?}", err);
             err
         })
+
+        // Notify rooms.
+        // TODO...
     }
 }
 
