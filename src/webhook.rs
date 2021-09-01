@@ -39,13 +39,16 @@ async fn healthcheck() -> HttpResponse {
 }
 
 async fn insert_alerts(req: web::Json<InsertAlerts>) -> HttpResponse {
-    let res = Processor::from_registry()
-        .send(req.into_inner())
-        .await
-        .unwrap();
+    let alerts = req.into_inner();
+    debug!("New alerts received from webhook: {:?}", alerts);
+
+    let res = Processor::from_registry().send(alerts).await.unwrap();
 
     match res {
         Ok(_) => HttpResponse::Ok().body("OK"),
-        Err(_) => HttpResponse::InternalServerError().finish(),
+        Err(err) => {
+            error!("Failed to process new alerts: {:?}", err);
+            HttpResponse::InternalServerError().finish()
+        }
     }
 }
