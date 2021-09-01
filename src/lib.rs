@@ -10,6 +10,8 @@ extern crate actix_web;
 extern crate async_trait;
 
 use actix::{prelude::*, SystemRegistry};
+use actix::clock::sleep;
+use std::time::Duration;
 
 mod database;
 mod matrix;
@@ -44,10 +46,16 @@ pub async fn run() -> Result<()> {
     let proc = processor::Processor::new(db);
     SystemRegistry::set(proc.start());
 
+    info!("Initializing Matrix client");
+    let matrix = matrix::MatrixClient::new("", "", "", "").await?;
+
     info!("Adding Matrix listener to system registry");
+    SystemRegistry::set(matrix.start());
 
     info!("Starting API server");
     webhook::run_api_server("127.0.0.1:8000").await?;
 
-    Ok(())
+    loop {
+        sleep(Duration::from_secs(u64::MAX)).await;
+    }
 }
