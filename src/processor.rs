@@ -218,6 +218,13 @@ pub enum UserConfirmation {
 
 impl ToString for UserConfirmation {
     fn to_string(&self) -> String {
+        match self {
+            UserConfirmation::PendingAlerts(_) => {
+
+            }
+            _ => {}
+        }
+
         unimplemented!()
     }
 }

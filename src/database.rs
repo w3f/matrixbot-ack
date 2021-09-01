@@ -16,11 +16,11 @@ struct PendingAlertsEntry(HashMap<AlertId, Alert>);
 
 impl Database {
     pub fn new(path: &str) -> Result<Self> {
-        let ops = Options::default();
+        let mut ops = Options::default();
+        ops.create_if_missing(true);
+        ops.create_missing_column_families(true);
 
-        let mut db = DB::open_default(path)?;
-        db.create_cf(PENDING, &ops)?;
-        db.create_cf(HISTORY, &ops)?;
+        let db = DB::open_cf(&ops, path, [PENDING, HISTORY])?;
 
         Ok(Database { db: db })
     }

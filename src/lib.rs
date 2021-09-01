@@ -91,7 +91,7 @@ pub async fn run() -> Result<()> {
     SystemRegistry::set(matrix.start());
 
     info!("Starting API server");
-    webhook::run_api_server(&config.db_path).await?;
+    webhook::run_api_server(&config.listener).await?;
 
     loop {
         sleep(Duration::from_secs(u64::MAX)).await;
