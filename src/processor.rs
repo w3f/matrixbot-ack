@@ -16,8 +16,8 @@ fn unix_time() -> u64 {
         .as_secs()
 }
 
-const ESCALATION_WINDOW: u64 = 60 * 60;
-const CRON_JON_INTERVAL: u64 = 60;
+const ESCALATION_WINDOW: u64 = 60;
+const CRON_JON_INTERVAL: u64 = 10;
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AlertContext {
@@ -48,10 +48,10 @@ impl ToString for AlertContext {
     fn to_string(&self) -> String {
         format!(
             "\
-            - ID: {}\n\
-              Name: {}\n\
-              Severity: {}\n\
-              Message: {}\n\
+            - ID: {}\n  \
+              Name: {}\n  \
+              Severity: {}\n  \
+              Message: {}\n  \
               Description: {}\n\
         ",
             self.id.to_string(),
@@ -93,22 +93,24 @@ impl Actor for Processor {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        let t_db = Arc::clone(&self.db);
+        let db = Arc::clone(&self.db);
 
         ctx.run_interval(
             Duration::from_secs(CRON_JON_INTERVAL),
             move |_proc, _ctx| {
-                let db = Arc::clone(&t_db);
-                futures::executor::block_on(async move {
+                let db = Arc::clone(&db);
+                actix::spawn(async move {
                     let mut pending = db.get_pending().unwrap();
 
                     let now = unix_time();
                     for alert in &mut pending {
                         // If the escalation window of the alert is exceeded...
                         if now > alert.last_notified + ESCALATION_WINDOW {
+                            debug!("Alert escalated: {:?}", alert);
+
                             // Send alert to the matrix client.
                             let new_idx = MatrixClient::from_registry()
-                                .send(NotifyPending {
+                                .send(Escalation {
                                     escalation_idx: alert.escalation_idx + 1,
                                     alerts: vec![alert.clone()],
                                 })
@@ -123,7 +125,7 @@ impl Actor for Processor {
 
                     // Update all alert states.
                     db.insert_alerts(&pending).unwrap();
-                })
+                });
             },
         );
     }
@@ -148,7 +150,7 @@ pub enum Command {
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "Result<usize>")]
-pub struct NotifyPending {
+pub struct Escalation {
     pub escalation_idx: usize,
     pub alerts: Vec<AlertContext>,
 }
@@ -215,7 +217,7 @@ impl Handler<InsertAlerts> for Processor {
             // Notify rooms.
             debug!("Notifying rooms about new alerts");
             let _ = MatrixClient::from_registry()
-                .send(NotifyPending {
+                .send(Escalation {
                     escalation_idx: 0,
                     alerts: alerts,
                 })
@@ -255,13 +257,13 @@ impl ToString for UserConfirmation {
                 content
             }
             UserConfirmation::AlertOutOfScope => {
-                format!("The alert has already reached the next escalation level. Cannot be acknowledged")
+                format!("The alert has already reached the next escalation level. It cannot be acknowledged!")
             }
             UserConfirmation::AlertAcknowledged(id) => {
-                format!("Alert {} has been acknowledged", id.to_string())
+                format!("Alert {} has been acknowledged.", id.to_string())
             }
             UserConfirmation::AlertNotFound => {
-                format!("The alert Id has not been found")
+                format!("The alert Id has not been found!")
             }
             UserConfirmation::Help => {
                 format!("ack <ID> - Acknowledge an alert by id\npending - Show pending alerts\nhelp - Show this help message")

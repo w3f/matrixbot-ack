@@ -1,4 +1,4 @@
-use crate::processor::{Command, NotifyPending, Processor, UserAction, UserConfirmation};
+use crate::processor::{Command, Escalation, Processor, UserAction, UserConfirmation};
 use crate::{AlertId, Result};
 use actix::prelude::*;
 use actix::SystemService;
@@ -115,27 +115,47 @@ impl Actor for MatrixClient {
     type Context = Context<Self>;
 }
 
-impl Handler<NotifyPending> for MatrixClient {
+impl Handler<Escalation> for MatrixClient {
     type Result = ResponseActFuture<Self, Result<usize>>;
 
-    fn handle(&mut self, msg: NotifyPending, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: Escalation, ctx: &mut Self::Context) -> Self::Result {
         let client = Arc::clone(&self.client);
         let rooms = Arc::clone(&self.rooms);
 
         let f = async move {
             // Determine which rooms to send the alerts to.
+            let mut is_last = false;
             let (room_id, new_idx) = if let Some(room_id) = rooms.get(msg.escalation_idx) {
                 (room_id, msg.escalation_idx)
             } else {
                 (rooms.last().unwrap(), rooms.len() - 1)
             };
 
-            if new_idx == 0 {
-                client
-                    .send_msg(room_id, "🚨 NEW ALERTS OCCURRED!")
-                    .await
-                    .unwrap();
+            let intro = if new_idx == 0 {
+                "⚠️ Alert occurred!"
+            } else {
+                if !is_last {
+                    // Notify current room that missed to acknowledge the alert.
+                    debug!("Notifying current room about escalation");
+                    client
+                        .send_msg(
+                            rooms.get(new_idx - 1).unwrap(),
+                            "🚨 ESCAlATION OCCURRED! Notifying next room!",
+                        )
+                        .await
+                        .unwrap();
+                }
+
+                "🚨 ESCAlATION OCCURRED!"
+            };
+
+            if is_last {
+                warn!("Notifying final room about escalation");
+            } else {
+                debug!("Notifying *next* room about escalation");
             }
+
+            client.send_msg(room_id, intro).await.unwrap();
 
             // Send alerts to room.
             for alert in msg.alerts {
