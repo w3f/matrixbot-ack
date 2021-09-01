@@ -14,9 +14,8 @@ COPY Cargo.lock Cargo.lock
 COPY Cargo.toml Cargo.toml
 
 RUN mkdir src/
-RUN mkdir src/bin
 RUN touch src/lib.rs
-RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > src/bin/main.rs
+RUN echo "fn main() {println!(\"if you see this, the build broke\")}" > src/main.rs
 
 RUN cargo build --release
 
