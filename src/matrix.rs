@@ -127,8 +127,6 @@ impl Handler<NotifyPending> for MatrixClient {
                     .send_msg(room_id, "🚨 NEW ALERTS OCCURRED!")
                     .await
                     .unwrap();
-            } else {
-                client.send_msg(room_id, "PENDING ALERT:").await.unwrap();
             }
 
             // Send alerts to room.

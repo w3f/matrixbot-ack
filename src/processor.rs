@@ -46,7 +46,30 @@ impl AlertContext {
 
 impl ToString for AlertContext {
     fn to_string(&self) -> String {
-        unimplemented!()
+        format!(
+            "\
+            - ID: {}\n\
+              Name: {}\n\
+              Severity: {}\n\
+              Message: {}\n\
+              Description: {}\n\
+        ",
+            self.id.to_string(),
+            self.alert.labels.alert_name,
+            self.alert.labels.severity,
+            self.alert
+                .annotations
+                .message
+                .as_ref()
+                .map(|s| s.as_str())
+                .unwrap_or(&"N/A"),
+            self.alert
+                .annotations
+                .description
+                .as_ref()
+                .map(|s| s.as_str())
+                .unwrap_or(&"N/A")
+        )
     }
 }
 
@@ -219,12 +242,29 @@ pub enum UserConfirmation {
 impl ToString for UserConfirmation {
     fn to_string(&self) -> String {
         match self {
-            UserConfirmation::PendingAlerts(_) => {
+            UserConfirmation::PendingAlerts(alerts) => {
+                let mut content = String::from("Pending alerts!\n");
+                for alert in alerts {
+                    content.push_str(&alert.to_string());
+                }
 
+                content
             }
-            _ => {}
+            UserConfirmation::AlertOutOfScope => {
+                format!("The alert has already reached the next escalation level. Cannot be acknowledged")
+            }
+            UserConfirmation::AlertAcknowledged(id) => {
+                format!("Alert {} has been acknowledged", id.to_string())
+            }
+            UserConfirmation::AlertNotFound => {
+                format!("The alert Id has not been found")
+            }
+            UserConfirmation::Help => {
+                format!("ack <ID> - Acknowledge an alert by id\npending - Show pending alerts\nhelp - Show this help message")
+            }
+            UserConfirmation::InternalError => {
+                format!("There was an internal error. Please contact the admin.")
+            }
         }
-
-        unimplemented!()
     }
 }

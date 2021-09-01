@@ -5,21 +5,21 @@ use actix_web::{web, App, Error as ActixError, HttpRequest, HttpResponse, HttpSe
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Alert {
-    annotations: Annotations,
-    labels: Labels,
+    pub annotations: Annotations,
+    pub labels: Labels,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Annotations {
-    message: Option<String>,
-    description: Option<String>,
+    pub message: Option<String>,
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Labels {
-    severity: String,
+    pub severity: String,
     #[serde(rename = "alertname")]
-    alert_name: String,
+    pub alert_name: String,
 }
 
 pub async fn run_api_server(endpoint: &str) -> Result<()> {
