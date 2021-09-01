@@ -99,7 +99,7 @@ impl SendMsg for Client {
 
 impl Default for MatrixClient {
     fn default() -> Self {
-        panic!("Matrix client was not initialized");
+        panic!("Matrix client was not initialized in system registry. This is a bug.");
     }
 }
 
@@ -169,7 +169,7 @@ impl EventHandler for Listener {
                 return;
             };
 
-            debug!("Received message from {}", event.sender);
+            debug!("Received message from {}: {}", event.sender, msg_body);
 
             let cmd = match msg_body.trim() {
                 "pending" => Command::Pending,

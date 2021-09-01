@@ -62,7 +62,7 @@ impl Processor {
 
 impl Default for Processor {
     fn default() -> Self {
-        panic!("Processor was not initialized");
+        panic!("Processor was not initialized in system registry. This is a bug.");
     }
 }
 
@@ -151,7 +151,10 @@ impl Handler<UserAction> for Processor {
     fn handle(&mut self, msg: UserAction, _ctx: &mut Self::Context) -> Self::Result {
         fn local(proc: &Processor, msg: UserAction) -> Result<UserConfirmation> {
             match msg.command {
-                Command::Ack(id) => proc.db.acknowledge_alert(msg.escalation_idx, &id),
+                Command::Ack(id) => {
+                    info!("Acknowledging alert Id: {}", id.to_string());
+                    proc.db.acknowledge_alert(msg.escalation_idx, &id)
+                }
                 Command::Pending => proc
                     .db
                     .get_pending()
@@ -187,6 +190,7 @@ impl Handler<InsertAlerts> for Processor {
             })?;
 
             // Notify rooms.
+            debug!("Notifying rooms about new alerts");
             let _ = MatrixClient::from_registry()
                 .send(NotifyPending {
                     escalation_idx: 0,

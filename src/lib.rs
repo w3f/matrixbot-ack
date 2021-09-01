@@ -32,6 +32,12 @@ impl AlertId {
     }
 }
 
+impl ToString for AlertId {
+    fn to_string(&self) -> String {
+        self.0.to_string()
+    }
+}
+
 impl AsRef<[u8]> for AlertId {
     fn as_ref(&self) -> &[u8] {
         &self.0.as_bytes()[..]
