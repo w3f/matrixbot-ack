@@ -21,8 +21,11 @@ spec:
           volumeMounts:
           - name: config
             mountPath: /app
-          - name: db
-            mountPath: "/app/{{ .Values.config.db_path }}"
+          # - name: db
+          #   mountPath: "/app/{{ .Values.config.db_path }}"
+          ports:
+          - name: http
+            containerPort: 8000
           livenessProbe:
             httpGet:
               path: /healthcheck
@@ -33,10 +36,10 @@ spec:
       - name: config
         configMap:
           name: {{ .Release.Name }}
-      - name: db
-        {{ if and (ne .Values.environment "ci") (ne .Values.environment "local") }}
-        persistentVolumeClaim:
-          claimName: {{ .Release.Name }}-db
-        {{ else }}
-        emptyDir: {}
-        {{ end }}
+      # - name: db
+      #   {{ if and (ne .Values.environment "ci") (ne .Values.environment "local") }}
+      #   persistentVolumeClaim:
+      #     claimName: {{ .Release.Name }}-db
+      #   {{ else }}
+      #   emptyDir: {}
+      #   {{ end }}
