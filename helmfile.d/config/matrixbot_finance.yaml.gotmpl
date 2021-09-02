@@ -6,6 +6,7 @@ config:
     password: {{ env "MATRIX_PASSWORD" }}
     db_path: matrix.db
   listener: 127.0.0.1:8000
+  escalation_window: 60
   rooms:
     - {{ env "ESCALATION_ROOM_1" }}
     - {{ env "ESCALATION_ROOM_2" }}

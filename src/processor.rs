@@ -16,8 +16,7 @@ fn unix_time() -> u64 {
         .as_secs()
 }
 
-const ESCALATION_WINDOW: u64 = 60;
-const CRON_JON_INTERVAL: u64 = 10;
+const CRON_JON_INTERVAL: u64 = 5;
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AlertContext {
@@ -75,11 +74,15 @@ impl ToString for AlertContext {
 
 pub struct Processor {
     db: Arc<Database>,
+    escalation_window: u64,
 }
 
 impl Processor {
-    pub fn new(db: Database) -> Self {
-        Processor { db: Arc::new(db) }
+    pub fn new(db: Database, escalation_window: u64) -> Self {
+        Processor {
+            db: Arc::new(db),
+            escalation_window: escalation_window,
+        }
     }
 }
 
@@ -94,6 +97,7 @@ impl Actor for Processor {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         let db = Arc::clone(&self.db);
+        let escalation_window = self.escalation_window;
 
         ctx.run_interval(
             Duration::from_secs(CRON_JON_INTERVAL),
@@ -105,7 +109,7 @@ impl Actor for Processor {
                     let now = unix_time();
                     for alert in &mut pending {
                         // If the escalation window of the alert is exceeded...
-                        if now > alert.last_notified + ESCALATION_WINDOW {
+                        if now > alert.last_notified + escalation_window {
                             debug!("Alert escalated: {:?}", alert);
 
                             // Send alert to the matrix client.

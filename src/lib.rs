@@ -47,6 +47,7 @@ struct Config {
     db_path: String,
     matrix: MatrixConfig,
     listener: String,
+    escalation_window: u64,
     rooms: Vec<String>,
 }
 
@@ -77,7 +78,7 @@ pub async fn run() -> Result<()> {
     let db = database::Database::new(&config.db_path)?;
 
     info!("Adding message processor to system registry");
-    let proc = processor::Processor::new(db);
+    let proc = processor::Processor::new(db, config.escalation_window);
     SystemRegistry::set(proc.start());
 
     info!("Initializing Matrix client");

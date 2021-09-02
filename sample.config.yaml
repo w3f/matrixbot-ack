@@ -5,6 +5,7 @@ matrix:
   password: password
   db_path: matrix.db
 listener: 127.0.0.1:8000
+escalation_window: 60
 rooms:
   - "!abcdefg:matrix.org"
   - "!hijklmn:matrix.org"
