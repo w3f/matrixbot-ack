@@ -66,7 +66,12 @@ pub async fn run() -> Result<()> {
 
     info!("Logger initialized");
 
-    info!("Opening config");
+    info!(
+        "Opening config at {}",
+        std::fs::canonicalize("config.yaml")?
+            .to_str()
+            .ok_or(anyhow!("Path to config is not valid unicode"))?
+    );
     let content = std::fs::read_to_string("config.yaml")?;
     let config: Config = serde_yaml::from_str(&content)?;
 
@@ -74,7 +79,12 @@ pub async fn run() -> Result<()> {
         return Err(anyhow!("No alert rooms have been configured"));
     }
 
-    info!("Setting up database");
+    info!(
+        "Setting up database {}",
+        std::fs::canonicalize(&config.db_path)?
+            .to_str()
+            .ok_or(anyhow!("Path to database is not valid unicode"))?
+    );
     let db = database::Database::new(&config.db_path)?;
 
     info!("Adding message processor to system registry");
