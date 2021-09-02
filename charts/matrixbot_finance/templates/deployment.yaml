@@ -21,18 +21,18 @@ spec:
           volumeMounts:
           - name: config
             mountPath: /app
-          {{ if .Values.backendPort }}
-          ports:
-          - name: api
-            containerPort: {{ .Values.backendPort }}
+          - name: db
+            mountPath: "/app/{{ .Values.config.db_path }}"
           livenessProbe:
             httpGet:
               path: /healthcheck
-              port: {{ .Values.backendPort }}
+              port: 8000
             initialDelaySeconds: 10
             timeoutSeconds: 200
-          {{ end }}
       volumes:
       - name: config
         configMap:
           name: {{ .Release.Name }}
+      - name: db
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-db
