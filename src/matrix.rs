@@ -140,13 +140,13 @@ impl Handler<Escalation> for MatrixClient {
                     client
                         .send_msg(
                             rooms.get(new_idx - 1).unwrap(),
-                            "🚨 ESCAlATION OCCURRED! Notifying next room!",
+                            "🚨 ESCALATION OCCURRED! Notifying next room!",
                         )
                         .await
                         .unwrap();
                 }
 
-                "🚨 ESCAlATION OCCURRED!"
+                "🚨 ESCALATION OCCURRED!"
             };
 
             if is_last {
