@@ -60,9 +60,8 @@ struct MatrixConfig {
     db_path: String,
 }
 
-/// A basic example
 #[derive(StructOpt, Debug)]
-#[structopt(name = "basic")]
+#[structopt(name = "matrixbot")]
 struct Cli {
     #[structopt(short, long)]
     config: String,
