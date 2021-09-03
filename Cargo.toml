@@ -29,3 +29,4 @@ uuid = { version = "0.8.2", features = [ "v4", "serde" ] }
 url = "2.2.2"
 async-trait = "0.1.51"
 futures = "0.3.17"
+structopt = "0.3.23"

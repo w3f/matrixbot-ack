@@ -10,6 +10,7 @@ extern crate async_trait;
 use actix::clock::sleep;
 use actix::{prelude::*, SystemRegistry};
 use std::time::Duration;
+use structopt::StructOpt;
 
 mod database;
 mod matrix;
@@ -59,22 +60,41 @@ struct MatrixConfig {
     db_path: String,
 }
 
+#[derive(StructOpt, Debug)]
+#[structopt(name = "matrixbot")]
+struct Cli {
+    #[structopt(short, long)]
+    config: String,
+}
+
 pub async fn run() -> Result<()> {
+    let cli = Cli::from_args();
+
     env_logger::builder()
         .filter_module("system", log::LevelFilter::Debug)
         .init();
 
     info!("Logger initialized");
 
-    info!("Opening config");
-    let content = std::fs::read_to_string("config.yaml")?;
+    info!(
+        "Opening config at {}",
+        std::fs::canonicalize(&cli.config)?
+            .to_str()
+            .ok_or(anyhow!("Path to config is not valid unicode"))?
+    );
+    let content = std::fs::read_to_string(&cli.config)?;
     let config: Config = serde_yaml::from_str(&content)?;
 
     if config.rooms.is_empty() {
         return Err(anyhow!("No alert rooms have been configured"));
     }
 
-    info!("Setting up database");
+    info!(
+        "Setting up database {}",
+        std::fs::canonicalize(&config.db_path)?
+            .to_str()
+            .ok_or(anyhow!("Path to database is not valid unicode"))?
+    );
     let db = database::Database::new(&config.db_path)?;
 
     info!("Adding message processor to system registry");
