@@ -18,11 +18,14 @@ spec:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+          - -c
+          - "/app/config/config.yaml"
           volumeMounts:
           - name: config
-            mountPath: /app
-          # - name: db
-          #   mountPath: "/app/{{ .Values.config.db_path }}"
+            mountPath: /app/config
+          - name: db
+            mountPath: {{ dir .Values.config.db_path }}
           ports:
           - name: http
             containerPort: 8000
@@ -36,10 +39,10 @@ spec:
       - name: config
         configMap:
           name: {{ .Release.Name }}
-      # - name: db
-      #   {{ if and (ne .Values.environment "ci") (ne .Values.environment "local") }}
-      #   persistentVolumeClaim:
-      #     claimName: {{ .Release.Name }}-db
-      #   {{ else }}
-      #   emptyDir: {}
-      #   {{ end }}
+      - name: db
+        {{ if and (ne .Values.environment "ci") (ne .Values.environment "local") }}
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-db
+        {{ else }}
+        emptyDir: {}
+        {{ end }}

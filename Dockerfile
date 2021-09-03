@@ -39,4 +39,4 @@ RUN update-ca-certificates --fresh
 
 COPY --from=builder /app/target/release/matrixbot /usr/local/bin
 
-CMD ["/usr/local/bin/matrixbot"]
+ENTRYPOINT ["/usr/local/bin/matrixbot"]
