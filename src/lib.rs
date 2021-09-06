@@ -90,10 +90,7 @@ pub async fn run() -> Result<()> {
     }
 
     info!(
-        "Setting up database {}",
-        std::fs::canonicalize(&config.db_path)?
-            .to_str()
-            .ok_or(anyhow!("Path to database is not valid unicode"))?
+      "Setting up database {}", &config.db_path
     );
     let db = database::Database::new(&config.db_path)?;
 

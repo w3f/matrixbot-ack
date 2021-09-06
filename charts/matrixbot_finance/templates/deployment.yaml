@@ -18,11 +18,17 @@ spec:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+          - -c
+          - "/app/config/config.yaml"
           volumeMounts:
           - name: config
-            mountPath: /app
+            mountPath: /app/config
           - name: db
-            mountPath: "/app/{{ .Values.config.db_path }}"
+            mountPath: {{ dir .Values.config.db_path }}
+          ports:
+          - name: http
+            containerPort: 8000
           livenessProbe:
             httpGet:
               path: /healthcheck

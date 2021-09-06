@@ -36,8 +36,9 @@ impl MatrixClient {
         let client = Client::new_with_config(url, client_config)?;
 
         info!("Login with credentials");
+        //TODO should be configurable
         client
-            .login(username, password, None, Some("w3f-registrar-bot"))
+            .login(username, password, None, Some("matrixbot-ack-test2"))
             .await?;
 
         // Sync up, avoid responding to old messages.
