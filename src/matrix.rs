@@ -8,9 +8,8 @@ use matrix_sdk::room::{Joined, Room};
 use matrix_sdk::{Client, ClientConfig, EventHandler, SyncSettings};
 use ruma::events::room::message::{MessageType, TextMessageEventContent};
 use ruma::events::AnyMessageEventContent;
-use ruma::{RoomId, UserId};
+use ruma::RoomId;
 use std::convert::TryFrom;
-use std::convert::TryInto;
 use std::sync::Arc;
 use url::Url;
 
@@ -26,6 +25,7 @@ impl MatrixClient {
         username: &str,
         password: &str,
         db_path: &str,
+        device_name: &str,
         rooms: Vec<String>,
     ) -> Result<Self> {
         info!("Setting up Matrix client");
@@ -36,9 +36,8 @@ impl MatrixClient {
         let client = Client::new_with_config(url, client_config)?;
 
         info!("Login with credentials");
-        //TODO should be configurable
         client
-            .login(username, password, None, Some("matrixbot-ack-test2"))
+            .login(username, password, None, Some(device_name))
             .await?;
 
         // Sync up, avoid responding to old messages.
@@ -54,13 +53,6 @@ impl MatrixClient {
         // Add event handler
         client
             .set_event_handler(Box::new(Listener {
-                user_id: UserId::parse_with_server_name(
-                    username,
-                    homeserver
-                        .replace("https://matrix.", "")
-                        .as_str()
-                        .try_into()?,
-                )?,
                 rooms: rooms.clone(),
             }))
             .await;
@@ -174,7 +166,6 @@ impl SystemService for MatrixClient {}
 impl Supervised for MatrixClient {}
 
 pub struct Listener {
-    user_id: UserId,
     rooms: Vec<RoomId>,
 }
 
@@ -188,7 +179,7 @@ impl EventHandler for Listener {
             }
 
             // Ignore own messages.
-            if event.sender == self.user_id {
+            if &event.sender == room.own_user_id() {
                 return;
             }
 

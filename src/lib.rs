@@ -58,6 +58,7 @@ struct MatrixConfig {
     username: String,
     password: String,
     db_path: String,
+    device_name: String,
 }
 
 #[derive(StructOpt, Debug)]
@@ -89,9 +90,7 @@ pub async fn run() -> Result<()> {
         return Err(anyhow!("No alert rooms have been configured"));
     }
 
-    info!(
-      "Setting up database {}", &config.db_path
-    );
+    info!("Setting up database {}", &config.db_path);
     let db = database::Database::new(&config.db_path)?;
 
     info!("Adding message processor to system registry");
@@ -104,6 +103,7 @@ pub async fn run() -> Result<()> {
         &config.matrix.username,
         &config.matrix.password,
         &config.matrix.db_path,
+        &config.matrix.device_name,
         config.rooms,
     )
     .await?;
