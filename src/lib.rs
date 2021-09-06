@@ -46,19 +46,10 @@ impl AsRef<[u8]> for AlertId {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Config {
     db_path: String,
-    matrix: MatrixConfig,
+    matrix: matrix::MatrixConfig,
     listener: String,
     escalation_window: u64,
     rooms: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct MatrixConfig {
-    homeserver: String,
-    username: String,
-    password: String,
-    db_path: String,
-    device_name: String,
 }
 
 #[derive(StructOpt, Debug)]
@@ -98,15 +89,7 @@ pub async fn run() -> Result<()> {
     SystemRegistry::set(proc.start());
 
     info!("Initializing Matrix client");
-    let matrix = matrix::MatrixClient::new(
-        &config.matrix.homeserver,
-        &config.matrix.username,
-        &config.matrix.password,
-        &config.matrix.db_path,
-        &config.matrix.device_name,
-        config.rooms,
-    )
-    .await?;
+    let matrix = matrix::MatrixClient::new(&config.matrix, config.rooms).await?;
 
     SystemRegistry::set(matrix.start());
 

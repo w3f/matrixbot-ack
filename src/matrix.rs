@@ -13,6 +13,15 @@ use std::convert::TryFrom;
 use std::sync::Arc;
 use url::Url;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MatrixConfig {
+    homeserver: String,
+    username: String,
+    password: String,
+    db_path: String,
+    device_name: String,
+}
+
 #[derive(Clone)]
 pub struct MatrixClient {
     rooms: Arc<Vec<RoomId>>,
@@ -20,24 +29,22 @@ pub struct MatrixClient {
 }
 
 impl MatrixClient {
-    pub async fn new(
-        homeserver: &str,
-        username: &str,
-        password: &str,
-        db_path: &str,
-        device_name: &str,
-        rooms: Vec<String>,
-    ) -> Result<Self> {
+    pub async fn new(config: &MatrixConfig, rooms: Vec<String>) -> Result<Self> {
         info!("Setting up Matrix client");
         // Setup client
-        let client_config = ClientConfig::new().store_path(db_path);
+        let client_config = ClientConfig::new().store_path(&config.db_path);
 
-        let url = Url::parse(homeserver)?;
+        let url = Url::parse(&config.homeserver)?;
         let client = Client::new_with_config(url, client_config)?;
 
         info!("Login with credentials");
         client
-            .login(username, password, None, Some(device_name))
+            .login(
+                &config.username,
+                &config.password,
+                None,
+                Some(&config.device_name),
+            )
             .await?;
 
         // Sync up, avoid responding to old messages.
