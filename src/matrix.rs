@@ -224,7 +224,7 @@ impl EventHandler for Listener {
                             bad_msg(&room).await
                         }
                     } else {
-                        bad_msg(&room).await
+                        return
                     }
                 }
             };
