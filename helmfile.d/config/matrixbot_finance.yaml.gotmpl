@@ -5,6 +5,8 @@ config:
     username: {{ env "MATRIX_USERNAME" }}
     password: {{ env "MATRIX_PASSWORD" }}
     db_path: matrix.db
+    device_name: {{ env "MATRIX_DEVICE_NAME" }}
+    device_id: {{ env "MATRIX_DEVICE_ID" }}
   listener: 127.0.0.1:8000
   escalation_window: 60
   rooms:
