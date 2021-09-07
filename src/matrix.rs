@@ -20,6 +20,7 @@ pub struct MatrixConfig {
     password: String,
     db_path: String,
     device_name: String,
+    device_id: String,
 }
 
 #[derive(Clone)]
@@ -42,7 +43,7 @@ impl MatrixClient {
             .login(
                 &config.username,
                 &config.password,
-                None,
+                Some(&config.device_id),
                 Some(&config.device_name),
             )
             .await?;
