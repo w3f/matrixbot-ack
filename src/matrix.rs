@@ -214,17 +214,17 @@ impl EventHandler for Listener {
                 txt @ _ => {
                     if txt.starts_with("ack") || txt.starts_with("acknowledge") {
                         let parts: Vec<&str> = txt.split(" ").collect();
-                        if parts.len() != 2 {
-                            bad_msg(&room).await;
-                        }
-
-                        if let Ok(id) = AlertId::parse_str(parts[1]) {
-                            Command::Ack(id)
+                        if parts.len() == 2 {
+                            if let Ok(id) = AlertId::parse_str(parts[1]) {
+                                Command::Ack(id)
+                            } else {
+                                bad_msg(&room).await
+                            }
                         } else {
                             bad_msg(&room).await
                         }
                     } else {
-                        return
+                        return;
                     }
                 }
             };
