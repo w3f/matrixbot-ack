@@ -220,6 +220,9 @@ impl EventHandler for Listener {
 
             debug!("Received message from {}: {}", event.sender, msg_body);
 
+            // For convenience.
+            let msg_body = msg_body.replace("  ", " ");
+
             let cmd = match msg_body.trim() {
                 "pending" => Command::Pending,
                 "help" => Command::Help,

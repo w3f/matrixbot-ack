@@ -9,6 +9,7 @@ extern crate async_trait;
 
 use actix::clock::sleep;
 use actix::{prelude::*, SystemRegistry};
+use rand::prelude::*;
 use std::time::Duration;
 use structopt::StructOpt;
 
@@ -19,15 +20,17 @@ mod webhook;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;
 
-#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
-pub struct AlertId(uuid::Uuid);
+#[derive(Debug, Clone, Eq, Hash, PartialEq, Serialize, Deserialize)]
+pub struct AlertId(String);
 
 impl AlertId {
     fn new() -> Self {
-        AlertId(uuid::Uuid::new_v4())
+        let mut rng = rand::thread_rng();
+        let random: [u8; 32] = rng.gen();
+        AlertId(format!("{:x}", md5::compute(&random)))
     }
     fn parse_str(input: &str) -> Result<Self> {
-        Ok(AlertId(uuid::Uuid::parse_str(input)?))
+        Ok(AlertId(input.to_string()))
     }
 }
 

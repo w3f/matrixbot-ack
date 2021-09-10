@@ -29,7 +29,7 @@ impl Database {
 
         for alert in alerts {
             self.db
-                .put_cf(&pending, alert.id, alert.to_bytes().as_slice())?;
+                .put_cf(&pending, alert.id.clone(), alert.to_bytes().as_slice())?;
         }
 
         Ok(())
@@ -51,7 +51,7 @@ impl Database {
             self.db.put_cf(history, id, &alert)?;
             self.db.delete_cf(pending, id)?;
 
-            Ok(UserConfirmation::AlertAcknowledged(*id))
+            Ok(UserConfirmation::AlertAcknowledged(id.clone()))
         } else {
             Ok(UserConfirmation::AlertNotFound)
         }
