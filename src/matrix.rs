@@ -141,7 +141,19 @@ impl Handler<Escalation> for MatrixClient {
                     client
                         .send_msg(
                             rooms.get(new_idx - 1).unwrap(),
-                            "🚨 ESCALATION OCCURRED! Notifying next room!",
+                            &format!(
+                                "🚨 ESCALATION OCCURRED! Notifying next room regarding Alerts: {}",
+                                {
+                                    let mut list = String::new();
+                                    for alert in &msg.alerts {
+                                        list.push_str(&format!("{}, ", alert.to_string()));
+                                    }
+
+                                    list.pop();
+                                    list.pop();
+                                    list
+                                }
+                            ),
                         )
                         .await
                         .unwrap();
