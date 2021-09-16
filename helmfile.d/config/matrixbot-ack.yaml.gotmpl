@@ -1,0 +1,9 @@
+config:
+  matrix:
+    homeserver: {{ env "MATRIX_HOMESERVER" }}
+    username: {{ env "MATRIX_USERNAME" }}
+    password: {{ env "MATRIX_PASSWORD" }}
+    device_name: cicd-test
+    device_id: {{ env "MATRIX_DEVICE_ID_CICD" }}
+  rooms:
+    - {{ env "ESCALATION_ROOM_2" }}
