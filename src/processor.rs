@@ -6,6 +6,8 @@ use actix::prelude::*;
 use std::sync::Arc;
 use std::time::Duration;
 
+const CRON_JON_INTERVAL: u64 = 5;
+
 fn unix_time() -> u64 {
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -16,8 +18,6 @@ fn unix_time() -> u64 {
         .as_secs()
 }
 
-const CRON_JON_INTERVAL: u64 = 5;
-
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AlertContext {
     pub id: AlertId,
@@ -27,9 +27,9 @@ pub struct AlertContext {
 }
 
 impl AlertContext {
-    pub fn new(alert: Alert) -> Self {
+    pub fn new(alert: Alert, id: AlertId) -> Self {
         AlertContext {
-            id: AlertId::new(),
+            id: id,
             alert: alert,
             escalation_idx: 0,
             last_notified: unix_time(),
@@ -165,15 +165,6 @@ pub struct InsertAlerts {
     alerts: Vec<Alert>,
 }
 
-impl From<InsertAlerts> for Vec<AlertContext> {
-    fn from(val: InsertAlerts) -> Self {
-        val.alerts
-            .into_iter()
-            .map(|alert| AlertContext::new(alert))
-            .collect()
-    }
-}
-
 impl Handler<UserAction> for Processor {
     type Result = MessageResult<UserAction>;
 
@@ -182,7 +173,7 @@ impl Handler<UserAction> for Processor {
             match msg.command {
                 Command::Ack(id) => {
                     info!("Acknowledging alert Id: {}", id.to_string());
-                    proc.db.acknowledge_alert(msg.escalation_idx, &id)
+                    proc.db.acknowledge_alert(msg.escalation_idx, id)
                 }
                 Command::Pending => proc
                     .db
@@ -209,8 +200,29 @@ impl Handler<InsertAlerts> for Processor {
     fn handle(&mut self, msg: InsertAlerts, _ctx: &mut Self::Context) -> Self::Result {
         let db = Arc::clone(&self.db);
 
+        /*
+        -impl From<InsertAlerts> for Vec<AlertContext> {
+        -    fn from(val: InsertAlerts) -> Self {
+        -        val.alerts
+        -            .into_iter()
+        -            .map(|alert| AlertContext::new(alert))
+        -            .collect()
+        -    }
+        -}
+        */
+
         let f = async move {
-            let alerts: Vec<AlertContext> = msg.into();
+            let mut next_id = db.get_next_id()?;
+
+            let alerts: Vec<AlertContext> = msg
+                .alerts
+                .into_iter()
+                .map(|alert| {
+                    let a = AlertContext::new(alert, next_id);
+                    next_id = next_id.incr();
+                    a
+                })
+                .collect();
 
             // Store alerts in database.
             db.insert_alerts(&alerts).map_err(|err| {

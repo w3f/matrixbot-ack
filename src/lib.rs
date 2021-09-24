@@ -9,7 +9,6 @@ extern crate async_trait;
 
 use actix::clock::sleep;
 use actix::{prelude::*, SystemRegistry};
-use rand::prelude::*;
 use std::time::Duration;
 use structopt::StructOpt;
 
@@ -20,29 +19,39 @@ mod webhook;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;
 
-#[derive(Debug, Clone, Eq, Hash, PartialEq, Serialize, Deserialize)]
-pub struct AlertId(String);
+#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
+pub struct AlertId(u64);
 
 impl AlertId {
-    fn new() -> Self {
-        let mut rng = rand::thread_rng();
-        let random: [u8; 32] = rng.gen();
-        AlertId(format!("{:x}", md5::compute(&random)))
+    pub fn from_le_bytes(bytes: &[u8]) -> Result<Self> {
+        if bytes.len() != 8 {
+            return Err(anyhow!("failed to fetch current id, invalid length"));
+        }
+
+        let mut id = [0; 8];
+        id.copy_from_slice(&bytes);
+        Ok(AlertId(u64::from_le_bytes(id)))
     }
-    fn parse_str(input: &str) -> Result<Self> {
-        Ok(AlertId(input.to_string()))
+    pub fn from_str(str: &str) -> Result<Self> {
+        Ok(AlertId(str.parse()?))
+    }
+    pub fn incr(self) -> Self {
+        AlertId(self.0 + 1)
+    }
+    pub fn to_le_bytes(self) -> [u8; 8] {
+        self.0.to_le_bytes()
+    }
+}
+
+impl From<u64> for AlertId {
+    fn from(val: u64) -> Self {
+        AlertId(val)
     }
 }
 
 impl ToString for AlertId {
     fn to_string(&self) -> String {
         self.0.to_string()
-    }
-}
-
-impl AsRef<[u8]> for AlertId {
-    fn as_ref(&self) -> &[u8] {
-        &self.0.as_bytes()[..]
     }
 }
 

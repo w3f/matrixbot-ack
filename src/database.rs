@@ -6,6 +6,7 @@ use std::collections::HashMap;
 
 const PENDING: &'static str = "pending_alerts";
 const HISTORY: &'static str = "history";
+const ID_CURSOR: &'static str = "id_cursor";
 
 pub struct Database {
     db: DB,
@@ -28,19 +29,32 @@ impl Database {
         let pending = self.db.cf_handle(PENDING).unwrap();
 
         for alert in alerts {
-            self.db
-                .put_cf(&pending, alert.id.clone(), alert.to_bytes().as_slice())?;
+            self.db.put_cf(
+                &pending,
+                alert.id.to_le_bytes(),
+                alert.to_bytes().as_slice(),
+            )?;
         }
 
         Ok(())
     }
+    pub fn get_next_id(&self) -> Result<AlertId> {
+        let cursor = self.db.cf_handle(ID_CURSOR).unwrap();
+
+        if let Some(id) = self.db.get_cf(cursor, "current_id")? {
+            AlertId::from_le_bytes(&id)
+        } else {
+            Ok(AlertId::from(0))
+        }
+    }
     pub fn acknowledge_alert(
         &self,
         escalation_idx: usize,
-        id: &AlertId,
+        alert_id: AlertId,
     ) -> Result<UserConfirmation> {
         let pending = self.db.cf_handle(PENDING).unwrap();
         let history = self.db.cf_handle(HISTORY).unwrap();
+        let id = alert_id.to_le_bytes();
 
         if let Some(alert) = self.db.get_cf(pending, id)? {
             let ctx = AlertContext::from_bytes(alert.as_slice())?;
@@ -51,7 +65,7 @@ impl Database {
             self.db.put_cf(history, id, &alert)?;
             self.db.delete_cf(pending, id)?;
 
-            Ok(UserConfirmation::AlertAcknowledged(id.clone()))
+            Ok(UserConfirmation::AlertAcknowledged(alert_id))
         } else {
             Ok(UserConfirmation::AlertNotFound)
         }
