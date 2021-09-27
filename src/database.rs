@@ -21,7 +21,7 @@ impl Database {
         ops.create_if_missing(true);
         ops.create_missing_column_families(true);
 
-        let db = DB::open_cf(&ops, path, [PENDING, HISTORY])?;
+        let db = DB::open_cf(&ops, path, [PENDING, HISTORY, ID_CURSOR])?;
 
         Ok(Database { db: db })
     }
