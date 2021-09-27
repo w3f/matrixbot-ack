@@ -99,7 +99,7 @@ impl SendMsg for Client {
     async fn send_msg(&self, room_id: &RoomId, msg: &str) -> Result<()> {
         let content = AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(msg));
 
-        self.room_send(room_id, content, None).await.unwrap();
+        self.room_send(room_id, content, None).await?;
 
         Ok(())
     }
@@ -128,18 +128,25 @@ impl Handler<Escalation> for MatrixClient {
             let (room_id, new_idx) = if let Some(room_id) = rooms.get(msg.escalation_idx) {
                 (room_id, msg.escalation_idx)
             } else {
+                // The last room has been reached, no longer increment room index.
                 is_last = true;
+                // (Regarding unwrap: the application checks on startup whether rooms have been configured).
                 (rooms.last().unwrap(), rooms.len() - 1)
             };
 
+            // Normal alert on the first room.
             let intro = if new_idx == 0 {
                 "⚠️ Alert occurred!"
-            } else {
+            }
+            // Notify about escalation on further rooms.
+            else {
+                // No further rooms to inform if the final room has been reached.
                 if !is_last {
                     // Notify current room that missed to acknowledge the alert.
                     debug!("Notifying current room about escalation");
                     client
                         .send_msg(
+                            // (Id is never below zero, case handled above)
                             rooms.get(new_idx - 1).unwrap(),
                             &format!(
                                 "🚨 ESCALATION OCCURRED! Notifying next room regarding Alerts: {}",
@@ -155,8 +162,7 @@ impl Handler<Escalation> for MatrixClient {
                                 }
                             ),
                         )
-                        .await
-                        .unwrap();
+                        .await?
                 }
 
                 "🚨 ESCALATION OCCURRED!"
@@ -168,11 +174,11 @@ impl Handler<Escalation> for MatrixClient {
                 debug!("Notifying *next* room about escalation");
             }
 
-            client.send_msg(room_id, intro).await.unwrap();
+            client.send_msg(room_id, intro).await?;
 
             // Send alerts to room.
             for alert in msg.alerts {
-                client.send_msg(room_id, &alert.to_string()).await.unwrap();
+                client.send_msg(room_id, &alert.to_string()).await?;
             }
 
             Ok(new_idx)

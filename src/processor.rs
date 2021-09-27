@@ -200,17 +200,6 @@ impl Handler<InsertAlerts> for Processor {
     fn handle(&mut self, msg: InsertAlerts, _ctx: &mut Self::Context) -> Self::Result {
         let db = Arc::clone(&self.db);
 
-        /*
-        -impl From<InsertAlerts> for Vec<AlertContext> {
-        -    fn from(val: InsertAlerts) -> Self {
-        -        val.alerts
-        -            .into_iter()
-        -            .map(|alert| AlertContext::new(alert))
-        -            .collect()
-        -    }
-        -}
-        */
-
         let f = async move {
             let mut next_id = db.get_next_id()?;
 
