@@ -1615,7 +1615,7 @@ dependencies = [
 
 [[package]]
 name = "matrixbot"
-version = "0.1.2"
+version = "0.1.6"
 dependencies = [
  "actix",
  "actix-web",
@@ -1626,7 +1626,6 @@ dependencies = [
  "log",
  "matrix-sdk",
  "md5",
- "rand 0.8.4",
  "rocksdb",
  "ruma",
  "serde",
