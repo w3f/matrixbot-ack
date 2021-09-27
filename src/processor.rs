@@ -104,31 +104,39 @@ impl Actor for Processor {
             move |_proc, _ctx| {
                 let db = Arc::clone(&db);
                 actix::spawn(async move {
-                    let mut pending = db.get_pending().unwrap();
+                    let res = |db: Arc<Database>| async move {
+                        let mut pending = db.get_pending()?;
 
-                    let now = unix_time();
-                    for alert in &mut pending {
-                        // If the escalation window of the alert is exceeded...
-                        if now > alert.last_notified + escalation_window {
-                            debug!("Alert escalated: {:?}", alert);
+                        let now = unix_time();
+                        for alert in &mut pending {
+                            // If the escalation window of the alert is exceeded...
+                            if now > alert.last_notified + escalation_window {
+                                debug!("Alert escalated: {:?}", alert);
 
-                            // Send alert to the matrix client.
-                            let new_idx = MatrixClient::from_registry()
-                                .send(Escalation {
-                                    escalation_idx: alert.escalation_idx + 1,
-                                    alerts: vec![alert.clone()],
-                                })
-                                .await
-                                .unwrap();
+                                // Send alert to the matrix client.
+                                let new_idx = MatrixClient::from_registry()
+                                    .send(Escalation {
+                                        escalation_idx: alert.escalation_idx + 1,
+                                        alerts: vec![alert.clone()],
+                                    })
+                                    .await?;
 
-                            // Update escalation index.
-                            alert.escalation_idx = new_idx.unwrap();
-                            alert.last_notified = now;
+                                // Update escalation index.
+                                alert.escalation_idx = new_idx?;
+                                alert.last_notified = now;
+                            }
                         }
-                    }
 
-                    // Update all alert states.
-                    db.insert_alerts(&pending).unwrap();
+                        // Update all alert states.
+                        db.insert_alerts(&pending)?;
+
+                        Result::<()>::Ok(())
+                    };
+
+                    match res(db).await {
+                        Ok(_) => debug!("Current state processed successfully"),
+                        Err(err) => error!("{}", err),
+                    }
                 });
             },
         );
