@@ -134,7 +134,7 @@ impl Actor for Processor {
                     };
 
                     match res(db).await {
-                        Ok(_) => debug!("Current state processed successfully"),
+                        Ok(_) => {},
                         Err(err) => error!("{:?}", err),
                     }
                 });

@@ -273,7 +273,7 @@ impl EventHandler for Listener {
                 ));
 
                 // Notify the room.
-                debug!("Notifying room '{:?}' about '{:?}'", room, content);
+                debug!("Notifying room");
                 room.send(content, None).await?;
 
                 Result::<()>::Ok(())
