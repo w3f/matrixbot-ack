@@ -41,6 +41,9 @@ impl AlertId {
     pub fn to_le_bytes(self) -> [u8; 8] {
         self.0.to_le_bytes()
     }
+    pub fn max(self, o: AlertId) -> Self {
+        self.0.max(o.0).into()
+    }
 }
 
 impl From<u64> for AlertId {

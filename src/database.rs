@@ -27,8 +27,17 @@ impl Database {
     }
     pub fn insert_alerts(&self, alerts: &[AlertContext]) -> Result<()> {
         let pending = self.db.cf_handle(PENDING).unwrap();
+        let cursor = self.db.cf_handle(ID_CURSOR).unwrap();
 
+        let mut id = AlertId::from(0);
         for alert in alerts {
+            // Track the highest Id.
+            id = id.max(alert.id);
+
+            // Update Id cursor.
+            self.db.put_cf(&cursor, ID_CURSOR, id.to_le_bytes())?;
+
+            // Insert alert.
             self.db.put_cf(
                 &pending,
                 alert.id.to_le_bytes(),
@@ -41,8 +50,8 @@ impl Database {
     pub fn get_next_id(&self) -> Result<AlertId> {
         let cursor = self.db.cf_handle(ID_CURSOR).unwrap();
 
-        if let Some(id) = self.db.get_cf(cursor, "current_id")? {
-            AlertId::from_le_bytes(&id)
+        if let Some(id) = self.db.get_cf(cursor, ID_CURSOR)? {
+            Ok(AlertId::from_le_bytes(&id)?.incr())
         } else {
             Ok(AlertId::from(0))
         }
