@@ -214,6 +214,7 @@ impl Handler<InsertAlerts> for Processor {
         let f = async move {
             let mut next_id = db.get_next_id()?;
 
+            // Convert webhook alerts into alert contexts.
             let alerts: Vec<AlertContext> = msg
                 .alerts
                 .into_iter()
