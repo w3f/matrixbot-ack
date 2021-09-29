@@ -226,7 +226,10 @@ impl Handler<UserAction> for Processor {
             match msg.command {
                 Command::Ack(id) => {
                     info!("Acknowledging alert Id: {}", id.to_string());
-                    proc.db.acknowledge_alert(msg.escalation_idx, id)
+                    // TODO
+                    Ok(UserConfirmation::Help)
+                    //proc.db.acknowledge_alert(msg.escalation_idx, id)
+                    //
                 }
                 Command::Pending => proc
                     .db

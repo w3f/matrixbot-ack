@@ -2,12 +2,12 @@ use crate::processor::{AlertContext, UserConfirmation};
 use crate::webhook::Alert;
 use crate::{AlertId, Result};
 // TODO: Can this be avoided somehow?
-use bson::{doc, to_document};
+use bson::{doc, to_bson, to_document};
 use mongodb::{Client, Database as MongoDb};
 use std::collections::HashMap;
 
-const PENDING: &'static str = "pending_acknowledgement";
-const ACKNOWLEDGED: &'static str = "history";
+const PENDING: &'static str = "pending";
+const HISTORY: &'static str = "history";
 const ID_CURSOR: &'static str = "id_cursor";
 
 pub struct Database {
@@ -62,12 +62,43 @@ impl Database {
 
         Ok(id)
     }
-    pub fn acknowledge_alert(
+    pub async fn acknowledge_alert(
         &self,
         escalation_idx: usize,
         alert_id: AlertId,
     ) -> Result<UserConfirmation> {
-        unimplemented!()
+        let pending = self.db.collection::<AlertContext>(PENDING);
+        let history = self.db.collection::<()>(HISTORY);
+
+        let alert = pending
+            .find_one(
+                doc! {
+                    "id": to_bson(&alert_id)?,
+                },
+                None,
+            )
+            .await?;
+
+        if let Some(alert) = alert {
+            if alert.escalation_idx > escalation_idx {
+                history.insert_one((), None).await?;
+
+                pending
+                    .delete_one(
+                        doc! {
+                            "id": to_bson(&alert_id)?,
+                        },
+                        None,
+                    )
+                    .await?;
+
+                Ok(UserConfirmation::AlertAcknowledged(alert_id))
+            } else {
+                Ok(UserConfirmation::AlertOutOfScope)
+            }
+        } else {
+            Ok(UserConfirmation::AlertNotFound)
+        }
 
         /*
         let pending = self.db.cf_handle(PENDING).unwrap();
