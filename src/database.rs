@@ -20,6 +20,12 @@ struct IdCursor {
     last_id: u64,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct AlertAcknowledged {
+    alert: AlertContext,
+    acked_by: String,
+}
+
 #[derive(Serialize, Deserialize)]
 struct PendingAlertsEntry(HashMap<AlertId, Alert>);
 
@@ -67,9 +73,10 @@ impl Database {
         &self,
         escalation_idx: usize,
         alert_id: AlertId,
+        acked_by: String,
     ) -> Result<UserConfirmation> {
         let pending = self.db.collection::<AlertContext>(PENDING);
-        let history = self.db.collection::<()>(HISTORY);
+        let history = self.db.collection::<AlertAcknowledged>(HISTORY);
 
         let alert = pending
             .find_one(
@@ -82,7 +89,15 @@ impl Database {
 
         if let Some(alert) = alert {
             if alert.escalation_idx > escalation_idx {
-                history.insert_one((), None).await?;
+                history
+                    .insert_one(
+                        AlertAcknowledged {
+                            alert: alert,
+                            acked_by: acked_by,
+                        },
+                        None,
+                    )
+                    .await?;
 
                 pending
                     .delete_one(

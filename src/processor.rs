@@ -180,7 +180,7 @@ pub struct UserAction {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Command {
-    Ack(AlertId),
+    Ack(AlertId, String),
     Pending,
     Help,
 }
@@ -207,9 +207,9 @@ impl Handler<UserAction> for Processor {
         let f = async move {
             async fn local(db: Arc<Database>, msg: UserAction) -> Result<UserConfirmation> {
                 match msg.command {
-                    Command::Ack(id) => {
+                    Command::Ack(id, acked_by) => {
                         info!("Acknowledging alert Id: {}", id.to_string());
-                        db.acknowledge_alert(msg.escalation_idx, id).await
+                        db.acknowledge_alert(msg.escalation_idx, id, acked_by).await
                     }
                     Command::Pending => db
                         .get_pending(None)

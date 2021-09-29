@@ -243,7 +243,7 @@ impl EventHandler for Listener {
                             let parts: Vec<&str> = txt.split(" ").collect();
                             if parts.len() == 2 {
                                 if let Ok(id) = AlertId::from_str(parts[1]) {
-                                    Command::Ack(id)
+                                    Command::Ack(id, event.sender.to_string())
                                 } else {
                                     bad_msg(&room).await?
                                 }
