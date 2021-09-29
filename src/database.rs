@@ -2,7 +2,7 @@ use crate::processor::{AlertContext, UserConfirmation};
 use crate::webhook::Alert;
 use crate::{AlertId, Result};
 // TODO: Can this be avoided somehow?
-use bson::{doc, to_bson};
+use bson::{doc, to_document};
 use mongodb::{Client, Database as MongoDb};
 use std::collections::HashMap;
 
@@ -12,6 +12,11 @@ const ID_CURSOR: &'static str = "id_cursor";
 
 pub struct Database {
     db: MongoDb,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct IdCursor {
+    last_id: u64,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -24,7 +29,8 @@ impl Database {
         })
     }
     pub async fn insert_alerts(&self, alerts: &[AlertContext]) -> Result<()> {
-        let coll = self.db.collection::<AlertContext>(PENDING);
+        let id_cursor = self.db.collection::<IdCursor>(ID_CURSOR);
+        let pending = self.db.collection::<AlertContext>(PENDING);
 
         // Find the highest
         let last_id = alerts
@@ -33,34 +39,28 @@ impl Database {
             .max()
             .ok_or(anyhow!("no alerts specified"))?;
 
+        let update = IdCursor { last_id: last_id };
+
         // Insert latest Id.
-        let _ = coll
-            .update_one(
-                doc! {},
-                doc! {
-                    "last_id": to_bson(&last_id)?,
-                },
-                None,
-            )
+        let _ = id_cursor
+            .update_one(doc! {}, to_document(&update)?, None)
             .await?;
 
         // Insert the alerts themselves.
-        let _ = coll.insert_many(alerts.to_vec(), None).await?;
+        let _ = pending.insert_many(alerts.to_vec(), None).await?;
 
         Ok(())
     }
-    pub fn get_next_id(&self) -> Result<AlertId> {
-        unimplemented!()
+    pub async fn get_next_id(&self) -> Result<AlertId> {
+        let id_cursor = self.db.collection::<IdCursor>(ID_CURSOR);
 
-        /*
-        let cursor = self.db.cf_handle(ID_CURSOR).unwrap();
+        let id = id_cursor
+            .find_one(doc! {}, None)
+            .await?
+            .map(|c| AlertId::from(c.last_id).incr())
+            .unwrap_or(AlertId::from(0));
 
-        if let Some(id) = self.db.get_cf(cursor, ID_CURSOR)? {
-            Ok(AlertId::from_le_bytes(&id)?.incr())
-        } else {
-            Ok(AlertId::from(0))
-        }
-        */
+        Ok(id)
     }
     pub fn acknowledge_alert(
         &self,
