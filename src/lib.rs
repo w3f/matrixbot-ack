@@ -77,6 +77,9 @@ struct Cli {
 pub async fn run() -> Result<()> {
     let cli = Cli::from_args();
 
+    // TODO: Set via config
+    let should_escalate = true;
+
     env_logger::builder()
         .filter_module("system", log::LevelFilter::Debug)
         .init();
@@ -100,7 +103,7 @@ pub async fn run() -> Result<()> {
     let db = database::Database::new(&config.db_path)?;
 
     info!("Adding message processor to system registry");
-    let proc = processor::Processor::new(db, config.escalation_window);
+    let proc = processor::Processor::new(db, config.escalation_window, should_escalate);
     SystemRegistry::set(proc.start());
 
     info!("Initializing Matrix client");

@@ -24,15 +24,17 @@ pub struct AlertContext {
     pub alert: Alert,
     pub escalation_idx: usize,
     pub last_notified: u64,
+    pub should_escalate: bool,
 }
 
 impl AlertContext {
-    pub fn new(alert: Alert, id: AlertId) -> Self {
+    pub fn new(alert: Alert, id: AlertId, should_escalate: bool) -> Self {
         AlertContext {
             id: id,
             alert: alert,
             escalation_idx: 0,
             last_notified: unix_time(),
+            should_escalate: should_escalate,
         }
     }
     pub fn from_bytes(slice: &[u8]) -> Result<Self> {
@@ -42,7 +44,7 @@ impl AlertContext {
         serde_json::to_vec(self).unwrap()
     }
     pub fn should_escalate(&self) -> bool {
-        unimplemented!()
+        self.should_escalate
     }
 }
 
@@ -116,13 +118,15 @@ impl ToString for AlertContext {
 pub struct Processor {
     db: Arc<Database>,
     escalation_window: u64,
+    should_escalate: bool,
 }
 
 impl Processor {
-    pub fn new(db: Database, escalation_window: u64) -> Self {
+    pub fn new(db: Database, escalation_window: u64, should_escalate: bool) -> Self {
         Processor {
             db: Arc::new(db),
             escalation_window: escalation_window,
+            should_escalate: should_escalate,
         }
     }
 }
@@ -248,6 +252,7 @@ impl Handler<InsertAlerts> for Processor {
 
     fn handle(&mut self, msg: InsertAlerts, _ctx: &mut Self::Context) -> Self::Result {
         let db = Arc::clone(&self.db);
+        let should_escalate = self.should_escalate;
 
         let f = async move {
             let mut next_id = db.get_next_id()?;
@@ -257,7 +262,7 @@ impl Handler<InsertAlerts> for Processor {
                 .alerts
                 .into_iter()
                 .map(|alert| {
-                    let a = AlertContext::new(alert, next_id);
+                    let a = AlertContext::new(alert, next_id, should_escalate);
                     next_id = next_id.incr();
                     a
                 })
