@@ -164,7 +164,7 @@ impl Actor for Processor {
                                         escalation_idx: alert.escalation_idx + 1,
                                         alerts: vec![alert.clone()],
                                     })
-                                    .await?;
+                                    .await??;
 
                                 // Update escalation index.
                                 alert.escalation_idx += 1;
@@ -285,8 +285,7 @@ impl Handler<InsertAlerts> for Processor {
                     escalation_idx: 0,
                     alerts: alerts,
                 })
-                .await
-                .unwrap();
+                .await??;
 
             Ok(())
         };

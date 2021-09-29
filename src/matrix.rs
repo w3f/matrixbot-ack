@@ -124,14 +124,18 @@ impl Handler<Escalation> for MatrixClient {
 
         let f = async move {
             // Determine which rooms to send the alerts to.
-            let room_id = rooms
+            let current_room_id = rooms
+                .get(msg.escalation_idx.saturating_sub(1))
+                .unwrap_or(rooms.last().unwrap());
+
+            let next_room_id = rooms
                 .get(msg.escalation_idx)
                 .unwrap_or(rooms.last().unwrap());
 
             let is_last = msg.escalation_idx == rooms.len() - 1;
 
             // Normal alert on the first room.
-            let intro = if msg.escalation_idx == 0 {
+            let intro = if current_room_id == next_room_id {
                 "⚠️ Alert occurred!"
             }
             // Notify about escalation on further rooms.
@@ -142,7 +146,7 @@ impl Handler<Escalation> for MatrixClient {
                     debug!("Notifying current room about escalation");
                     client
                         .send_msg(
-                            rooms.get(msg.escalation_idx.saturating_sub(1)).unwrap(),
+                            current_room_id,
                             &format!(
                                 "🚨 ESCALATION OCCURRED! Notifying next room regarding Alerts: {}",
                                 {
@@ -169,8 +173,8 @@ impl Handler<Escalation> for MatrixClient {
                 debug!("Notifying *next* room about escalation");
             }
 
-            // Send into message to room.
-            client.send_msg(room_id, intro).await?;
+            // Send into message to the *next* room.
+            client.send_msg(next_room_id, intro).await?;
 
             // Send alerts to room.
             for alert in msg.alerts {
@@ -181,7 +185,7 @@ impl Handler<Escalation> for MatrixClient {
                     AlertContextTrimmed::from(alert).to_string()
                 };
 
-                client.send_msg(room_id, &content).await?;
+                client.send_msg(next_room_id, &content).await?;
             }
 
             Ok(())
