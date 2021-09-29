@@ -132,7 +132,7 @@ impl Handler<Escalation> for MatrixClient {
                 .get(msg.escalation_idx)
                 .unwrap_or(rooms.last().unwrap());
 
-            let is_last = msg.escalation_idx == rooms.len() - 1;
+            let is_last = msg.escalation_idx >= rooms.len() - 1;
 
             // Normal alert on the first room.
             let intro = if current_room_id == next_room_id {
