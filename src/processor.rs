@@ -140,27 +140,22 @@ impl Actor for Processor {
                 let db = Arc::clone(&db);
                 actix::spawn(async move {
                     let res = |db: Arc<Database>| async move {
-                        // TODO
-                        let mut pending = db.get_pending(0).await?;
+                        let mut pending = db.get_pending(escalation_window).await?;
 
-                        let now = unix_time();
                         for alert in &mut pending {
-                            // If the escalation window of the alert is exceeded...
-                            if now > alert.last_notified + escalation_window {
-                                debug!("Alert escalated: {:?}", alert);
+                            debug!("Alert escalated: {:?}", alert);
 
-                                // Send alert to the matrix client, increment escalation index.
-                                let _ = MatrixClient::from_registry()
-                                    .send(Escalation {
-                                        escalation_idx: alert.escalation_idx + 1,
-                                        alerts: vec![alert.clone()],
-                                    })
-                                    .await??;
+                            // Send alert to the matrix client, increment escalation index.
+                            let _ = MatrixClient::from_registry()
+                                .send(Escalation {
+                                    escalation_idx: alert.escalation_idx + 1,
+                                    alerts: vec![alert.clone()],
+                                })
+                                .await??;
 
-                                // Update escalation index.
-                                alert.escalation_idx += 1;
-                                alert.last_notified = now;
-                            }
+                            // Update escalation index.
+                            alert.escalation_idx += 1;
+                            alert.last_notified = unix_time();
                         }
 
                         // Update all alert states.
@@ -210,36 +205,38 @@ pub struct InsertAlerts {
 }
 
 impl Handler<UserAction> for Processor {
-    type Result = MessageResult<UserAction>;
+    type Result = ResponseActFuture<Self, UserConfirmation>;
 
     fn handle(&mut self, msg: UserAction, _ctx: &mut Self::Context) -> Self::Result {
-        fn local(proc: &Processor, msg: UserAction) -> Result<UserConfirmation> {
-            match msg.command {
-                Command::Ack(id) => {
-                    info!("Acknowledging alert Id: {}", id.to_string());
-                    // TODO
-                    Ok(UserConfirmation::Help)
-                    //proc.db.acknowledge_alert(msg.escalation_idx, id)
-                    //
-                }
-                // TODO
-                Command::Pending => unimplemented!(), /*proc
-                .db
-                .get_pending()
-                .map(|ctxs| UserConfirmation::PendingAlerts(ctxs)),
-                 */
-                Command::Help => Ok(UserConfirmation::Help),
-            }
-        }
+        let db = self.db.clone();
 
-        MessageResult(
-            local(&self, msg)
+        let f = async move {
+            async fn local(db: Arc<Database>, msg: UserAction) -> Result<UserConfirmation> {
+                match msg.command {
+                    Command::Ack(id) => {
+                        info!("Acknowledging alert Id: {}", id.to_string());
+                        db.acknowledge_alert(msg.escalation_idx, id).await
+                    }
+                    // TODO
+                    Command::Pending => unimplemented!(), /*proc
+                    .db
+                    .get_pending()
+                    .map(|ctxs| UserConfirmation::PendingAlerts(ctxs)),
+                     */
+                    Command::Help => Ok(UserConfirmation::Help),
+                }
+            }
+
+            local(db, msg)
+                .await
                 .map_err(|err| {
                     error!("{:?}", err);
                     UserConfirmation::InternalError
                 })
-                .unwrap(),
-        )
+                .unwrap()
+        };
+
+        Box::pin(f.into_actor(self))
     }
 }
 
