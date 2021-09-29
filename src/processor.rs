@@ -140,7 +140,7 @@ impl Actor for Processor {
                 let db = Arc::clone(&db);
                 actix::spawn(async move {
                     let res = |db: Arc<Database>| async move {
-                        let mut pending = db.get_pending(escalation_window).await?;
+                        let mut pending = db.get_pending(Some(escalation_window)).await?;
 
                         for alert in &mut pending {
                             debug!("Alert escalated: {:?}", alert);
@@ -217,12 +217,10 @@ impl Handler<UserAction> for Processor {
                         info!("Acknowledging alert Id: {}", id.to_string());
                         db.acknowledge_alert(msg.escalation_idx, id).await
                     }
-                    // TODO
-                    Command::Pending => unimplemented!(), /*proc
-                    .db
-                    .get_pending()
-                    .map(|ctxs| UserConfirmation::PendingAlerts(ctxs)),
-                     */
+                    Command::Pending => db
+                        .get_pending(None)
+                        .await
+                        .map(|ctxs| UserConfirmation::PendingAlerts(ctxs)),
                     Command::Help => Ok(UserConfirmation::Help),
                 }
             }

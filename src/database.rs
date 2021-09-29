@@ -101,20 +101,21 @@ impl Database {
             Ok(UserConfirmation::AlertNotFound)
         }
     }
-    pub async fn get_pending(&self, escalation_window: u64) -> Result<Vec<AlertContext>> {
+    pub async fn get_pending(&self, escalation_window: Option<u64>) -> Result<Vec<AlertContext>> {
         let pending = self.db.collection::<AlertContext>(PENDING);
 
-        let now = unix_time();
-        let mut cursor = pending
-            .find(
-                doc! {
-                    "last_notified": {
-                        "$lt": now - escalation_window,
-                    }
-                },
-                None,
-            )
-            .await?;
+        let query = if let Some(escalation_window) = escalation_window {
+            let now = unix_time();
+            doc! {
+                "last_notified": {
+                    "$lt": now - escalation_window,
+                }
+            }
+        } else {
+            doc! {}
+        };
+
+        let mut cursor = pending.find(query, None).await?;
 
         let mut pending = vec![];
         while let Some(alert) = cursor.next().await {
