@@ -1,46 +1,53 @@
 use crate::processor::{AlertContext, UserConfirmation};
 use crate::webhook::Alert;
 use crate::{AlertId, Result};
+// TODO: Can this be avoided somehow?
+use bson::{doc, to_bson};
+use mongodb::{Client, Database as MongoDb};
 use std::collections::HashMap;
 
-const PENDING: &'static str = "pending_alerts";
-const HISTORY: &'static str = "history";
+const PENDING: &'static str = "pending_acknowledgement";
+const ACKNOWLEDGED: &'static str = "history";
 const ID_CURSOR: &'static str = "id_cursor";
 
-pub struct Database {}
+pub struct Database {
+    db: MongoDb,
+}
 
 #[derive(Serialize, Deserialize)]
 struct PendingAlertsEntry(HashMap<AlertId, Alert>);
 
 impl Database {
-    pub fn new(path: &str) -> Result<Self> {
-        unimplemented!()
+    pub async fn new(uri: &str, db: &str) -> Result<Self> {
+        Ok(Database {
+            db: Client::with_uri_str(uri).await?.database(db),
+        })
     }
-    pub fn insert_alerts(&self, alerts: &[AlertContext]) -> Result<()> {
-        unimplemented!()
+    pub async fn insert_alerts(&self, alerts: &[AlertContext]) -> Result<()> {
+        let coll = self.db.collection::<AlertContext>(PENDING);
 
-        /*
-        let pending = self.db.cf_handle(PENDING).unwrap();
-        let cursor = self.db.cf_handle(ID_CURSOR).unwrap();
+        // Find the highest
+        let last_id = alerts
+            .iter()
+            .map(|alert| alert.id.inner())
+            .max()
+            .ok_or(anyhow!("no alerts specified"))?;
 
-        let mut id = AlertId::from(0);
-        for alert in alerts {
-            // Track the highest Id.
-            id = id.max(alert.id);
+        // Insert latest Id.
+        let _ = coll
+            .update_one(
+                doc! {},
+                doc! {
+                    "last_id": to_bson(&last_id)?,
+                },
+                None,
+            )
+            .await?;
 
-            // Update Id cursor.
-            self.db.put_cf(&cursor, ID_CURSOR, id.to_le_bytes())?;
-
-            // Insert alert.
-            self.db.put_cf(
-                &pending,
-                alert.id.to_le_bytes(),
-                alert.to_bytes().as_slice(),
-            )?;
-        }
+        // Insert the alerts themselves.
+        let _ = coll.insert_many(alerts.to_vec(), None).await?;
 
         Ok(())
-        */
     }
     pub fn get_next_id(&self) -> Result<AlertId> {
         unimplemented!()

@@ -41,8 +41,8 @@ impl AlertId {
     pub fn to_le_bytes(self) -> [u8; 8] {
         self.0.to_le_bytes()
     }
-    pub fn max(self, o: AlertId) -> Self {
-        self.0.max(o.0).into()
+    pub fn inner(&self) -> u64 {
+        self.0
     }
 }
 
@@ -100,7 +100,8 @@ pub async fn run() -> Result<()> {
     }
 
     info!("Setting up database {}", &config.db_path);
-    let db = database::Database::new(&config.db_path)?;
+    // TODO:
+    let db = database::Database::new("", "").await?;
 
     info!("Adding message processor to system registry");
     let proc = processor::Processor::new(db, config.escalation_window, should_escalate);

@@ -1714,6 +1714,7 @@ dependencies = [
  "actix-web",
  "anyhow",
  "async-trait",
+ "bson",
  "env_logger",
  "futures",
  "log",

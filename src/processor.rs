@@ -173,7 +173,7 @@ impl Actor for Processor {
                         }
 
                         // Update all alert states.
-                        db.insert_alerts(&pending)?;
+                        db.insert_alerts(&pending).await?;
 
                         Result::<()>::Ok(())
                     };
@@ -273,7 +273,7 @@ impl Handler<InsertAlerts> for Processor {
             to_store.retain(|alert| alert.should_escalate());
 
             // Store alerts in database.
-            db.insert_alerts(&to_store).map_err(|err| {
+            db.insert_alerts(&to_store).await.map_err(|err| {
                 error!("Failed to insert alerts into database: {:?}", err);
                 err
             })?;
