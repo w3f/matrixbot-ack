@@ -23,10 +23,10 @@ serde_yaml = "0.8.20"
 matrix-sdk = "0.3.0"
 ruma = "0.2.0"
 actix = "0.12.0"
-actix-web = "4.0.0-beta.6"
-rocksdb = { version = "0.17.0", default-features = false, features = ["snappy", "lz4", "zlib", "bzip2"] }
+actix-web = "4.0.0-beta.9"
 url = "2.2.2"
 async-trait = "0.1.51"
 futures = "0.3.17"
 structopt = "0.3.23"
 md5 = "0.7.0"
+mongodb = { version = "2.0.0-beta", features = ["bson-u2i"] }

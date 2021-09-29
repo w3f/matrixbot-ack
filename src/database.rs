@@ -1,31 +1,25 @@
 use crate::processor::{AlertContext, UserConfirmation};
 use crate::webhook::Alert;
 use crate::{AlertId, Result};
-use rocksdb::{IteratorMode, Options, DB};
 use std::collections::HashMap;
 
 const PENDING: &'static str = "pending_alerts";
 const HISTORY: &'static str = "history";
 const ID_CURSOR: &'static str = "id_cursor";
 
-pub struct Database {
-    db: DB,
-}
+pub struct Database {}
 
 #[derive(Serialize, Deserialize)]
 struct PendingAlertsEntry(HashMap<AlertId, Alert>);
 
 impl Database {
     pub fn new(path: &str) -> Result<Self> {
-        let mut ops = Options::default();
-        ops.create_if_missing(true);
-        ops.create_missing_column_families(true);
-
-        let db = DB::open_cf(&ops, path, [PENDING, HISTORY, ID_CURSOR])?;
-
-        Ok(Database { db: db })
+        unimplemented!()
     }
     pub fn insert_alerts(&self, alerts: &[AlertContext]) -> Result<()> {
+        unimplemented!()
+
+        /*
         let pending = self.db.cf_handle(PENDING).unwrap();
         let cursor = self.db.cf_handle(ID_CURSOR).unwrap();
 
@@ -46,8 +40,12 @@ impl Database {
         }
 
         Ok(())
+        */
     }
     pub fn get_next_id(&self) -> Result<AlertId> {
+        unimplemented!()
+
+        /*
         let cursor = self.db.cf_handle(ID_CURSOR).unwrap();
 
         if let Some(id) = self.db.get_cf(cursor, ID_CURSOR)? {
@@ -55,12 +53,16 @@ impl Database {
         } else {
             Ok(AlertId::from(0))
         }
+        */
     }
     pub fn acknowledge_alert(
         &self,
         escalation_idx: usize,
         alert_id: AlertId,
     ) -> Result<UserConfirmation> {
+        unimplemented!()
+
+        /*
         let pending = self.db.cf_handle(PENDING).unwrap();
         let history = self.db.cf_handle(HISTORY).unwrap();
         let id = alert_id.to_le_bytes();
@@ -78,8 +80,12 @@ impl Database {
         } else {
             Ok(UserConfirmation::AlertNotFound)
         }
+        */
     }
     pub fn get_pending(&self) -> Result<Vec<AlertContext>> {
+        unimplemented!()
+
+        /*
         let pending = self.db.cf_handle(PENDING).unwrap();
 
         let mut alerts = vec![];
@@ -88,5 +94,6 @@ impl Database {
         }
 
         Ok(alerts)
+        */
     }
 }
