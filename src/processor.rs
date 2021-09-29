@@ -41,6 +41,9 @@ impl AlertContext {
     pub fn to_bytes(&self) -> Vec<u8> {
         serde_json::to_vec(self).unwrap()
     }
+    pub fn should_escalate(&self) -> bool {
+        unimplemented!()
+    }
 }
 
 impl ToString for AlertContext {
@@ -113,7 +116,7 @@ impl Actor for Processor {
                             if now > alert.last_notified + escalation_window {
                                 debug!("Alert escalated: {:?}", alert);
 
-                                // Send alert to the matrix client.
+                                // Send alert to the matrix client, increment escalation index.
                                 let new_idx = MatrixClient::from_registry()
                                     .send(Escalation {
                                         escalation_idx: alert.escalation_idx + 1,
@@ -222,8 +225,12 @@ impl Handler<InsertAlerts> for Processor {
                 })
                 .collect();
 
+            // Only store alerts that should escalate.
+            let mut to_store = alerts.clone();
+            to_store.retain(|alert| alert.should_escalate());
+
             // Store alerts in database.
-            db.insert_alerts(&alerts).map_err(|err| {
+            db.insert_alerts(&to_store).map_err(|err| {
                 error!("Failed to insert alerts into database: {:?}", err);
                 err
             })?;
