@@ -1,4 +1,4 @@
-use crate::processor::{Command, Escalation, Processor, UserAction};
+use crate::processor::{AlertContextTrimmed, Command, Escalation, Processor, UserAction};
 use crate::{AlertId, Result};
 use actix::prelude::*;
 use actix::SystemService;
@@ -174,11 +174,19 @@ impl Handler<Escalation> for MatrixClient {
                 debug!("Notifying *next* room about escalation");
             }
 
+            // Send into message to room.
             client.send_msg(room_id, intro).await?;
 
             // Send alerts to room.
             for alert in msg.alerts {
-                client.send_msg(room_id, &alert.to_string()).await?;
+                let content = if alert.should_escalate() {
+                    alert.to_string()
+                } else {
+                    // If the alert should not escalate, send trimmed version (no Id).
+                    AlertContextTrimmed::from(alert).to_string()
+                };
+
+                client.send_msg(room_id, &content).await?;
             }
 
             Ok(new_idx)

@@ -46,6 +46,44 @@ impl AlertContext {
     }
 }
 
+/// A trimmed version of `AlertContext`. Used when an alert should not escalate
+/// (i.e. incoming transactions).
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct AlertContextTrimmed(Alert);
+
+impl From<AlertContext> for AlertContextTrimmed {
+    fn from(val: AlertContext) -> Self {
+        AlertContextTrimmed(val.alert)
+    }
+}
+
+impl ToString for AlertContextTrimmed {
+    fn to_string(&self) -> String {
+        format!(
+            "\
+            - Name: {}\n  \
+              Severity: {}\n  \
+              Message: {}\n  \
+              Description: {}\n\
+        ",
+            self.0.labels.alert_name,
+            self.0.labels.severity,
+            self.0
+                .annotations
+                .message
+                .as_ref()
+                .map(|s| s.as_str())
+                .unwrap_or(&"N/A"),
+            self.0
+                .annotations
+                .description
+                .as_ref()
+                .map(|s| s.as_str())
+                .unwrap_or(&"N/A")
+        )
+    }
+}
+
 impl ToString for AlertContext {
     fn to_string(&self) -> String {
         format!(
@@ -137,7 +175,7 @@ impl Actor for Processor {
                     };
 
                     match res(db).await {
-                        Ok(_) => {},
+                        Ok(_) => {}
                         Err(err) => error!("{:?}", err),
                     }
                 });
