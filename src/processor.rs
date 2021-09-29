@@ -1,22 +1,12 @@
 use crate::database::Database;
 use crate::matrix::MatrixClient;
 use crate::webhook::Alert;
-use crate::{AlertId, Result};
+use crate::{unix_time, AlertId, Result};
 use actix::prelude::*;
 use std::sync::Arc;
 use std::time::Duration;
 
 const CRON_JON_INTERVAL: u64 = 5;
-
-fn unix_time() -> u64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    let start = SystemTime::now();
-    start
-        .duration_since(UNIX_EPOCH)
-        .expect("Failed to calculate UNIX time")
-        .as_secs()
-}
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AlertContext {
@@ -150,7 +140,8 @@ impl Actor for Processor {
                 let db = Arc::clone(&db);
                 actix::spawn(async move {
                     let res = |db: Arc<Database>| async move {
-                        let mut pending = db.get_pending()?;
+                        // TODO
+                        let mut pending = db.get_pending(0).await?;
 
                         let now = unix_time();
                         for alert in &mut pending {
@@ -231,10 +222,12 @@ impl Handler<UserAction> for Processor {
                     //proc.db.acknowledge_alert(msg.escalation_idx, id)
                     //
                 }
-                Command::Pending => proc
-                    .db
-                    .get_pending()
-                    .map(|ctxs| UserConfirmation::PendingAlerts(ctxs)),
+                // TODO
+                Command::Pending => unimplemented!(), /*proc
+                .db
+                .get_pending()
+                .map(|ctxs| UserConfirmation::PendingAlerts(ctxs)),
+                 */
                 Command::Help => Ok(UserConfirmation::Help),
             }
         }

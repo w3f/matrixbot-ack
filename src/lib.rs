@@ -58,6 +58,16 @@ impl ToString for AlertId {
     }
 }
 
+fn unix_time() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let start = SystemTime::now();
+    start
+        .duration_since(UNIX_EPOCH)
+        .expect("Failed to calculate UNIX time")
+        .as_secs()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Config {
     db_path: String,

@@ -1,8 +1,9 @@
 use crate::processor::{AlertContext, UserConfirmation};
 use crate::webhook::Alert;
-use crate::{AlertId, Result};
+use crate::{unix_time, AlertId, Result};
 // TODO: Can this be avoided somehow?
 use bson::{doc, to_bson, to_document};
+use futures::stream::StreamExt;
 use mongodb::{Client, Database as MongoDb};
 use std::collections::HashMap;
 
@@ -99,39 +100,27 @@ impl Database {
         } else {
             Ok(UserConfirmation::AlertNotFound)
         }
-
-        /*
-        let pending = self.db.cf_handle(PENDING).unwrap();
-        let history = self.db.cf_handle(HISTORY).unwrap();
-        let id = alert_id.to_le_bytes();
-
-        if let Some(alert) = self.db.get_cf(pending, id)? {
-            let ctx = AlertContext::from_bytes(alert.as_slice())?;
-            if ctx.escalation_idx > escalation_idx {
-                return Ok(UserConfirmation::AlertOutOfScope);
-            }
-
-            self.db.put_cf(history, id, &alert)?;
-            self.db.delete_cf(pending, id)?;
-
-            Ok(UserConfirmation::AlertAcknowledged(alert_id))
-        } else {
-            Ok(UserConfirmation::AlertNotFound)
-        }
-        */
     }
-    pub fn get_pending(&self) -> Result<Vec<AlertContext>> {
-        unimplemented!()
+    pub async fn get_pending(&self, escalation_window: u64) -> Result<Vec<AlertContext>> {
+        let pending = self.db.collection::<AlertContext>(PENDING);
 
-        /*
-        let pending = self.db.cf_handle(PENDING).unwrap();
+        let now = unix_time();
+        let mut cursor = pending
+            .find(
+                doc! {
+                    "last_notified": {
+                        "$lt": now - escalation_window,
+                    }
+                },
+                None,
+            )
+            .await?;
 
-        let mut alerts = vec![];
-        for (_, alert) in self.db.iterator_cf(pending, IteratorMode::Start) {
-            alerts.push(AlertContext::from_bytes(&alert)?);
+        let mut pending = vec![];
+        while let Some(alert) = cursor.next().await {
+            pending.push(alert?);
         }
 
-        Ok(alerts)
-        */
+        Ok(pending)
     }
 }
