@@ -48,10 +48,3 @@ spec:
       - name: config
         configMap:
           name: {{ .Release.Name }}
-      - name: db
-        {{ if and (ne .Values.environment "ci") (ne .Values.environment "local") }}
-        persistentVolumeClaim:
-          claimName: {{ .Release.Name }}-db
-        {{ else }}
-        emptyDir: {}
-        {{ end }}
