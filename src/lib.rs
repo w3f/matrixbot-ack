@@ -41,8 +41,8 @@ impl AlertId {
     pub fn to_le_bytes(self) -> [u8; 8] {
         self.0.to_le_bytes()
     }
-    pub fn max(self, o: AlertId) -> Self {
-        self.0.max(o.0).into()
+    pub fn inner(&self) -> u64 {
+        self.0
     }
 }
 
@@ -58,13 +58,29 @@ impl ToString for AlertId {
     }
 }
 
+fn unix_time() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    let start = SystemTime::now();
+    start
+        .duration_since(UNIX_EPOCH)
+        .expect("Failed to calculate UNIX time")
+        .as_secs()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Config {
-    db_path: String,
+    database: database::DatabaseConfig,
     matrix: matrix::MatrixConfig,
     listener: String,
-    escalation_window: u64,
+    escalation: Option<EscalationConfig>,
     rooms: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct EscalationConfig {
+    enabled: bool,
+    escalation_window: u64,
 }
 
 #[derive(StructOpt, Debug)]
@@ -89,6 +105,7 @@ pub async fn run() -> Result<()> {
             .to_str()
             .ok_or(anyhow!("Path to config is not valid unicode"))?
     );
+
     let content = std::fs::read_to_string(&cli.config)?;
     let config: Config = serde_yaml::from_str(&content)?;
 
@@ -96,11 +113,24 @@ pub async fn run() -> Result<()> {
         return Err(anyhow!("No alert rooms have been configured"));
     }
 
-    info!("Setting up database {}", &config.db_path);
-    let db = database::Database::new(&config.db_path)?;
+    // Retrieve relevant escalation data.
+    let should_escalate = config
+        .escalation
+        .as_ref()
+        .map(|c| c.enabled)
+        .unwrap_or(false);
+
+    let escalation_window = config
+        .escalation
+        .as_ref()
+        .map(|c| c.escalation_window)
+        .unwrap_or(0);
+
+    info!("Setting up database {:?}", config.database);
+    let db = database::Database::new(config.database).await?;
 
     info!("Adding message processor to system registry");
-    let proc = processor::Processor::new(db, config.escalation_window);
+    let proc = processor::Processor::new(db, escalation_window, should_escalate);
     SystemRegistry::set(proc.start());
 
     info!("Initializing Matrix client");

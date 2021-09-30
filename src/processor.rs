@@ -1,22 +1,12 @@
 use crate::database::Database;
 use crate::matrix::MatrixClient;
 use crate::webhook::Alert;
-use crate::{AlertId, Result};
+use crate::{unix_time, AlertId, Result};
 use actix::prelude::*;
 use std::sync::Arc;
 use std::time::Duration;
 
 const CRON_JON_INTERVAL: u64 = 5;
-
-fn unix_time() -> u64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    let start = SystemTime::now();
-    start
-        .duration_since(UNIX_EPOCH)
-        .expect("Failed to calculate UNIX time")
-        .as_secs()
-}
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AlertContext {
@@ -24,22 +14,59 @@ pub struct AlertContext {
     pub alert: Alert,
     pub escalation_idx: usize,
     pub last_notified: u64,
+    pub should_escalate: bool,
 }
 
 impl AlertContext {
-    pub fn new(alert: Alert, id: AlertId) -> Self {
+    pub fn new(alert: Alert, id: AlertId, should_escalate: bool) -> Self {
         AlertContext {
             id: id,
             alert: alert,
             escalation_idx: 0,
             last_notified: unix_time(),
+            should_escalate: should_escalate,
         }
     }
-    pub fn from_bytes(slice: &[u8]) -> Result<Self> {
-        serde_json::from_slice(slice).map_err(|err| err.into())
+    pub fn should_escalate(&self) -> bool {
+        self.should_escalate
     }
-    pub fn to_bytes(&self) -> Vec<u8> {
-        serde_json::to_vec(self).unwrap()
+}
+
+/// A trimmed version of `AlertContext`. Used when an alert should not escalate
+/// (i.e. incoming transactions).
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct AlertContextTrimmed(Alert);
+
+impl From<AlertContext> for AlertContextTrimmed {
+    fn from(val: AlertContext) -> Self {
+        AlertContextTrimmed(val.alert)
+    }
+}
+
+impl ToString for AlertContextTrimmed {
+    fn to_string(&self) -> String {
+        format!(
+            "\
+            - Name: {}\n  \
+              Severity: {}\n  \
+              Message: {}\n  \
+              Description: {}\n\
+        ",
+            self.0.labels.alert_name,
+            self.0.labels.severity,
+            self.0
+                .annotations
+                .message
+                .as_ref()
+                .map(|s| s.as_str())
+                .unwrap_or(&"N/A"),
+            self.0
+                .annotations
+                .description
+                .as_ref()
+                .map(|s| s.as_str())
+                .unwrap_or(&"N/A")
+        )
     }
 }
 
@@ -75,13 +102,15 @@ impl ToString for AlertContext {
 pub struct Processor {
     db: Arc<Database>,
     escalation_window: u64,
+    should_escalate: bool,
 }
 
 impl Processor {
-    pub fn new(db: Database, escalation_window: u64) -> Self {
+    pub fn new(db: Database, escalation_window: u64, should_escalate: bool) -> Self {
         Processor {
             db: Arc::new(db),
             escalation_window: escalation_window,
+            should_escalate: should_escalate,
         }
     }
 }
@@ -105,36 +134,34 @@ impl Actor for Processor {
                 let db = Arc::clone(&db);
                 actix::spawn(async move {
                     let res = |db: Arc<Database>| async move {
-                        let mut pending = db.get_pending()?;
+                        let mut pending = db.get_pending(Some(escalation_window)).await?;
 
-                        let now = unix_time();
                         for alert in &mut pending {
-                            // If the escalation window of the alert is exceeded...
-                            if now > alert.last_notified + escalation_window {
-                                debug!("Alert escalated: {:?}", alert);
+                            debug!("Alert escalated: {:?}", alert);
 
-                                // Send alert to the matrix client.
-                                let new_idx = MatrixClient::from_registry()
-                                    .send(Escalation {
-                                        escalation_idx: alert.escalation_idx + 1,
-                                        alerts: vec![alert.clone()],
-                                    })
-                                    .await?;
+                            // Send alert to the matrix client, increment escalation index.
+                            let is_last = MatrixClient::from_registry()
+                                .send(Escalation {
+                                    escalation_idx: alert.escalation_idx + 1,
+                                    alerts: vec![alert.clone()],
+                                })
+                                .await??;
 
-                                // Update escalation index.
-                                alert.escalation_idx = new_idx?;
-                                alert.last_notified = now;
+                            // Update alert info.
+                            if !is_last {
+                                alert.escalation_idx += 1;
                             }
+                            alert.last_notified = unix_time();
                         }
 
                         // Update all alert states.
-                        db.insert_alerts(&pending)?;
+                        db.insert_alerts(&pending).await?;
 
                         Result::<()>::Ok(())
                     };
 
                     match res(db).await {
-                        Ok(_) => {},
+                        Ok(_) => {}
                         Err(err) => error!("{:?}", err),
                     }
                 });
@@ -155,13 +182,19 @@ pub struct UserAction {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Command {
-    Ack(AlertId),
+    Ack(AlertId, String),
     Pending,
     Help,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
-#[rtype(result = "Result<usize>")]
+#[rtype(result = "Result<()>")]
+pub struct NotifyAlert {
+    pub alerts: Vec<AlertContext>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Message)]
+#[rtype(result = "Result<bool>")]
 pub struct Escalation {
     pub escalation_idx: usize,
     pub alerts: Vec<AlertContext>,
@@ -174,31 +207,36 @@ pub struct InsertAlerts {
 }
 
 impl Handler<UserAction> for Processor {
-    type Result = MessageResult<UserAction>;
+    type Result = ResponseActFuture<Self, UserConfirmation>;
 
     fn handle(&mut self, msg: UserAction, _ctx: &mut Self::Context) -> Self::Result {
-        fn local(proc: &Processor, msg: UserAction) -> Result<UserConfirmation> {
-            match msg.command {
-                Command::Ack(id) => {
-                    info!("Acknowledging alert Id: {}", id.to_string());
-                    proc.db.acknowledge_alert(msg.escalation_idx, id)
-                }
-                Command::Pending => proc
-                    .db
-                    .get_pending()
-                    .map(|ctxs| UserConfirmation::PendingAlerts(ctxs)),
-                Command::Help => Ok(UserConfirmation::Help),
-            }
-        }
+        let db = self.db.clone();
 
-        MessageResult(
-            local(&self, msg)
+        let f = async move {
+            async fn local(db: Arc<Database>, msg: UserAction) -> Result<UserConfirmation> {
+                match msg.command {
+                    Command::Ack(id, acked_by) => {
+                        info!("Acknowledging alert Id: {}", id.to_string());
+                        db.acknowledge_alert(msg.escalation_idx, id, acked_by).await
+                    }
+                    Command::Pending => db
+                        .get_pending(None)
+                        .await
+                        .map(|ctxs| UserConfirmation::PendingAlerts(ctxs)),
+                    Command::Help => Ok(UserConfirmation::Help),
+                }
+            }
+
+            local(db, msg)
+                .await
                 .map_err(|err| {
                     error!("{:?}", err);
                     UserConfirmation::InternalError
                 })
-                .unwrap(),
-        )
+                .unwrap()
+        };
+
+        Box::pin(f.into_actor(self))
     }
 }
 
@@ -207,36 +245,37 @@ impl Handler<InsertAlerts> for Processor {
 
     fn handle(&mut self, msg: InsertAlerts, _ctx: &mut Self::Context) -> Self::Result {
         let db = Arc::clone(&self.db);
+        let should_escalate = self.should_escalate;
 
         let f = async move {
-            let mut next_id = db.get_next_id()?;
+            let mut next_id = db.get_next_id().await?;
 
             // Convert webhook alerts into alert contexts.
             let alerts: Vec<AlertContext> = msg
                 .alerts
                 .into_iter()
                 .map(|alert| {
-                    let a = AlertContext::new(alert, next_id);
+                    let a = AlertContext::new(alert, next_id, should_escalate);
                     next_id = next_id.incr();
                     a
                 })
                 .collect();
 
+            // Only store alerts that should escalate.
+            let mut to_store = alerts.clone();
+            to_store.retain(|alert| alert.should_escalate());
+
             // Store alerts in database.
-            db.insert_alerts(&alerts).map_err(|err| {
+            db.insert_alerts(&to_store).await.map_err(|err| {
                 error!("Failed to insert alerts into database: {:?}", err);
                 err
             })?;
 
-            // Notify rooms.
+            // Notify rooms about all alerts.
             debug!("Notifying rooms about new alerts");
             let _ = MatrixClient::from_registry()
-                .send(Escalation {
-                    escalation_idx: 0,
-                    alerts: alerts,
-                })
-                .await
-                .unwrap();
+                .send(NotifyAlert { alerts: alerts })
+                .await??;
 
             Ok(())
         };

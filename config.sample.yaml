@@ -1,0 +1,17 @@
+database:
+  uri: mongodb://localhost:27017
+  name: matrixbot
+matrix:
+  homeserver: https://matrix.org
+  username: username
+  password: password
+  db_path: db/matrix.db
+  device_name: matrixbot-ack
+  device_id: matrixbot-some-id
+listener: 127.0.0.1:8000
+escalation:
+  enabled: true
+  escalation_window: 3600 # one hour
+rooms:
+  - "!abcdef:matrix.org"
+  - "!ghijkl:matrix.org"

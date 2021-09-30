@@ -2,23 +2,27 @@ environment: production
 
 image:
   repository: web3f/matrixbot-ack
-  tag: v0.1.6
+  tag: v0.2.0
   pullPolicy: IfNotPresent
 
 config:
-  db_path: '/app/db/matrixbot.db'
+  database:
+    uri: mongodb://localhost:27017
+    name: matrixbot
   matrix:
-    homeserver: homeserver
-    username: user
+    homeserver: https://matrix.org
+    username: username
     password: password
-    db_path: '/app/db/matrix.db'
-    device_name: device_name
-    device_id: device_id
-  listener: 0.0.0.0:8000
-  escalation_window: 60
+    db_path: db/matrix.db
+    device_name: matrixbot-ack
+    device_id: matrixbot-some-id
+  listener: 127.0.0.1:8000
+  escalation:
+    enabled: true
+    escalation_window: 3600 # one hour
   rooms:
-    - "!abcdefg:matrix.org"
-    - "!hijklmn:matrix.org"
+    - "!abcdef:matrix.org"
+    - "!ghijkl:matrix.org"
 
 resources:
   requests:
