@@ -7,7 +7,7 @@ repositories:
   url: https://w3f.github.io/helm-charts/
 
 releases:
-- name: matrixbot-ack
+- name: matrixbot-alert
   chart: ../charts/matrixbot-ack
   values:
     - ./config/matrixbot-alert.yaml.gotmpl
