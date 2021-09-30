@@ -4,7 +4,7 @@ use crate::{unix_time, AlertId, Result};
 // TODO: Can this be avoided somehow?
 use bson::{doc, to_bson, to_document};
 use futures::stream::StreamExt;
-use mongodb::{Client, Database as MongoDb};
+use mongodb::{options::UpdateOptions, Client, Database as MongoDb};
 use std::collections::HashMap;
 
 const PENDING: &'static str = "pending";
@@ -23,7 +23,7 @@ pub struct Database {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct IdCursor {
-    last_id: u64,
+    latest_id: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -48,17 +48,27 @@ impl Database {
         let pending = self.db.collection::<AlertContext>(PENDING);
 
         // Find the highest
-        let last_id = alerts
+        let latest_id = alerts
             .iter()
             .map(|alert| alert.id.inner())
             .max()
             .ok_or(anyhow!("no alerts specified"))?;
 
-        let update = IdCursor { last_id: last_id };
-
         // Insert latest Id.
         let _ = id_cursor
-            .update_one(doc! {}, to_document(&update)?, None)
+            .update_one(
+                doc! {},
+                doc! {
+                    "$set": {
+                        "latest_id": latest_id,
+                    },
+                },
+                {
+                    let mut ops = UpdateOptions::default();
+                    ops.upsert = Some(true);
+                    ops
+                },
+            )
             .await?;
 
         // Insert the alerts themselves.
@@ -72,7 +82,7 @@ impl Database {
         let id = id_cursor
             .find_one(doc! {}, None)
             .await?
-            .map(|c| AlertId::from(c.last_id).incr())
+            .map(|c| AlertId::from(c.latest_id).incr())
             .unwrap_or(AlertId::from(0));
 
         Ok(id)
