@@ -1,0 +1,28 @@
+environment: {{ .Environment.Name }}
+
+{{ if eq .Environment.Name "ci" }}
+image:
+  tag: {{ env "CIRCLE_SHA1" | default "kind" }}
+{{ else if eq .Environment.Name "local" }}
+image:
+  repo: localhost:5000/polkadot-watcher-transaction
+  tag: latest
+{{ end }}
+
+config:
+  database:
+    uri: mongodb://localhost:27017
+    name: matrixbot
+  matrix:
+    homeserver: {{ env "MATRIX_HOMESERVER" | quote }}
+    username: {{ env "MATRIX_USERNAME" | quote }}
+    password: {{ env "MATRIX_PASSWORD" | quote }}
+    device_name: {{ env "MATRIX_DEVICE_NAME" | quote }}
+    device_id: {{ env "MATRIX_DEVICE_ID" | quote }}
+    db_path: db/matrix.db
+  listener: 127.0.0.1:8000
+  escalation:
+    enabled: true
+    escalation_window: {{ env "ESCALATION_WINDOW" }}
+  rooms:
+    - {{ env "ALERT_ROOM_1" | quote }}

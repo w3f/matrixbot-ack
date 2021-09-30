@@ -11,4 +11,4 @@ releases:
   namespace: finance-ack
   chart: ../charts/matrixbot-ack
   values:
-    - ./config/matrixbot-ack.yaml.gotmpl
+    - ./config/matrixbot-escalation.yaml.gotmpl
