@@ -32,7 +32,7 @@ pub struct MatrixClient {
 }
 
 impl MatrixClient {
-    pub async fn new(config: &MatrixConfig, rooms: Vec<String>) -> Result<Self> {
+    pub async fn new(config: &MatrixConfig, rooms: Vec<String>, handle_user_command: bool) -> Result<Self> {
         info!("Setting up Matrix client");
         // Setup client
         let client_config = ClientConfig::new().store_path(&config.db_path);
@@ -61,11 +61,13 @@ impl MatrixClient {
             .collect::<Result<Vec<RoomId>>>()?;
 
         // Add event handler
-        client
-            .set_event_handler(Box::new(Listener {
-                rooms: rooms.clone(),
-            }))
-            .await;
+        if handle_user_command {
+            client
+                .set_event_handler(Box::new(Listener {
+                    rooms: rooms.clone(),
+                }))
+                .await;
+        }
 
         // Start backend syncing service
         info!("Executing background sync");

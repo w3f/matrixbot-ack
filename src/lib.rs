@@ -146,7 +146,8 @@ pub async fn run() -> Result<()> {
     SystemRegistry::set(proc.start());
 
     info!("Initializing Matrix client");
-    let matrix = matrix::MatrixClient::new(&config.matrix, config.rooms).await?;
+    // Only handle user commands if escalations are enabled.
+    let matrix = matrix::MatrixClient::new(&config.matrix, config.rooms, should_escalate).await?;
 
     SystemRegistry::set(matrix.start());
 
