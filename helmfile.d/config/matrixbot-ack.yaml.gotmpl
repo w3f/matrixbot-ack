@@ -28,5 +28,5 @@ config:
     enabled: {{ env "ESCALATION_ENABLED" }}
     escalation_window: {{ env "ESCALATION_WINDOW" }}
   rooms:
-    - {{ env "ROOM_1" | quote }}
-    - {{ env "ROOM_2" | quote }}
+    - {{ env "ESCALATION_ROOM_1" | quote }}
+    - {{ env "ESCALATION_ROOM_2" | quote }}
