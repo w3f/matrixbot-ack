@@ -8,7 +8,7 @@ repositories:
 
 releases:
 - name: mongodb
-  namespace: registrar-v2
+  namespace: finance-ack
   chart: bitnami/mongodb
   version: 10.0.5
   values:

@@ -29,8 +29,6 @@ spec:
           volumeMounts:
           - name: config
             mountPath: /app/config
-          - name: db
-            mountPath: {{ dir .Values.config.db_path }}
           ports:
           - name: http
             containerPort: 8000

@@ -7,7 +7,7 @@ repositories:
 
 releases:
 - name: mongo-express
-  namespace: registrar-v2
+  namespace: finance-ack
   chart: w3f/mongo-express
   version: v0.1.0
   values:
