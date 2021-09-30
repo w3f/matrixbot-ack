@@ -269,7 +269,7 @@ impl Handler<InsertAlerts> for Processor {
                 err
             })?;
 
-            // Notify rooms.
+            // Notify rooms about all alerts.
             debug!("Notifying rooms about new alerts");
             let _ = MatrixClient::from_registry()
                 .send(NotifyAlert { alerts: alerts })

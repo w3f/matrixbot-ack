@@ -117,6 +117,8 @@ impl Actor for MatrixClient {
     type Context = Context<Self>;
 }
 
+/// Handler for alerts on first entry, when the webhook gets called by the
+/// Watcher. Can be either an escalating or non-escalating alert.
 impl Handler<NotifyAlert> for MatrixClient {
     type Result = ResponseActFuture<Self, Result<()>>;
 
@@ -155,6 +157,8 @@ impl Handler<NotifyAlert> for MatrixClient {
     }
 }
 
+/// Handler for escalations triggered by the Processor event loop. *Must* only
+/// process escalating alerts or an error is returned.
 impl Handler<Escalation> for MatrixClient {
     type Result = ResponseActFuture<Self, Result<()>>;
 
@@ -213,13 +217,12 @@ impl Handler<Escalation> for MatrixClient {
             // Send alerts to room.
             for alert in notify.alerts {
                 if !alert.should_escalate() {
-                    return Err(anyhow!("Received an alert that shouldn't escalate as an escalation message"));
+                    return Err(anyhow!(
+                        "Received an alert that shouldn't escalate as an escalation message"
+                    ));
                 }
 
-                // If the alert should not escalate, send trimmed version (no Id).
-                let content = AlertContextTrimmed::from(alert).to_string();
-
-                msg.push_str(&format!("{}\n\n", content));
+                msg.push_str(&format!("{}\n\n", alert.to_string()));
             }
 
             msg.pop();
