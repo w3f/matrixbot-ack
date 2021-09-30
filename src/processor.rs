@@ -100,18 +100,21 @@ impl ToString for AlertContext {
 }
 
 pub struct Processor {
-    db: Arc<Database>,
+    db: Option<Arc<Database>>,
     escalation_window: u64,
     should_escalate: bool,
 }
 
 impl Processor {
-    pub fn new(db: Database, escalation_window: u64, should_escalate: bool) -> Self {
+    pub fn new(db: Option<Database>, escalation_window: u64, should_escalate: bool) -> Self {
         Processor {
-            db: Arc::new(db),
+            db: db.map(|db| Arc::new(db)),
             escalation_window: escalation_window,
             should_escalate: should_escalate,
         }
+    }
+    fn db(&self) -> Arc<Database> {
+        Arc::clone(self.db.as_ref().expect("Database has not been configured"))
     }
 }
 
@@ -125,7 +128,7 @@ impl Actor for Processor {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        let db = Arc::clone(&self.db);
+        let db = self.db();
         let escalation_window = self.escalation_window;
 
         if self.should_escalate {
@@ -213,7 +216,7 @@ impl Handler<UserAction> for Processor {
     type Result = ResponseActFuture<Self, UserConfirmation>;
 
     fn handle(&mut self, msg: UserAction, _ctx: &mut Self::Context) -> Self::Result {
-        let db = self.db.clone();
+        let db = self.db();
 
         let f = async move {
             async fn local(db: Arc<Database>, msg: UserAction) -> Result<UserConfirmation> {
@@ -247,7 +250,7 @@ impl Handler<InsertAlerts> for Processor {
     type Result = ResponseActFuture<Self, Result<()>>;
 
     fn handle(&mut self, msg: InsertAlerts, _ctx: &mut Self::Context) -> Self::Result {
-        let db = Arc::clone(&self.db);
+        let db = self.db();
         let should_escalate = self.should_escalate;
 
         let f = async move {

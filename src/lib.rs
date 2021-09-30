@@ -70,7 +70,7 @@ fn unix_time() -> u64 {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Config {
-    database: database::DatabaseConfig,
+    database: Option<database::DatabaseConfig>,
     matrix: matrix::MatrixConfig,
     listener: String,
     escalation: Option<EscalationConfig>,
@@ -126,11 +126,23 @@ pub async fn run() -> Result<()> {
         .map(|c| c.escalation_window)
         .unwrap_or(0);
 
-    info!("Setting up database {:?}", config.database);
-    let db = database::Database::new(config.database).await?;
+    if should_escalate && config.database.is_none() {
+        return Err(anyhow!(
+            "Escalations require a database configuration, which isn't provided"
+        ));
+    }
+
+    let opt_db = if let Some(db_conf) = config.database {
+        info!("Setting up database {:?}", db_conf);
+        let db = database::Database::new(db_conf).await?;
+        Some(db)
+    } else {
+        warn!("Skipping database setup");
+        None
+    };
 
     info!("Adding message processor to system registry");
-    let proc = processor::Processor::new(db, escalation_window, should_escalate);
+    let proc = processor::Processor::new(opt_db, escalation_window, should_escalate);
     SystemRegistry::set(proc.start());
 
     info!("Initializing Matrix client");
