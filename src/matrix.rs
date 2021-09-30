@@ -160,7 +160,7 @@ impl Handler<NotifyAlert> for MatrixClient {
 /// Handler for escalations triggered by the Processor event loop. *Must* only
 /// process escalating alerts or an error is returned.
 impl Handler<Escalation> for MatrixClient {
-    type Result = ResponseActFuture<Self, Result<()>>;
+    type Result = ResponseActFuture<Self, Result<bool>>;
 
     fn handle(&mut self, notify: Escalation, _ctx: &mut Self::Context) -> Self::Result {
         let client = Arc::clone(&self.client);
@@ -168,7 +168,7 @@ impl Handler<Escalation> for MatrixClient {
 
         let f = async move {
             if notify.alerts.is_empty() {
-                return Ok(());
+                return Ok(false);
             }
 
             // Determine which rooms to send the alerts to.
@@ -180,7 +180,7 @@ impl Handler<Escalation> for MatrixClient {
                 .get(notify.escalation_idx)
                 .unwrap_or(rooms.last().unwrap());
 
-            let is_last = notify.escalation_idx.saturating_sub(1) >= rooms.len() - 1;
+            let is_last = current_room_id == next_room_id;
 
             // No further rooms to inform if the final room has been reached.
             if !is_last {
@@ -194,7 +194,7 @@ impl Handler<Escalation> for MatrixClient {
                             {
                                 let mut list = String::new();
                                 for alert in &notify.alerts {
-                                    list.push_str(&format!("{}, ", alert.to_string()));
+                                    list.push_str(&format!("ID: {}, ", alert.id.to_string()));
                                 }
 
                                 list.pop();
@@ -206,7 +206,7 @@ impl Handler<Escalation> for MatrixClient {
                     .await?
             }
 
-            let mut msg = String::from("🚨 ESCALATION OCCURRED!");
+            let mut msg = String::from("🚨 ESCALATION OCCURRED!\n\n");
 
             if is_last {
                 warn!("Notifying final room about escalation");
@@ -230,7 +230,7 @@ impl Handler<Escalation> for MatrixClient {
 
             client.send_msg(next_room_id, &msg).await?;
 
-            Ok(())
+            Ok(is_last)
         };
 
         Box::pin(f.into_actor(self))

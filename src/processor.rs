@@ -140,15 +140,17 @@ impl Actor for Processor {
                             debug!("Alert escalated: {:?}", alert);
 
                             // Send alert to the matrix client, increment escalation index.
-                            let _ = MatrixClient::from_registry()
+                            let is_last = MatrixClient::from_registry()
                                 .send(Escalation {
                                     escalation_idx: alert.escalation_idx + 1,
                                     alerts: vec![alert.clone()],
                                 })
                                 .await??;
 
-                            // Update escalation index.
-                            alert.escalation_idx += 1;
+                            // Update alert info.
+                            if !is_last {
+                                alert.escalation_idx += 1;
+                            }
                             alert.last_notified = unix_time();
                         }
 
@@ -192,7 +194,7 @@ pub struct NotifyAlert {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
-#[rtype(result = "Result<()>")]
+#[rtype(result = "Result<bool>")]
 pub struct Escalation {
     pub escalation_idx: usize,
     pub alerts: Vec<AlertContext>,
