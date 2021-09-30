@@ -1,4 +1,6 @@
-use crate::processor::{AlertContextTrimmed, Command, Escalation, Processor, UserAction};
+use crate::processor::{
+    AlertContextTrimmed, Command, Escalation, NotifyAlert, Processor, UserAction,
+};
 use crate::{AlertId, Result};
 use actix::prelude::*;
 use actix::SystemService;
@@ -115,69 +117,24 @@ impl Actor for MatrixClient {
     type Context = Context<Self>;
 }
 
-impl Handler<Escalation> for MatrixClient {
+impl Handler<NotifyAlert> for MatrixClient {
     type Result = ResponseActFuture<Self, Result<()>>;
 
-    fn handle(&mut self, msg: Escalation, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, notify: NotifyAlert, _ctx: &mut Self::Context) -> Self::Result {
         let client = Arc::clone(&self.client);
         let rooms = Arc::clone(&self.rooms);
 
         let f = async move {
-            // Determine which rooms to send the alerts to.
-            let current_room_id = rooms
-                .get(msg.escalation_idx.saturating_sub(1))
-                .unwrap_or(rooms.last().unwrap());
-
-            let next_room_id = rooms
-                .get(msg.escalation_idx)
-                .unwrap_or(rooms.last().unwrap());
-
-            let is_last = msg.escalation_idx >= rooms.len() - 1;
-
-            // Normal alert on the first room.
-            let intro = if current_room_id == next_room_id && msg.escalation_idx == 0 {
-                "⚠️ Alert occurred!"
-            }
-            // Notify about escalation on further rooms.
-            else {
-                // No further rooms to inform if the final room has been reached.
-                if !is_last {
-                    // Notify current room that missed to acknowledge the alert.
-                    debug!("Notifying current room about escalation");
-                    client
-                        .send_msg(
-                            current_room_id,
-                            &format!(
-                                "🚨 ESCALATION OCCURRED! Notifying next room regarding Alerts: {}",
-                                {
-                                    let mut list = String::new();
-                                    for alert in &msg.alerts {
-                                        list.push_str(&format!("{}, ", alert.to_string()));
-                                    }
-
-                                    list.pop();
-                                    list.pop();
-                                    list
-                                }
-                            ),
-                        )
-                        .await?
-                }
-
-                "🚨 ESCALATION OCCURRED!"
-            };
-
-            if is_last {
-                warn!("Notifying final room about escalation");
-            } else {
-                debug!("Notifying *next* room about escalation");
+            if notify.alerts.is_empty() {
+                return Ok(());
             }
 
-            // Send into message to the *next* room.
-            client.send_msg(next_room_id, intro).await?;
+            let current_room_id = rooms.get(0).unwrap_or(rooms.last().unwrap());
+
+            let mut msg = String::from("⚠️ Alert occurred!\n\n");
 
             // Send alerts to room.
-            for alert in msg.alerts {
+            for alert in notify.alerts {
                 let content = if alert.should_escalate() {
                     alert.to_string()
                 } else {
@@ -185,8 +142,90 @@ impl Handler<Escalation> for MatrixClient {
                     AlertContextTrimmed::from(alert).to_string()
                 };
 
-                client.send_msg(next_room_id, &content).await?;
+                msg.push_str(&format!("{}\n\n", content));
             }
+
+            msg.pop();
+            msg.pop();
+
+            client.send_msg(current_room_id, &msg).await
+        };
+
+        Box::pin(f.into_actor(self))
+    }
+}
+
+impl Handler<Escalation> for MatrixClient {
+    type Result = ResponseActFuture<Self, Result<()>>;
+
+    fn handle(&mut self, notify: Escalation, _ctx: &mut Self::Context) -> Self::Result {
+        let client = Arc::clone(&self.client);
+        let rooms = Arc::clone(&self.rooms);
+
+        let f = async move {
+            if notify.alerts.is_empty() {
+                return Ok(());
+            }
+
+            // Determine which rooms to send the alerts to.
+            let current_room_id = rooms
+                .get(notify.escalation_idx.saturating_sub(1))
+                .unwrap_or(rooms.last().unwrap());
+
+            let next_room_id = rooms
+                .get(notify.escalation_idx)
+                .unwrap_or(rooms.last().unwrap());
+
+            let is_last = notify.escalation_idx >= rooms.len() - 1;
+
+            // No further rooms to inform if the final room has been reached.
+            if !is_last {
+                // Notify current room that missed to acknowledge the alert.
+                debug!("Notifying current room about escalation");
+                client
+                    .send_msg(
+                        current_room_id,
+                        &format!(
+                            "🚨 ESCALATION OCCURRED! Notifying next room regarding Alerts: {}",
+                            {
+                                let mut list = String::new();
+                                for alert in &notify.alerts {
+                                    list.push_str(&format!("{}, ", alert.to_string()));
+                                }
+
+                                list.pop();
+                                list.pop();
+                                list
+                            }
+                        ),
+                    )
+                    .await?
+            }
+
+            let mut msg = String::from("🚨 ESCALATION OCCURRED!");
+
+            if is_last {
+                warn!("Notifying final room about escalation");
+            } else {
+                debug!("Notifying *next* room about escalation");
+            }
+
+            // Send alerts to room.
+            for alert in notify.alerts {
+                if !alert.should_escalate() {
+                    return Err(anyhow!("Received an alert that shouldn't escalate as an escalation message"));
+                }
+
+                // If the alert should not escalate, send trimmed version (no Id).
+                let content = AlertContextTrimmed::from(alert).to_string();
+
+                msg.push_str(&format!("{}\n\n", content));
+            }
+
+            msg.pop();
+            msg.pop();
+
+            client.send_msg(next_room_id, &msg).await?;
 
             Ok(())
         };

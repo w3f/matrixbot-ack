@@ -187,6 +187,12 @@ pub enum Command {
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "Result<()>")]
+pub struct NotifyAlert {
+    pub alerts: Vec<AlertContext>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Message)]
+#[rtype(result = "Result<()>")]
 pub struct Escalation {
     pub escalation_idx: usize,
     pub alerts: Vec<AlertContext>,
@@ -266,10 +272,7 @@ impl Handler<InsertAlerts> for Processor {
             // Notify rooms.
             debug!("Notifying rooms about new alerts");
             let _ = MatrixClient::from_registry()
-                .send(Escalation {
-                    escalation_idx: 0,
-                    alerts: alerts,
-                })
+                .send(NotifyAlert { alerts: alerts })
                 .await??;
 
             Ok(())
