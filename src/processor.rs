@@ -128,45 +128,48 @@ impl Actor for Processor {
         let db = Arc::clone(&self.db);
         let escalation_window = self.escalation_window;
 
-        ctx.run_interval(
-            Duration::from_secs(CRON_JON_INTERVAL),
-            move |_proc, _ctx| {
-                let db = Arc::clone(&db);
-                actix::spawn(async move {
-                    let res = |db: Arc<Database>| async move {
-                        let mut pending = db.get_pending(Some(escalation_window)).await?;
+        if self.should_escalate {
+            let local = |db: Arc<Database>, escalation_window: u64| async move {
+                let mut pending = db.get_pending(Some(escalation_window)).await?;
 
-                        for alert in &mut pending {
-                            debug!("Alert escalated: {:?}", alert);
+                for alert in &mut pending {
+                    debug!("Alert escalated: {:?}", alert);
 
-                            // Send alert to the matrix client, increment escalation index.
-                            let is_last = MatrixClient::from_registry()
-                                .send(Escalation {
-                                    escalation_idx: alert.escalation_idx + 1,
-                                    alerts: vec![alert.clone()],
-                                })
-                                .await??;
+                    // Send alert to the matrix client, increment escalation index.
+                    let is_last = MatrixClient::from_registry()
+                        .send(Escalation {
+                            escalation_idx: alert.escalation_idx + 1,
+                            alerts: vec![alert.clone()],
+                        })
+                        .await??;
 
-                            // Update alert info.
-                            if !is_last {
-                                alert.escalation_idx += 1;
-                            }
-                            alert.last_notified = unix_time();
-                        }
-
-                        // Update all alert states.
-                        db.insert_alerts(&pending).await?;
-
-                        Result::<()>::Ok(())
-                    };
-
-                    match res(db).await {
-                        Ok(_) => {}
-                        Err(err) => error!("{:?}", err),
+                    // Update alert info.
+                    if !is_last {
+                        alert.escalation_idx += 1;
                     }
-                });
-            },
-        );
+                    alert.last_notified = unix_time();
+                }
+
+                // Update all alert states.
+                db.insert_alerts(&pending).await?;
+
+                Result::<()>::Ok(())
+            };
+
+            ctx.run_interval(
+                Duration::from_secs(CRON_JON_INTERVAL),
+                move |_proc, _ctx| {
+                    let db = Arc::clone(&db);
+
+                    actix::spawn(async move {
+                        match local(db, escalation_window).await {
+                            Ok(_) => {}
+                            Err(err) => error!("{:?}", err),
+                        }
+                    });
+                },
+            );
+        }
     }
 }
 
