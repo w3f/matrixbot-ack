@@ -11,6 +11,12 @@ const PENDING: &'static str = "pending";
 const HISTORY: &'static str = "history";
 const ID_CURSOR: &'static str = "id_cursor";
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DatabaseConfig {
+    uri: String,
+    name: String,
+}
+
 pub struct Database {
     db: MongoDb,
 }
@@ -30,9 +36,11 @@ struct AlertAcknowledged {
 struct PendingAlertsEntry(HashMap<AlertId, Alert>);
 
 impl Database {
-    pub async fn new(uri: &str, db: &str) -> Result<Self> {
+    pub async fn new(config: DatabaseConfig) -> Result<Self> {
         Ok(Database {
-            db: Client::with_uri_str(uri).await?.database(db),
+            db: Client::with_uri_str(config.uri)
+                .await?
+                .database(&config.name),
         })
     }
     pub async fn insert_alerts(&self, alerts: &[AlertContext]) -> Result<()> {
