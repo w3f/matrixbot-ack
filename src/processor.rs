@@ -152,12 +152,8 @@ impl Actor for Processor {
                             alert.last_notified = unix_time();
                         }
 
-                        // TODO: Update alert
-
                         // Update all alert states.
-                        if !pending.is_empty() {
-                            db.insert_alerts(&pending).await?;
-                        }
+                        db.insert_alerts(&pending).await?;
 
                         Result::<()>::Ok(())
                     };

@@ -2,9 +2,12 @@ use crate::processor::{AlertContext, UserConfirmation};
 use crate::webhook::Alert;
 use crate::{unix_time, AlertId, Result};
 // TODO: Can this be avoided somehow?
-use bson::{doc, to_bson, to_document};
+use bson::{doc, to_bson};
 use futures::stream::StreamExt;
-use mongodb::{options::UpdateOptions, Client, Database as MongoDb};
+use mongodb::{
+    options::{ReplaceOptions, UpdateOptions},
+    Client, Database as MongoDb,
+};
 use std::collections::HashMap;
 
 const PENDING: &'static str = "pending";
@@ -30,6 +33,7 @@ struct IdCursor {
 struct AlertAcknowledged {
     alert: AlertContext,
     acked_by: String,
+    acked_timestamp: u64,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -44,6 +48,10 @@ impl Database {
         })
     }
     pub async fn insert_alerts(&self, alerts: &[AlertContext]) -> Result<()> {
+        if alerts.is_empty() {
+            return Ok(());
+        }
+
         let id_cursor = self.db.collection::<IdCursor>(ID_CURSOR);
         let pending = self.db.collection::<AlertContext>(PENDING);
 
@@ -72,7 +80,21 @@ impl Database {
             .await?;
 
         // Insert the alerts themselves.
-        let _ = pending.insert_many(alerts.to_vec(), None).await?;
+        for alert in alerts {
+            let _ = pending
+                .replace_one(
+                    doc! {
+                        "id": to_bson(&alert.id)?,
+                    },
+                    alert,
+                    {
+                        let mut ops = ReplaceOptions::default();
+                        ops.upsert = Some(true);
+                        ops
+                    },
+                )
+                .await?;
+        }
 
         Ok(())
     }
@@ -112,6 +134,7 @@ impl Database {
                         AlertAcknowledged {
                             alert: alert,
                             acked_by: acked_by,
+                            acked_timestamp: unix_time(),
                         },
                         None,
                     )

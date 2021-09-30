@@ -135,7 +135,7 @@ impl Handler<Escalation> for MatrixClient {
             let is_last = msg.escalation_idx >= rooms.len() - 1;
 
             // Normal alert on the first room.
-            let intro = if current_room_id == next_room_id {
+            let intro = if current_room_id == next_room_id && msg.escalation_idx == 0 {
                 "⚠️ Alert occurred!"
             }
             // Notify about escalation on further rooms.
