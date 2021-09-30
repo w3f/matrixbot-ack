@@ -180,7 +180,7 @@ impl Handler<Escalation> for MatrixClient {
                 .get(notify.escalation_idx)
                 .unwrap_or(rooms.last().unwrap());
 
-            let is_last = notify.escalation_idx >= rooms.len() - 1;
+            let is_last = notify.escalation_idx.saturating_sub(1) >= rooms.len() - 1;
 
             // No further rooms to inform if the final room has been reached.
             if !is_last {

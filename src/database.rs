@@ -128,7 +128,7 @@ impl Database {
             .await?;
 
         if let Some(alert) = alert {
-            if alert.escalation_idx > escalation_idx {
+            if alert.escalation_idx <= escalation_idx {
                 history
                     .insert_one(
                         AlertAcknowledged {
