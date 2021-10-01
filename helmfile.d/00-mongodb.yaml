@@ -1,6 +1,6 @@
 environments:
-  production:
   ci:
+  local:
 
 repositories:
 - name: bitnami
@@ -8,7 +8,6 @@ repositories:
 
 releases:
 - name: mongodb
-  namespace: test-ack-fabio
   chart: bitnami/mongodb
   version: 10.0.5
   values:
