@@ -1,9 +1,9 @@
 environment: production
 
 image:
-  repository: lamafab/matrixbot
-  tag: v0.2.1
-  pullPolicy: Always
+  repository: web3f/matrixbot-ack
+  tag: v0.2.2
+  pullPolicy: IfNotPresent
 
 config:
   database:
