@@ -19,6 +19,8 @@ mod webhook;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;
 
+const MIN_ESCALATION_WINDOW: u64 = 60; // 60 seconds
+
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct AlertId(u64);
 
@@ -124,7 +126,8 @@ pub async fn run() -> Result<()> {
         .escalation
         .as_ref()
         .map(|c| c.escalation_window)
-        .unwrap_or(0);
+        .unwrap_or(MIN_ESCALATION_WINDOW)
+        .max(MIN_ESCALATION_WINDOW);
 
     if should_escalate && config.database.is_none() {
         return Err(anyhow!(
