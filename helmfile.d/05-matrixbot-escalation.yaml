@@ -1,6 +1,7 @@
 environments:
   ci:
   local:
+  production:
 
 repositories:
 - name: w3f
@@ -8,6 +9,7 @@ repositories:
 
 releases:
 - name: matrixbot-escalation
+  namespace: test-ack-fabio
   chart: ../charts/matrixbot-ack
   values:
     - ./config/matrixbot-escalation.yaml.gotmpl

@@ -11,8 +11,8 @@ image:
 
 config:
   database:
-    uri: mongodb://localhost:27017
-    name: matrixbot
+    uri: "mongodb://{{ env "MONGO_USERNAME" | default "username" }}:{{ env "MONGO_PASSWORD" | default "password123" }}@mongodb-0.mongodb-headless:27017,mongodb-1.mongodb-headless:27017/{{ env "MONGO_DB" | default "matrixbot" }}"
+    name: {{ env "MONGO_DB" | default "matrixbot" }}
   matrix:
     homeserver: {{ env "MATRIX_HOMESERVER" | quote }}
     username: {{ env "MATRIX_USERNAME" | quote }}
@@ -20,7 +20,7 @@ config:
     device_name: {{ env "MATRIX_DEVICE_NAME" | quote }}
     device_id: {{ env "MATRIX_DEVICE_ID" | quote }}
     db_path: db/matrix.db
-  listener: 127.0.0.1:8000
+  listener: 0.0.0.0:8000
   escalation:
     enabled: true
     escalation_window: {{ env "ESCALATION_WINDOW" }}
