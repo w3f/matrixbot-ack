@@ -40,14 +40,14 @@ jobs:
             /scripts/publish-chart.sh
   integrationTests:
     docker:
-      - image: web3f/ci-commons:v2.4.6 kindest/node:v1.19.11
+      - image: web3f/ci-commons:v2.4.6
     steps:
       - checkout
       - setup_remote_docker
       - run:
           description: run integration tests
           command: |
-            /scripts/integration-tests.sh        
+            /scripts/integration-tests.sh kindest/node:v1.19.11      
 workflows:
   version: 2
   test_and_deploy:
