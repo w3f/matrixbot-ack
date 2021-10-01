@@ -128,10 +128,10 @@ impl Actor for Processor {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        let db = self.db();
-        let escalation_window = self.escalation_window;
-
         if self.should_escalate {
+            let db = self.db();
+            let escalation_window = self.escalation_window;
+
             let local = |db: Arc<Database>, escalation_window: u64| async move {
                 let mut pending = db.get_pending(Some(escalation_window)).await?;
 
