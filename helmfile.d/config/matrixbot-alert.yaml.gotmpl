@@ -10,9 +10,7 @@ image:
 {{ end }}
 
 config:
-  database:
-    uri: "mongodb://{{ env "MONGO_USERNAME" | default "username" }}:{{ env "MONGO_PASSWORD" | default "password123" }}@mongodb-0.mongodb-headless:27017,mongodb-1.mongodb-headless:27017/{{ env "MONGO_DB" | default "matrixbot" }}"
-    name: {{ env "MONGO_DB" | default "matrixbot" }}
+  database: null
   matrix:
     homeserver: {{ env "MATRIX_HOMESERVER" | quote }}
     username: {{ env "MATRIX_USERNAME" | quote }}
@@ -25,5 +23,4 @@ config:
     enabled: false
     escalation_window: 0
   rooms:
-    - {{ env "ESCALATION_ROOM_1" | quote }}
-    - {{ env "ESCALATION_ROOM_2" | quote }}
+    - {{ env "ALERT_ROOM_1" | quote }}
