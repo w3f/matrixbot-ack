@@ -1,7 +1,6 @@
 environments:
   ci:
   local:
-  production:
 
 repositories:
 - name: w3f
@@ -9,7 +8,6 @@ repositories:
 
 releases:
 - name: matrixbot-alert
-  namespace: test-ack-fabio
   chart: ../charts/matrixbot-ack
   values:
     - ./config/matrixbot-alert.yaml.gotmpl

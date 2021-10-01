@@ -7,7 +7,8 @@ source /scripts/bootstrap-helm.sh
 run_tests() {
     echo Running tests...
 
-    wait_pod_ready matrixbot-ack
+    wait_pod_ready matrixbot-escalation
+    wait_pod_ready matrixbot-alert
 }
 
 main(){

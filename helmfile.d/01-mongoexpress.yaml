@@ -1,5 +1,5 @@
 environments:
-  production:
+  local:
 
 repositories:
 - name: w3f
@@ -7,7 +7,6 @@ repositories:
 
 releases:
 - name: mongo-express
-  namespace: test-ack-fabio
   chart: w3f/mongo-express
   version: v0.1.0
   values:
