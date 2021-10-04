@@ -29,6 +29,8 @@ spec:
           volumeMounts:
           - name: config
             mountPath: /app/config
+          - name: db
+            mountPath: {{ dir .Values.config.matrix.db_path }}  
           ports:
           - name: http
             containerPort: 8000
@@ -46,3 +48,10 @@ spec:
       - name: config
         configMap:
           name: {{ .Release.Name }}
+      - name: db
+        {{ if and (eq .Values.environment "production") (.Values.config.escalation.enabled) }}
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-db
+        {{ else }}
+        emptyDir: {}
+        {{ end }}    
