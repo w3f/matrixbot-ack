@@ -30,7 +30,7 @@ spec:
           - name: config
             mountPath: /app/config
           - name: db
-            mountPath: {{ dir .Values.config.db_path }}  
+            mountPath: {{ dir .Values.config.matrix.db_path }}  
           ports:
           - name: http
             containerPort: 8000

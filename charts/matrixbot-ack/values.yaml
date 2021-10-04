@@ -13,7 +13,7 @@ config:
     homeserver: https://matrix.org
     username: username
     password: password
-    db_path: "/app/db/matrix.db"
+    db_path: /app/db/matrix.db
     device_name: matrixbot-ack
     device_id: matrixbot-some-id
   listener: 127.0.0.1:8000
