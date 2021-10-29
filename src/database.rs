@@ -5,7 +5,7 @@ use crate::{unix_time, AlertId, Result};
 use bson::{doc, to_bson};
 use futures::stream::StreamExt;
 use mongodb::{
-    options::{FindOneAndUpdateOptions, ReplaceOptions},
+    options::{FindOneAndUpdateOptions, ReplaceOptions, ReturnDocument},
     Client, Database as MongoDb,
 };
 use std::collections::HashMap;
@@ -82,20 +82,19 @@ impl Database {
                 doc! {
                     "$inc": {
                         "latest_id": 1,
-                    },
-                    "$setOnInsert": {
-                        "latest_id": 0,
                     }
                 },
                 {
                     let mut ops = FindOneAndUpdateOptions::default();
+                    // Return document *after* update.
+                    ops.return_document = Some(ReturnDocument::After);
                     ops.upsert = Some(true);
                     Some(ops)
                 },
             )
             .await?
             .map(|c| AlertId::from(c.latest_id))
-            // Handled by "$setOnInsert"
+            // Handled by `ReturnDocument::After`
             .unwrap();
 
         Ok(id)
