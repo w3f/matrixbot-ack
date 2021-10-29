@@ -263,14 +263,12 @@ impl Handler<InsertAlerts> for Processor {
             }
 
             // Only store alerts that should escalate.
-            let mut to_store = alerts.clone();
-            to_store.retain(|alert| alert.should_escalate());
-
-            // Store alerts in database.
-            db.insert_alerts(&to_store).await.map_err(|err| {
-                error!("Failed to insert alerts into database: {:?}", err);
-                err
-            })?;
+            if should_escalate {
+                db.insert_alerts(&alerts).await.map_err(|err| {
+                    error!("Failed to insert alerts into database: {:?}", err);
+                    err
+                })?;
+            }
 
             // Notify rooms about all alerts.
             debug!("Notifying rooms about new alerts");
