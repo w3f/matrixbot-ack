@@ -80,7 +80,7 @@ impl Database {
             .find_one_and_update(
                 doc! {},
                 doc! {
-                    "$incr": {
+                    "$inc": {
                         "latest_id": 1,
                     },
                     "$setOnInsert": {
