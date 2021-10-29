@@ -37,9 +37,6 @@ impl AlertId {
     pub fn from_str(str: &str) -> Result<Self> {
         Ok(AlertId(str.parse()?))
     }
-    pub fn incr(self) -> Self {
-        AlertId(self.0 + 1)
-    }
     pub fn to_le_bytes(self) -> [u8; 8] {
         self.0.to_le_bytes()
     }

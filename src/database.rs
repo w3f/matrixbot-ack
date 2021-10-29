@@ -5,7 +5,7 @@ use crate::{unix_time, AlertId, Result};
 use bson::{doc, to_bson};
 use futures::stream::StreamExt;
 use mongodb::{
-    options::{ReplaceOptions, UpdateOptions},
+    options::{FindOneAndUpdateOptions, ReplaceOptions},
     Client, Database as MongoDb,
 };
 use std::collections::HashMap;
@@ -52,32 +52,7 @@ impl Database {
             return Ok(());
         }
 
-        let id_cursor = self.db.collection::<IdCursor>(ID_CURSOR);
         let pending = self.db.collection::<AlertContext>(PENDING);
-
-        // Find the highest
-        let latest_id = alerts
-            .iter()
-            .map(|alert| alert.id.inner())
-            .max()
-            .ok_or(anyhow!("no alerts specified"))?;
-
-        // Insert latest Id.
-        let _ = id_cursor
-            .update_one(
-                doc! {},
-                doc! {
-                    "$set": {
-                        "latest_id": latest_id,
-                    },
-                },
-                {
-                    let mut ops = UpdateOptions::default();
-                    ops.upsert = Some(true);
-                    ops
-                },
-            )
-            .await?;
 
         // Insert the alerts themselves.
         for alert in alerts {
@@ -102,10 +77,26 @@ impl Database {
         let id_cursor = self.db.collection::<IdCursor>(ID_CURSOR);
 
         let id = id_cursor
-            .find_one(doc! {}, None)
+            .find_one_and_update(
+                doc! {},
+                doc! {
+                    "$incr": {
+                        "latest_id": 1,
+                    },
+                    "$setOnInsert": {
+                        "latest_id": 0,
+                    }
+                },
+                {
+                    let mut ops = FindOneAndUpdateOptions::default();
+                    ops.upsert = Some(true);
+                    Some(ops)
+                },
+            )
             .await?
-            .map(|c| AlertId::from(c.latest_id).incr())
-            .unwrap_or(AlertId::from(0));
+            .map(|c| AlertId::from(c.latest_id))
+            // Handled by "$setOnInsert"
+            .unwrap();
 
         Ok(id)
     }

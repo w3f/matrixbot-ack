@@ -254,18 +254,13 @@ impl Handler<InsertAlerts> for Processor {
         let should_escalate = self.should_escalate;
 
         let f = async move {
-            let mut next_id = db.get_next_id().await?;
-
             // Convert webhook alerts into alert contexts.
-            let alerts: Vec<AlertContext> = msg
-                .alerts
-                .into_iter()
-                .map(|alert| {
-                    let a = AlertContext::new(alert, next_id, should_escalate);
-                    next_id = next_id.incr();
-                    a
-                })
-                .collect();
+            // (avoid an iterator so `async` can be used conveniently)
+            let mut alerts = vec![];
+            for alert in msg.alerts {
+                let next_id = db.get_next_id().await?;
+                alerts.push(AlertContext::new(alert, next_id, should_escalate));
+            }
 
             // Only store alerts that should escalate.
             let mut to_store = alerts.clone();
