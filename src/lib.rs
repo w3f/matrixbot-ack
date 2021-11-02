@@ -25,26 +25,8 @@ const MIN_ESCALATION_WINDOW: u64 = 60; // 60 seconds
 pub struct AlertId(u64);
 
 impl AlertId {
-    pub fn from_le_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() != 8 {
-            return Err(anyhow!("failed to fetch current id, invalid length"));
-        }
-
-        let mut id = [0; 8];
-        id.copy_from_slice(&bytes);
-        Ok(AlertId(u64::from_le_bytes(id)))
-    }
-    pub fn from_str(str: &str) -> Result<Self> {
+    fn from_str(str: &str) -> Result<Self> {
         Ok(AlertId(str.parse()?))
-    }
-    pub fn incr(self) -> Self {
-        AlertId(self.0 + 1)
-    }
-    pub fn to_le_bytes(self) -> [u8; 8] {
-        self.0.to_le_bytes()
-    }
-    pub fn inner(&self) -> u64 {
-        self.0
     }
 }
 
