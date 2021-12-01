@@ -171,9 +171,8 @@ impl Actor for Processor {
                     let is_locked = lock.load(Ordering::Relaxed);
 
                     if !is_locked {
+                        // Acquire new handlers for async task.
                         let db = Arc::clone(&db);
-
-                        // Acquire new handler for async task.
                         let lock = Arc::clone(&lock);
 
                         actix::spawn(async move {
