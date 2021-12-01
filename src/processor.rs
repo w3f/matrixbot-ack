@@ -4,9 +4,10 @@ use crate::webhook::Alert;
 use crate::{unix_time, AlertId, Result};
 use actix::prelude::*;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-const CRON_JOB_INTERVAL: u64 = 60;
+const CRON_JOB_INTERVAL: u64 = 5;
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AlertContext {
@@ -103,6 +104,9 @@ pub struct Processor {
     db: Option<Arc<Database>>,
     escalation_window: u64,
     should_escalate: bool,
+    // Ensures that only one escalation task is running at the time.
+    // `true` if locked, `false` if not.
+    escalation_lock: Arc<AtomicBool>,
 }
 
 impl Processor {
@@ -111,6 +115,7 @@ impl Processor {
             db: db.map(|db| Arc::new(db)),
             escalation_window: escalation_window,
             should_escalate: should_escalate,
+            escalation_lock: Arc::new(AtomicBool::new(false)),
         }
     }
     fn db(&self) -> Arc<Database> {
@@ -159,17 +164,31 @@ impl Actor for Processor {
                 Result::<()>::Ok(())
             };
 
+            let lock = Arc::clone(&self.escalation_lock);
             ctx.run_interval(
                 Duration::from_secs(CRON_JOB_INTERVAL),
                 move |_proc, _ctx| {
-                    let db = Arc::clone(&db);
+                    let is_locked = lock.load(Ordering::Relaxed);
 
-                    actix::spawn(async move {
-                        match local(db, escalation_window).await {
-                            Ok(_) => {}
-                            Err(err) => error!("{:?}", err),
-                        }
-                    });
+                    if !is_locked {
+                        let db = Arc::clone(&db);
+
+                        // Acquire new handler for async task.
+                        let lock = Arc::clone(&lock);
+
+                        actix::spawn(async move {
+                            // Seal the escalation lock.
+                            lock.store(true, Ordering::Relaxed);
+
+                            match local(db, escalation_window).await {
+                                Ok(_) => {}
+                                Err(err) => error!("{:?}", err),
+                            }
+
+                            // Unseal/unlock.
+                            lock.store(false, Ordering::Relaxed);
+                        });
+                    }
                 },
             );
         }
