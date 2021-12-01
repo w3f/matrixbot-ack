@@ -3,8 +3,7 @@ use crate::matrix::MatrixClient;
 use crate::webhook::Alert;
 use crate::{unix_time, AlertId, Result};
 use actix::prelude::*;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 const CRON_JOB_INTERVAL: u64 = 5;
@@ -105,8 +104,7 @@ pub struct Processor {
     escalation_window: u64,
     should_escalate: bool,
     // Ensures that only one escalation task is running at the time.
-    // `true` if locked, `false` if not.
-    escalation_lock: Arc<AtomicBool>,
+    escalation_lock: Arc<Mutex<()>>,
 }
 
 impl Processor {
@@ -115,7 +113,7 @@ impl Processor {
             db: db.map(|db| Arc::new(db)),
             escalation_window: escalation_window,
             should_escalate: should_escalate,
-            escalation_lock: Arc::new(AtomicBool::new(false)),
+            escalation_lock: Default::default(),
         }
     }
     fn db(&self) -> Arc<Database> {
@@ -168,26 +166,23 @@ impl Actor for Processor {
             ctx.run_interval(
                 Duration::from_secs(CRON_JOB_INTERVAL),
                 move |_proc, _ctx| {
-                    let is_locked = lock.load(Ordering::Relaxed);
+                    // Acquire new handles for async task.
+                    let db = Arc::clone(&db);
+                    let lock = Arc::clone(&lock);
 
-                    if !is_locked {
-                        // Acquire new handlers for async task.
-                        let db = Arc::clone(&db);
-                        let lock = Arc::clone(&lock);
-
-                        actix::spawn(async move {
-                            // Seal the escalation lock.
-                            lock.store(true, Ordering::Relaxed);
+                    actix::spawn(async move {
+                        // Immediately exists if the lock cannot be acquired.
+                        if let Ok(locked) = lock.try_lock() {
+                            // Lock acquired and will remain locked until the
+                            // handle goes out of scope.
+                            let _l = locked;
 
                             match local(db, escalation_window).await {
                                 Ok(_) => {}
                                 Err(err) => error!("{:?}", err),
                             }
-
-                            // Unseal/unlock.
-                            lock.store(false, Ordering::Relaxed);
-                        });
-                    }
+                        }
+                    });
                 },
             );
         }
