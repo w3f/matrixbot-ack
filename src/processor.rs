@@ -6,7 +6,7 @@ use actix::prelude::*;
 use std::sync::Arc;
 use std::time::Duration;
 
-const CRON_JON_INTERVAL: u64 = 5;
+const CRON_JOB_INTERVAL: u64 = 60;
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AlertContext {
@@ -160,7 +160,7 @@ impl Actor for Processor {
             };
 
             ctx.run_interval(
-                Duration::from_secs(CRON_JON_INTERVAL),
+                Duration::from_secs(CRON_JOB_INTERVAL),
                 move |_proc, _ctx| {
                     let db = Arc::clone(&db);
 
