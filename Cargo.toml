@@ -31,3 +31,4 @@ structopt = "0.3.23"
 md5 = "0.7.0"
 mongodb = { version = "2.0.0-beta", features = ["bson-u2i"] }
 bson = "2.0.0-beta"
+tokio = "1.14.0"
