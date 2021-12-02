@@ -3,7 +3,8 @@ use crate::matrix::MatrixClient;
 use crate::webhook::Alert;
 use crate::{unix_time, AlertId, Result};
 use actix::prelude::*;
-use std::sync::{Arc, Mutex};
+use tokio::sync::Mutex;
+use std::sync::Arc;
 use std::time::Duration;
 
 const CRON_JOB_INTERVAL: u64 = 5;
