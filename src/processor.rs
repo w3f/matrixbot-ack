@@ -3,10 +3,10 @@ use crate::matrix::MatrixClient;
 use crate::webhook::Alert;
 use crate::{unix_time, AlertId, Result};
 use actix::prelude::*;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-const CRON_JON_INTERVAL: u64 = 5;
+const CRON_JOB_INTERVAL: u64 = 5;
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AlertContext {
@@ -103,6 +103,8 @@ pub struct Processor {
     db: Option<Arc<Database>>,
     escalation_window: u64,
     should_escalate: bool,
+    // Ensures that only one escalation task is running at the time.
+    escalation_lock: Arc<Mutex<()>>,
 }
 
 impl Processor {
@@ -111,6 +113,7 @@ impl Processor {
             db: db.map(|db| Arc::new(db)),
             escalation_window: escalation_window,
             should_escalate: should_escalate,
+            escalation_lock: Default::default(),
         }
     }
     fn db(&self) -> Arc<Database> {
@@ -159,15 +162,25 @@ impl Actor for Processor {
                 Result::<()>::Ok(())
             };
 
+            let lock = Arc::clone(&self.escalation_lock);
             ctx.run_interval(
-                Duration::from_secs(CRON_JON_INTERVAL),
+                Duration::from_secs(CRON_JOB_INTERVAL),
                 move |_proc, _ctx| {
+                    // Acquire new handles for async task.
                     let db = Arc::clone(&db);
+                    let lock = Arc::clone(&lock);
 
                     actix::spawn(async move {
-                        match local(db, escalation_window).await {
-                            Ok(_) => {}
-                            Err(err) => error!("{:?}", err),
+                        // Immediately exits if the lock cannot be acquired.
+                        if let Ok(locked) = lock.try_lock() {
+                            // Lock acquired and will remain locked until
+                            // `_l` goes out of scope.
+                            let _l = locked;
+
+                            match local(db, escalation_window).await {
+                                Ok(_) => {}
+                                Err(err) => error!("{:?}", err),
+                            }
                         }
                     });
                 },
