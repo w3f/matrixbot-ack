@@ -1,5 +1,6 @@
 use crate::Result;
 use crate::processor::NotifyAlert;
+use crate::processor::AlertContext;
 use actix::prelude::*;
 use actix::SystemService;
 
@@ -16,7 +17,7 @@ pub struct AlertEvent {
 	payload_severity: PayloadSeverity,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum EventAction {
 	Trigger,
@@ -24,7 +25,7 @@ pub enum EventAction {
 	Resolve,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PayloadSeverity {
 	Critical,
@@ -33,12 +34,36 @@ pub enum PayloadSeverity {
 	Info,
 }
 
-pub struct PagerDutyClient {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServiceConfig {
+	integration_key: String,
+	event_action: EventAction,
+	payload_source: String,
+	payload_severity: PayloadSeverity,
+}
 
+pub struct PagerDutyClient {
+	config: Vec<ServiceConfig>,
 }
 
 impl PagerDutyClient {
+	fn new_alerts(&self, alert: AlertContext) -> Vec<AlertEvent> {
+		let mut alerts = vec![];
 
+		for config in &self.config {
+			alerts.push(
+				AlertEvent {
+					routing_key: config.integration_key.clone(),
+					event_action: config.event_action,
+					payload_summary: format!(""),
+					payload_source: config.payload_source.clone(),
+					payload_severity: config.payload_severity,
+				}
+			);
+		}
+
+		alerts
+	}
 }
 
 impl Default for PagerDutyClient {
