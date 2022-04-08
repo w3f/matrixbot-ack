@@ -30,7 +30,7 @@ pub async fn run_api_server(endpoint: &str) -> Result<()> {
     })
     .bind(endpoint)?;
 
-    server.run();
+    let _ = server.run();
     Ok(())
 }
 

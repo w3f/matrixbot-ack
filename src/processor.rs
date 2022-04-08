@@ -1,11 +1,11 @@
+use crate::adapter::matrix::MatrixClient;
 use crate::database::Database;
-use crate::matrix::MatrixClient;
 use crate::webhook::Alert;
 use crate::{unix_time, AlertId, Result};
 use actix::prelude::*;
-use tokio::sync::Mutex;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Mutex;
 
 const CRON_JOB_INTERVAL: u64 = 5;
 

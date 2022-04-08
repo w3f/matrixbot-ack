@@ -7,13 +7,14 @@ extern crate serde;
 #[macro_use]
 extern crate async_trait;
 
+use crate::adapter::matrix::{MatrixClient, MatrixConfig};
 use actix::clock::sleep;
 use actix::{prelude::*, SystemRegistry};
 use std::time::Duration;
 use structopt::StructOpt;
 
+mod adapter;
 mod database;
-mod matrix;
 mod processor;
 mod webhook;
 
@@ -55,7 +56,7 @@ fn unix_time() -> u64 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Config {
     database: Option<database::DatabaseConfig>,
-    matrix: matrix::MatrixConfig,
+    matrix: MatrixConfig,
     listener: String,
     escalation: Option<EscalationConfig>,
     rooms: Vec<String>,
@@ -132,7 +133,7 @@ pub async fn run() -> Result<()> {
 
     info!("Initializing Matrix client");
     // Only handle user commands if escalations are enabled.
-    let matrix = matrix::MatrixClient::new(&config.matrix, config.rooms, should_escalate).await?;
+    let matrix = MatrixClient::new(&config.matrix, config.rooms, should_escalate).await?;
 
     SystemRegistry::set(matrix.start());
 
