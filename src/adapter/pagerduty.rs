@@ -52,6 +52,12 @@ pub struct PagerDutyClient {
     config: Vec<ServiceConfig>,
 }
 
+impl PagerDutyClient {
+    pub fn new(config: Vec<ServiceConfig>) -> Self {
+        PagerDutyClient { config: config }
+    }
+}
+
 fn new_alert_events(config: Vec<ServiceConfig>, notify: &NotifyAlert) -> Vec<AlertEvent> {
     let mut alerts = vec![];
 
@@ -109,4 +115,34 @@ impl Handler<NotifyAlert> for PagerDutyClient {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+    use crate::processor::AlertContext;
+    use actix::SystemRegistry;
+
+	#[ignore]
+    #[actix_web::test]
+    async fn submit_alert_event() {
+        let integration_key = std::env::var("PD_INTEGRATION_KEY").unwrap();
+        let config = vec![ServiceConfig {
+            integration_key,
+            event_action: EventAction::Acknowledge,
+            payload_source: "matrixbot-ack-test".to_string(),
+            payload_severity: PayloadSeverity::Warning,
+        }];
+
+        let client = PagerDutyClient::new(config);
+        SystemRegistry::set(client.start());
+
+        let alerts = vec![
+            AlertContext::new_test(0, "First alert"),
+            AlertContext::new_test(0, "Second alert"),
+        ];
+
+        let _ = PagerDutyClient::from_registry()
+            .send(NotifyAlert { alerts: alerts })
+            .await
+            .unwrap()
+            .unwrap();
+    }
+}

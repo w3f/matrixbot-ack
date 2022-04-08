@@ -340,3 +340,30 @@ impl ToString for UserConfirmation {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::webhook::{Alert, Annotations, Labels};
+
+    impl AlertContext {
+        pub fn new_test(id: u64, msg: &str) -> Self {
+            AlertContext {
+                id: AlertId(id),
+                alert: Alert {
+                    annotations: Annotations {
+                        message: Some(msg.to_string()),
+                        description: Some("Test message".to_string()),
+                    },
+                    labels: Labels {
+                        severity: "N/A".to_string(),
+                        alert_name: "N/A".to_string(),
+                    },
+                },
+                escalation_idx: 0,
+                last_notified: 0,
+                should_escalate: false,
+            }
+        }
+    }
+}
