@@ -115,7 +115,7 @@ impl SendMsg for Client {
 
 impl Default for MatrixClient {
     fn default() -> Self {
-        panic!("Matrix client was not initialized in system registry. This is a bug.");
+        panic!("Matrix client was not initialized in the system registry. This is a bug.");
     }
 }
 
