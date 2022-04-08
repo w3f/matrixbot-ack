@@ -254,6 +254,12 @@ pub struct Listener {
 impl EventHandler for Listener {
     async fn on_room_message(&self, room: Room, event: &SyncMessageEvent<MessageEventContent>) {
         if let Room::Joined(room) = room {
+            // Only process whitelisted rooms.
+            if !self.rooms.contains(room.room_id()) {
+                return;
+            }
+
+            // Check message.
             let res = |room: Joined, event: SyncMessageEvent<MessageEventContent>| async move {
                 // Ignore own messages.
                 if &event.sender == room.own_user_id() {
@@ -281,9 +287,10 @@ impl EventHandler for Listener {
                 debug!("Received message from {}: {}", event.sender, msg_body);
 
                 // For convenience.
-                let msg_body = msg_body.replace("  ", " ");
+                let msg_body = msg_body.replace("  ", " ").trim().to_lowercase();
 
-                let cmd = match msg_body.trim() {
+                // Parse precise command.
+                let cmd = match msg_body.as_str() {
                     "pending" => Command::Pending,
                     "help" => Command::Help,
                     txt @ _ => {
@@ -333,11 +340,6 @@ impl EventHandler for Listener {
 
                 Result::<()>::Ok(())
             };
-
-            // Only process whitelisted rooms.
-            if !self.rooms.contains(room.room_id()) {
-                return;
-            }
 
             match res(room, event.clone()).await {
                 Ok(_) => {}
