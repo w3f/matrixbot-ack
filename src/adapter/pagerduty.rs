@@ -104,10 +104,12 @@ impl Handler<NotifyAlert> for PagerDutyClient {
             let client = reqwest::Client::new();
 
             for alert in new_alert_events(config, &notify) {
+                // TODO: Handle response.
                 let res = client.post(SEND_ALERT_ENDPOINT).json(&alert).send().await?;
+                println!(">> {:?}", res);
             }
 
-            unimplemented!();
+            Ok(())
         };
 
         Box::pin(f.into_actor(self))
@@ -120,7 +122,7 @@ mod tests {
     use crate::processor::AlertContext;
     use actix::SystemRegistry;
 
-	#[ignore]
+    #[ignore]
     #[actix_web::test]
     async fn submit_alert_event() {
         let integration_key = std::env::var("PD_INTEGRATION_KEY").unwrap();
