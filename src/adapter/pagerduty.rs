@@ -127,17 +127,21 @@ mod tests {
     use super::*;
     use crate::processor::AlertContext;
     use actix::SystemRegistry;
+    use std::env;
 
     #[ignore]
     #[actix_web::test]
     async fn submit_alert_event() {
-        let integration_key = std::env::var("PD_INTEGRATION_KEY").unwrap();
-        let config = vec![ServiceConfig {
+        let integration_key = env::var("PD_INTEGRATION_KEY").unwrap();
+        let api_key = env::var("PD_API_KEY").unwrap();
+
+        let config = ServiceConfig {
+            api_key: api_key,
             integration_key,
             event_action: EventAction::Acknowledge,
             payload_source: "matrixbot-ack-test".to_string(),
             payload_severity: PayloadSeverity::Warning,
-        }];
+        };
 
         let client = PagerDutyClient::new(config);
         SystemRegistry::set(client.start());
