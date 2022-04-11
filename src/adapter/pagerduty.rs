@@ -1,4 +1,3 @@
-use crate::processor::AlertContextTrimmed;
 use crate::processor::NotifyAlert;
 use crate::AlertId;
 use crate::Result;
@@ -6,12 +5,16 @@ use actix::prelude::*;
 use actix::SystemService;
 use reqwest::header::AUTHORIZATION;
 use reqwest::StatusCode;
+use tokio::time::{sleep, Duration};
 
-const SEND_ALERT_ENDPOINT: &'static str = "https://events.pagerduty.com/v2/enqueue";
+const SEND_ALERT_ENDPOINT: &str = "https://events.pagerduty.com/v2/enqueue";
+const RETRY_TIMEOUT: u64 = 10; // seconds
 
 /// Alert Event for the PagerDuty API.
 #[derive(Debug, Clone, Serialize)]
 pub struct AlertEvent {
+    #[serde(skip_serializing)]
+    id: AlertId,
     routing_key: String,
     event_action: EventAction,
     payload: Payload,
@@ -68,6 +71,7 @@ fn new_alert_events(config: &ServiceConfig, notify: &NotifyAlert) -> Vec<AlertEv
 
     for alert in &notify.alerts {
         alerts.push(AlertEvent {
+            id: alert.id,
             routing_key: config.integration_key.clone(),
             event_action: config.event_action,
             payload: Payload {
@@ -108,20 +112,27 @@ impl Handler<NotifyAlert> for PagerDutyClient {
             let client = reqwest::Client::new();
 
             for alert in new_alert_events(&config, &notify) {
-                // TODO: Handle response.
-                let resp = client
-                    .post(SEND_ALERT_ENDPOINT)
-                    .header(AUTHORIZATION, &config.api_key)
-                    .json(&alert)
-                    .send()
-                    .await?;
+                loop {
+                    let resp = client
+                        .post(SEND_ALERT_ENDPOINT)
+                        .header(AUTHORIZATION, &config.api_key)
+                        .json(&alert)
+                        .send()
+                        .await?;
 
-                match resp.status() {
-                    StatusCode::ACCEPTED => info!(""),
-                    err => error!(
-                        "Failed to send alert to PagerDuty: {:?}, response: {:?}",
-                        err, resp
-                    ),
+                    match resp.status() {
+                        StatusCode::ACCEPTED => {
+                            info!("Submitted alert {} to PagerDuty", alert.id);
+                            break;
+                        }
+                        err => error!(
+                            "Failed to send alert to PagerDuty: {:?}, response: {:?}",
+                            err, resp
+                        ),
+                    }
+
+                    warn!("Retrying...");
+                    sleep(Duration::from_secs(RETRY_TIMEOUT)).await;
                 }
             }
 
@@ -146,7 +157,7 @@ mod tests {
         let api_key = env::var("PD_API_KEY").unwrap();
 
         let config = ServiceConfig {
-            api_key: api_key,
+            api_key,
             integration_key,
             event_action: EventAction::Trigger,
             payload_source: "matrixbot-ack-test".to_string(),
@@ -162,7 +173,7 @@ mod tests {
         ];
 
         let _ = PagerDutyClient::from_registry()
-            .send(NotifyAlert { alerts: alerts })
+            .send(NotifyAlert { alerts })
             .await
             .unwrap()
             .unwrap();
