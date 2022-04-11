@@ -4,6 +4,7 @@ use crate::AlertId;
 use crate::Result;
 use actix::prelude::*;
 use actix::SystemService;
+use reqwest::header::AUTHORIZATION;
 use reqwest::Client;
 
 const SEND_ALERT_ENDPOINT: &'static str = "https://events.pagerduty.com/v2/enqueue";
@@ -42,6 +43,7 @@ pub enum PayloadSeverity {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServiceConfig {
+    api_key: String,
     integration_key: String,
     event_action: EventAction,
     payload_source: String,
@@ -58,7 +60,7 @@ impl PagerDutyClient {
     }
 }
 
-fn new_alert_events(config: ServiceConfig, notify: &NotifyAlert) -> Vec<AlertEvent> {
+fn new_alert_events(config: &ServiceConfig, notify: &NotifyAlert) -> Vec<AlertEvent> {
     let mut alerts = vec![];
 
     for alert in &notify.alerts {
@@ -101,9 +103,15 @@ impl Handler<NotifyAlert> for PagerDutyClient {
 
             let client = reqwest::Client::new();
 
-            for alert in new_alert_events(config, &notify) {
+            for alert in new_alert_events(&config, &notify) {
                 // TODO: Handle response.
-                let res = client.post(SEND_ALERT_ENDPOINT).json(&alert).send().await?;
+                let res = client
+                    .post(SEND_ALERT_ENDPOINT)
+                    .header(AUTHORIZATION, &config.api_key)
+                    .json(&alert)
+                    .send()
+                    .await?;
+
                 println!(">> {:?}", res);
             }
 
