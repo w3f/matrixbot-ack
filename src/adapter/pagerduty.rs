@@ -5,23 +5,24 @@ use crate::Result;
 use actix::prelude::*;
 use actix::SystemService;
 use reqwest::header::AUTHORIZATION;
-use reqwest::Client;
+use reqwest::StatusCode;
 
 const SEND_ALERT_ENDPOINT: &'static str = "https://events.pagerduty.com/v2/enqueue";
 
 /// Alert Event for the PagerDuty API.
 #[derive(Debug, Clone, Serialize)]
 pub struct AlertEvent {
-    #[serde(skip_serializing)]
-    id: AlertId,
     routing_key: String,
     event_action: EventAction,
-    #[serde(rename = "payload.summary")]
-    payload_summary: String,
-    #[serde(rename = "payload.source")]
-    payload_source: String,
-    #[serde(rename = "payload.severity")]
-    payload_severity: PayloadSeverity,
+    payload: Payload,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub struct Payload {
+    summary: String,
+    source: String,
+    severity: PayloadSeverity,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -55,8 +56,10 @@ pub struct PagerDutyClient {
 }
 
 impl PagerDutyClient {
-    pub fn new(config: ServiceConfig) -> Self {
-        PagerDutyClient { config: config }
+    pub fn new(mut config: ServiceConfig) -> Self {
+        config.api_key = format!("Token token={}", config.api_key);
+
+        PagerDutyClient { config }
     }
 }
 
@@ -65,12 +68,13 @@ fn new_alert_events(config: &ServiceConfig, notify: &NotifyAlert) -> Vec<AlertEv
 
     for alert in &notify.alerts {
         alerts.push(AlertEvent {
-            id: alert.id.clone(),
             routing_key: config.integration_key.clone(),
             event_action: config.event_action,
-            payload_summary: AlertContextTrimmed::from(alert.clone()).to_string(),
-            payload_source: config.payload_source.clone(),
-            payload_severity: config.payload_severity,
+            payload: Payload {
+                summary: alert.to_string(),
+                source: config.payload_source.clone(),
+                severity: config.payload_severity,
+            },
         });
     }
 
@@ -105,14 +109,20 @@ impl Handler<NotifyAlert> for PagerDutyClient {
 
             for alert in new_alert_events(&config, &notify) {
                 // TODO: Handle response.
-                let res = client
+                let resp = client
                     .post(SEND_ALERT_ENDPOINT)
                     .header(AUTHORIZATION, &config.api_key)
                     .json(&alert)
                     .send()
                     .await?;
 
-                println!(">> {:?}", res);
+                match resp.status() {
+                    StatusCode::ACCEPTED => info!(""),
+                    err => error!(
+                        "Failed to send alert to PagerDuty: {:?}, response: {:?}",
+                        err, resp
+                    ),
+                }
             }
 
             Ok(())
@@ -132,13 +142,13 @@ mod tests {
     #[ignore]
     #[actix_web::test]
     async fn submit_alert_event() {
-        let integration_key = env::var("PD_INTEGRATION_KEY").unwrap();
+        let integration_key = env::var("PD_SERVICE_KEY").unwrap();
         let api_key = env::var("PD_API_KEY").unwrap();
 
         let config = ServiceConfig {
             api_key: api_key,
             integration_key,
-            event_action: EventAction::Acknowledge,
+            event_action: EventAction::Trigger,
             payload_source: "matrixbot-ack-test".to_string(),
             payload_severity: PayloadSeverity::Warning,
         };
