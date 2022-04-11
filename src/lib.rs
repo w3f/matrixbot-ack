@@ -90,7 +90,7 @@ pub async fn run() -> Result<()> {
         "Opening config at {}",
         std::fs::canonicalize(&cli.config)?
             .to_str()
-            .ok_or(anyhow!("Path to config is not valid unicode"))?
+            .ok_or_else(|| anyhow!("Path to config is not valid unicode"))?
     );
 
     let content = std::fs::read_to_string(&cli.config)?;

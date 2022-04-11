@@ -1,7 +1,6 @@
 use crate::processor::{AlertContext, UserConfirmation};
 use crate::webhook::Alert;
 use crate::{unix_time, AlertId, Result};
-// TODO: Can this be avoided somehow?
 use bson::{doc, to_bson};
 use futures::stream::StreamExt;
 use mongodb::{
@@ -10,9 +9,9 @@ use mongodb::{
 };
 use std::collections::HashMap;
 
-const PENDING: &'static str = "pending";
-const HISTORY: &'static str = "history";
-const ID_CURSOR: &'static str = "id_cursor";
+const PENDING: &str = "pending";
+const HISTORY: &str = "history";
+const ID_CURSOR: &str = "id_cursor";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseConfig {
@@ -122,8 +121,8 @@ impl Database {
                 history
                     .insert_one(
                         AlertAcknowledged {
-                            alert: alert,
-                            acked_by: acked_by,
+                            alert,
+                            acked_by,
                             acked_timestamp: unix_time(),
                         },
                         None,

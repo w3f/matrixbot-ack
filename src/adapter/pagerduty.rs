@@ -158,6 +158,7 @@ mod tests {
     #[ignore]
     #[actix_web::test]
     async fn submit_alert_event() {
+        // Keep those entries a SECRET!
         let integration_key = env::var("PD_SERVICE_KEY").unwrap();
         let api_key = env::var("PD_API_KEY").unwrap();
 

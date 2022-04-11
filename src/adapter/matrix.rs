@@ -79,7 +79,7 @@ impl MatrixClient {
             client
                 .sync_token()
                 .await
-                .ok_or(anyhow!("Failed to acquire sync token"))?,
+                .ok_or_else(|| anyhow!("Failed to acquire sync token"))?,
         );
 
         // Sync in background.
@@ -137,7 +137,7 @@ impl Handler<NotifyAlert> for MatrixClient {
                 return Ok(());
             }
 
-            let current_room_id = rooms.get(0).unwrap_or(rooms.last().unwrap());
+            let current_room_id = rooms.get(0).unwrap_or_else(|| rooms.last().unwrap());
 
             let mut msg = String::from("⚠️ Alert occurred!\n\n");
 
@@ -180,11 +180,11 @@ impl Handler<Escalation> for MatrixClient {
             // Determine which rooms to send the alerts to.
             let current_room_id = rooms
                 .get(notify.escalation_idx.saturating_sub(1))
-                .unwrap_or(rooms.last().unwrap());
+                .unwrap_or_else(|| rooms.last().unwrap());
 
             let next_room_id = rooms
                 .get(notify.escalation_idx)
-                .unwrap_or(rooms.last().unwrap());
+                .unwrap_or_else(|| rooms.last().unwrap());
 
             let is_last = current_room_id == next_room_id;
 
@@ -200,7 +200,7 @@ impl Handler<Escalation> for MatrixClient {
                             {
                                 let mut list = String::new();
                                 for alert in &notify.alerts {
-                                    list.push_str(&format!("ID: {}, ", alert.id.to_string()));
+                                    list.push_str(&format!("ID: {}, ", alert.id));
                                 }
 
                                 list.pop();
@@ -293,9 +293,9 @@ impl EventHandler for Listener {
                 let cmd = match msg_body.as_str() {
                     "pending" => Command::Pending,
                     "help" => Command::Help,
-                    txt @ _ => {
+                    txt => {
                         if txt.starts_with("ack") || txt.starts_with("acknowledge") {
-                            let parts: Vec<&str> = txt.split(" ").collect();
+                            let parts: Vec<&str> = txt.split(' ').collect();
                             if parts.len() == 2 {
                                 if let Ok(id) = AlertId::from_str(parts[1]) {
                                     Command::Ack(id, event.sender.to_string())
@@ -323,7 +323,7 @@ impl EventHandler for Listener {
 
                 // Prepare action type.
                 let action = UserAction {
-                    escalation_idx: escalation_idx,
+                    escalation_idx,
                     command: cmd,
                 };
 
