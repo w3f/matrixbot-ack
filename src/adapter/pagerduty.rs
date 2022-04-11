@@ -49,29 +49,27 @@ pub struct ServiceConfig {
 }
 
 pub struct PagerDutyClient {
-    config: Vec<ServiceConfig>,
+    config: ServiceConfig,
 }
 
 impl PagerDutyClient {
-    pub fn new(config: Vec<ServiceConfig>) -> Self {
+    pub fn new(config: ServiceConfig) -> Self {
         PagerDutyClient { config: config }
     }
 }
 
-fn new_alert_events(config: Vec<ServiceConfig>, notify: &NotifyAlert) -> Vec<AlertEvent> {
+fn new_alert_events(config: ServiceConfig, notify: &NotifyAlert) -> Vec<AlertEvent> {
     let mut alerts = vec![];
 
-    for config in config {
-        for alert in &notify.alerts {
-            alerts.push(AlertEvent {
-                id: alert.id.clone(),
-                routing_key: config.integration_key.clone(),
-                event_action: config.event_action,
-                payload_summary: AlertContextTrimmed::from(alert.clone()).to_string(),
-                payload_source: config.payload_source.clone(),
-                payload_severity: config.payload_severity,
-            });
-        }
+    for alert in &notify.alerts {
+        alerts.push(AlertEvent {
+            id: alert.id.clone(),
+            routing_key: config.integration_key.clone(),
+            event_action: config.event_action,
+            payload_summary: AlertContextTrimmed::from(alert.clone()).to_string(),
+            payload_source: config.payload_source.clone(),
+            payload_severity: config.payload_severity,
+        });
     }
 
     alerts
