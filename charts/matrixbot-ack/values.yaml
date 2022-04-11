@@ -20,7 +20,6 @@ config:
     api_key: abcdefg
     integration_key: ABCDEFG
     payload_source: "Matrixbot Ack Service"
-    # Possible values: critical, error, warning, info
     payload_severity: warning
   listener: 127.0.0.1:8000
   escalation:
