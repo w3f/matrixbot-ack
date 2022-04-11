@@ -125,6 +125,11 @@ impl Handler<NotifyAlert> for PagerDutyClient {
                             info!("Submitted alert {} to PagerDuty", alert.id);
                             break;
                         }
+                        StatusCode::BAD_REQUEST => {
+                            error!("BAD REQUEST when submitting alert {}", alert.id);
+                            // Do not retry on this error type.
+                            break;
+                        }
                         err => error!(
                             "Failed to send alert to PagerDuty: {:?}, response: {:?}",
                             err, resp

@@ -8,6 +8,7 @@ extern crate serde;
 extern crate async_trait;
 
 use crate::adapter::matrix::{MatrixClient, MatrixConfig};
+use crate::adapter::pagerduty::{PagerDutyClient, ServiceConfig};
 use actix::clock::sleep;
 use actix::{prelude::*, SystemRegistry};
 use std::time::Duration;
@@ -57,6 +58,7 @@ fn unix_time() -> u64 {
 struct Config {
     database: Option<database::DatabaseConfig>,
     matrix: MatrixConfig,
+    pager_duty: ServiceConfig,
     listener: String,
     escalation: Option<EscalationConfig>,
     rooms: Vec<String>,
@@ -134,8 +136,11 @@ pub async fn run() -> Result<()> {
     info!("Initializing Matrix client");
     // Only handle user commands if escalations are enabled.
     let matrix = MatrixClient::new(&config.matrix, config.rooms, should_escalate).await?;
-
     SystemRegistry::set(matrix.start());
+
+    info!("Initializing PagerDuty client");
+    let pager_duty = PagerDutyClient::new(config.pager_duty);
+    SystemRegistry::set(pager_duty.start());
 
     info!("Starting API server");
     webhook::run_api_server(&config.listener).await?;
