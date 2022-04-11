@@ -91,15 +91,22 @@ pub struct Processor {
     should_escalate: bool,
     // Ensures that only one escalation task is running at the time.
     escalation_lock: Arc<Mutex<()>>,
+    pager_duty_enabled: bool,
 }
 
 impl Processor {
-    pub fn new(db: Option<Database>, escalation_window: u64, should_escalate: bool) -> Self {
+    pub fn new(
+        db: Option<Database>,
+        escalation_window: u64,
+        should_escalate: bool,
+        pager_duty_enabled: bool,
+    ) -> Self {
         Processor {
             db: db.map(Arc::new),
             escalation_window,
             should_escalate,
             escalation_lock: Default::default(),
+            pager_duty_enabled,
         }
     }
     fn db(&self) -> Arc<Database> {
@@ -251,6 +258,7 @@ impl Handler<InsertAlerts> for Processor {
     fn handle(&mut self, msg: InsertAlerts, _ctx: &mut Self::Context) -> Self::Result {
         let db = self.db();
         let should_escalate = self.should_escalate;
+        let pager_duty_enabled = self.pager_duty_enabled;
 
         let f = async move {
             // Convert webhook alerts into alert contexts.
@@ -277,10 +285,12 @@ impl Handler<InsertAlerts> for Processor {
                 })
                 .await??;
 
-            debug!("Notifying PagerDuty about new alerts");
-            let _ = PagerDutyClient::from_registry()
-                .send(NotifyAlert { alerts })
-                .await??;
+            if pager_duty_enabled {
+                debug!("Notifying PagerDuty about new alerts");
+                let _ = PagerDutyClient::from_registry()
+                    .send(NotifyAlert { alerts })
+                    .await??;
+            }
 
             Ok(())
         };

@@ -58,7 +58,7 @@ fn unix_time() -> u64 {
 struct Config {
     database: Option<database::DatabaseConfig>,
     matrix: MatrixConfig,
-    pager_duty: ServiceConfig,
+    pager_duty: Option<ServiceConfig>,
     listener: String,
     escalation: Option<EscalationConfig>,
     rooms: Vec<String>,
@@ -130,7 +130,12 @@ pub async fn run() -> Result<()> {
     };
 
     info!("Adding message processor to system registry");
-    let proc = processor::Processor::new(opt_db, escalation_window, should_escalate);
+    let proc = processor::Processor::new(
+        opt_db,
+        escalation_window,
+        should_escalate,
+        config.pager_duty.is_some(),
+    );
     SystemRegistry::set(proc.start());
 
     info!("Initializing Matrix client");
@@ -139,8 +144,10 @@ pub async fn run() -> Result<()> {
     SystemRegistry::set(matrix.start());
 
     info!("Initializing PagerDuty client");
-    let pager_duty = PagerDutyClient::new(config.pager_duty);
-    SystemRegistry::set(pager_duty.start());
+    if let Some(pd_config) = config.pager_duty {
+        let pager_duty = PagerDutyClient::new(pd_config);
+        SystemRegistry::set(pager_duty.start());
+    }
 
     info!("Starting API server");
     webhook::run_api_server(&config.listener).await?;
