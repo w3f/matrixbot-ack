@@ -30,6 +30,7 @@ pub struct Payload {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+/// We only use Trigger.
 pub enum EventAction {
     Trigger,
     Acknowledge,
@@ -49,7 +50,6 @@ pub enum PayloadSeverity {
 pub struct ServiceConfig {
     api_key: String,
     integration_key: String,
-    event_action: EventAction,
     payload_source: String,
     payload_severity: PayloadSeverity,
 }
@@ -73,7 +73,7 @@ fn new_alert_events(config: &ServiceConfig, notify: &NotifyAlert) -> Vec<AlertEv
         alerts.push(AlertEvent {
             id: alert.id,
             routing_key: config.integration_key.clone(),
-            event_action: config.event_action,
+            event_action: EventAction::Trigger,
             payload: Payload {
                 summary: alert.to_string(),
                 source: config.payload_source.clone(),
@@ -165,7 +165,6 @@ mod tests {
         let config = ServiceConfig {
             api_key,
             integration_key,
-            event_action: EventAction::Trigger,
             payload_source: "matrixbot-ack-test".to_string(),
             payload_severity: PayloadSeverity::Warning,
         };

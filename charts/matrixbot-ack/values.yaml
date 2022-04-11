@@ -16,6 +16,12 @@ config:
     db_path: /app/db/matrix.db
     device_name: matrixbot-ack
     device_id: matrixbot-some-id
+  pager_duty:
+    api_key: abcdefg
+    integration_key: ABCDEFG
+    payload_source: "Matrixbot Ack Service"
+    # Possible values: critical, error, warning, info
+    payload_severity: warning
   listener: 127.0.0.1:8000
   escalation:
     enabled: true
