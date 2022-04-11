@@ -18,6 +18,11 @@ config:
     device_name: {{ env "MATRIX_DEVICE_NAME" | quote }}
     device_id: {{ env "MATRIX_DEVICE_ID" | quote }}
     db_path: db/matrix.db
+  pager_duty:
+    api_key: {{ env "PD_API_KEY" | quote }}
+    integration_key:  {{ env "PD_INTEGRATION_KEY" | quote }}
+    payload_source:  {{ env "PD_PAYLOAD_SOURCE" | quote }}
+    payload_severity:  {{ env "PD_PAYLOAD_SEVERITY" | quote }}
   listener: 0.0.0.0:8000
   escalation:
     enabled: false
