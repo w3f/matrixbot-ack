@@ -58,7 +58,7 @@ fn unix_time() -> u64 {
 struct Config {
     database: Option<database::DatabaseConfig>,
     listener: String,
-    matrix: MatrixConfig,
+    matrix: Option<OnOff<MatrixConfig>>,
     pager_duty: Option<OnOff<ServiceConfig>>,
     escalation: Option<OnOff<EscalationConfig>>,
 }
@@ -101,10 +101,6 @@ pub async fn run() -> Result<()> {
     let content = std::fs::read_to_string(&cli.config)?;
     let config: Config = serde_yaml::from_str(&content)?;
 
-    if config.matrix.rooms.is_empty() {
-        return Err(anyhow!("No alert rooms have been configured"));
-    }
-
     // Retrieve relevant escalation data.
     let should_escalate = config
         .escalation
@@ -144,16 +140,30 @@ pub async fn run() -> Result<()> {
     );
     SystemRegistry::set(proc.start());
 
-    info!("Initializing Matrix client");
-    // Only handle user commands if escalations are enabled.
-    let matrix = MatrixClient::new(config.matrix, should_escalate).await?;
-    SystemRegistry::set(matrix.start());
+    if let Some(matrix_ctx) = config.matrix {
+        if matrix_ctx.enabled {
+            let matrix_config = matrix_ctx
+                .config
+                .ok_or_else(|| anyhow!("matrix config not specified"))?;
+
+            if matrix_config.rooms.is_empty() {
+                return Err(anyhow!("No alert rooms have been configured"));
+            }
+
+            info!("Initializing Matrix client");
+            // Only handle user commands if escalations are enabled.
+            let matrix = MatrixClient::new(matrix_config, should_escalate).await?;
+            SystemRegistry::set(matrix.start());
+        }
+    }
 
     info!("Initializing PagerDuty client");
-    if let Some(pd_config) = config.pager_duty {
-        if pd_config.enabled {
+    if let Some(pd_ctx) = config.pager_duty {
+        if pd_ctx.enabled {
+            let pd_config = pd_ctx.config.ok_or_else(|| anyhow!(""))?;
+
             // TODO: Handle unwrap.
-            let pager_duty = PagerDutyClient::new(pd_config.config.unwrap());
+            let pager_duty = PagerDutyClient::new(pd_config);
             SystemRegistry::set(pager_duty.start());
         }
     }
