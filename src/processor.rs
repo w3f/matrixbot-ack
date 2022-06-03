@@ -14,7 +14,7 @@ const CRON_JOB_INTERVAL: u64 = 5;
 pub struct AlertContext {
     pub id: AlertId,
     pub alert: Alert,
-    pub escalation_idx: usize,
+    pub escalation_idx: EscalationSteps,
     pub last_notified: u64,
     pub should_escalate: bool,
 }
@@ -191,13 +191,33 @@ impl Supervised for Processor {}
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "UserConfirmation")]
 pub struct UserAction {
-    pub escalation_idx: usize,
+    pub level: EscalationLevel,
+    pub user: String,
     pub command: Command,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+struct EscalationLevel(usize);
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct EscalationSteps {
+    current: EscalationLevel,
+}
+
+impl EscalationSteps {
+    pub fn incr(&mut self) {}
+    pub fn check_ack(&mut self, level: EscalationLevel) -> bool {
+        if level.0 >= self.current.0 {
+            true
+        } else {
+            false
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Command {
-    Ack(AlertId, String),
+    Ack(AlertId),
     Pending,
     Help,
 }
@@ -211,7 +231,6 @@ pub struct NotifyAlert {
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "()")]
 pub struct Escalation {
-    pub escalation_idx: usize,
     pub alerts: Vec<AlertContext>,
 }
 
