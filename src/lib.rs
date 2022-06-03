@@ -136,7 +136,11 @@ pub async fn run() -> Result<()> {
         opt_db,
         escalation_window,
         should_escalate,
-        config.pager_duty.is_some(),
+        config
+            .pager_duty
+            .as_ref()
+            .map(|c| c.enabled)
+            .unwrap_or(false),
     );
     SystemRegistry::set(proc.start());
 
@@ -162,7 +166,6 @@ pub async fn run() -> Result<()> {
         if pd_ctx.enabled {
             let pd_config = pd_ctx.config.ok_or_else(|| anyhow!(""))?;
 
-            // TODO: Handle unwrap.
             let pager_duty = PagerDutyClient::new(pd_config);
             SystemRegistry::set(pager_duty.start());
         }
