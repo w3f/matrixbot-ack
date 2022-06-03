@@ -1,6 +1,11 @@
 database:
   uri: mongodb://localhost:27017
   name: matrixbot
+listener: 127.0.0.1:8000
+escalation:
+  enabled: true
+  config:
+    escalation_window: 3600 # one hour
 matrix:
   enabled: false
   config:
@@ -10,6 +15,9 @@ matrix:
     db_path: db/matrix.db
     device_name: matrixbot-ack
     device_id: matrixbot-some-id
+    rooms:
+      - "!abcdef:matrix.org"
+      - "!ghijkl:matrix.org"
 pager_duty:
   enabled: false
   config:
@@ -18,11 +26,3 @@ pager_duty:
     payload_source: "Matrixbot Ack Service"
     # Possible values: critical, error, warning, info
     payload_severity: warning
-listener: 127.0.0.1:8000
-escalation:
-  enabled: true
-  config:
-    escalation_window: 3600 # one hour
-rooms:
-  - "!abcdef:matrix.org"
-  - "!ghijkl:matrix.org"
