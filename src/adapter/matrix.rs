@@ -4,6 +4,7 @@ use crate::processor::{
 use crate::{AlertId, Result};
 use actix::prelude::*;
 use actix::SystemService;
+use actix_broker::BrokerSubscribe;
 use matrix_sdk::events::room::message::MessageEventContent;
 use matrix_sdk::events::SyncMessageEvent;
 use matrix_sdk::room::{Joined, Room};
@@ -119,12 +120,17 @@ impl Default for MatrixClient {
 
 impl Actor for MatrixClient {
     type Context = Context<Self>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        self.subscribe_system_async::<NotifyAlert>(ctx);
+        self.subscribe_system_async::<Escalation>(ctx);
+    }
 }
 
 /// Handler for alerts on first entry, when the webhook gets called by the
 /// Watcher. Can be either an escalating or non-escalating alert.
 impl Handler<NotifyAlert> for MatrixClient {
-    type Result = ResponseActFuture<Self, Result<()>>;
+    type Result = ResponseActFuture<Self, ()>;
 
     fn handle(&mut self, notify: NotifyAlert, _ctx: &mut Self::Context) -> Self::Result {
         let client = Arc::clone(&self.client);
@@ -132,7 +138,7 @@ impl Handler<NotifyAlert> for MatrixClient {
 
         let f = async move {
             if notify.alerts.is_empty() {
-                return Ok(());
+                return;
             }
 
             let current_room_id = rooms.get(0).unwrap_or_else(|| rooms.last().unwrap());
@@ -154,7 +160,7 @@ impl Handler<NotifyAlert> for MatrixClient {
             msg.pop();
             msg.pop();
 
-            client.send_msg(current_room_id, &msg).await
+            client.send_msg(current_room_id, &msg).await.unwrap();
         };
 
         Box::pin(f.into_actor(self))
@@ -164,7 +170,7 @@ impl Handler<NotifyAlert> for MatrixClient {
 /// Handler for escalations triggered by the Processor event loop. *Must* only
 /// process escalating alerts or an error is returned.
 impl Handler<Escalation> for MatrixClient {
-    type Result = ResponseActFuture<Self, Result<bool>>;
+    type Result = ResponseActFuture<Self, ()>;
 
     fn handle(&mut self, notify: Escalation, _ctx: &mut Self::Context) -> Self::Result {
         let client = Arc::clone(&self.client);
@@ -172,7 +178,7 @@ impl Handler<Escalation> for MatrixClient {
 
         let f = async move {
             if notify.alerts.is_empty() {
-                return Ok(false);
+                return;
             }
 
             // Determine which rooms to send the alerts to.
@@ -207,7 +213,8 @@ impl Handler<Escalation> for MatrixClient {
                             }
                         ),
                     )
-                    .await?
+                    .await
+                    .unwrap();
             }
 
             let mut msg = String::from("🚨 ESCALATION OCCURRED!\n\n");
@@ -221,9 +228,11 @@ impl Handler<Escalation> for MatrixClient {
             // Send alerts to room.
             for alert in notify.alerts {
                 if !alert.should_escalate() {
+                    /* TODO
                     return Err(anyhow!(
                         "Received an alert that shouldn't escalate as an escalation message"
                     ));
+                    */
                 }
 
                 msg.push_str(&format!("{}\n\n", alert.to_string()));
@@ -232,9 +241,7 @@ impl Handler<Escalation> for MatrixClient {
             msg.pop();
             msg.pop();
 
-            client.send_msg(next_room_id, &msg).await?;
-
-            Ok(is_last)
+            client.send_msg(next_room_id, &msg).await.unwrap();
         };
 
         Box::pin(f.into_actor(self))

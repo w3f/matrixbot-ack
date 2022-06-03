@@ -99,14 +99,14 @@ impl SystemService for PagerDutyClient {}
 impl Supervised for PagerDutyClient {}
 
 impl Handler<NotifyAlert> for PagerDutyClient {
-    type Result = ResponseActFuture<Self, Result<()>>;
+    type Result = ResponseActFuture<Self, ()>;
 
     fn handle(&mut self, notify: NotifyAlert, _ctx: &mut Self::Context) -> Self::Result {
         let config = self.config.clone();
 
         let f = async move {
             if notify.alerts.is_empty() {
-                return Ok(());
+                return;
             }
 
             let client = reqwest::Client::new();
@@ -118,7 +118,8 @@ impl Handler<NotifyAlert> for PagerDutyClient {
                         .header(AUTHORIZATION, &config.api_key)
                         .json(&alert)
                         .send()
-                        .await?;
+                        .await
+                        .unwrap();
 
                     match resp.status() {
                         StatusCode::ACCEPTED => {
@@ -140,8 +141,6 @@ impl Handler<NotifyAlert> for PagerDutyClient {
                     sleep(Duration::from_secs(RETRY_TIMEOUT)).await;
                 }
             }
-
-            Ok(())
         };
 
         Box::pin(f.into_actor(self))

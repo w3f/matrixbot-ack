@@ -27,6 +27,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "actix-broker"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e089b5c4d0cf02d72a9eca0b6c80aebff1ccd3d1e99c83d1f7b9baeff39dc5e9"
+dependencies = [
+ "actix",
+ "ahash",
+ "log",
+]
+
+[[package]]
 name = "actix-codec"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1724,6 +1735,7 @@ name = "matrixbot"
 version = "0.1.6"
 dependencies = [
  "actix",
+ "actix-broker",
  "actix-web",
  "anyhow",
  "async-trait",

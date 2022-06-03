@@ -140,12 +140,15 @@ impl Actor for Processor {
                             escalation_idx: alert.escalation_idx + 1,
                             alerts: vec![alert.clone()],
                         })
-                        .await??;
+                        .await
+                        .unwrap();
 
                     // Update alert info.
+                    /* TODO
                     if !is_last {
                         alert.escalation_idx += 1;
                     }
+                     */
                     alert.last_notified = unix_time();
                 }
 
@@ -200,13 +203,13 @@ pub enum Command {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
-#[rtype(result = "Result<()>")]
+#[rtype(result = "()")]
 pub struct NotifyAlert {
     pub alerts: Vec<AlertContext>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
-#[rtype(result = "Result<bool>")]
+#[rtype(result = "()")]
 pub struct Escalation {
     pub escalation_idx: usize,
     pub alerts: Vec<AlertContext>,
@@ -283,13 +286,15 @@ impl Handler<InsertAlerts> for Processor {
                 .send(NotifyAlert {
                     alerts: alerts.clone(),
                 })
-                .await??;
+                .await
+                .unwrap();
 
             if pager_duty_enabled {
                 debug!("Notifying PagerDuty about new alerts");
                 let _ = PagerDutyClient::from_registry()
                     .send(NotifyAlert { alerts })
-                    .await??;
+                    .await
+                    .unwrap();
             }
 
             Ok(())
