@@ -57,11 +57,16 @@ fn unix_time() -> u64 {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Config {
     database: Option<database::DatabaseConfig>,
-    matrix: MatrixConfig,
-    pager_duty: Option<ServiceConfig>,
     listener: String,
-    escalation: Option<EscalationConfig>,
-    rooms: Vec<String>,
+    matrix: MatrixConfig,
+    pager_duty: Option<OnOff<ServiceConfig>>,
+    escalation: Option<OnOff<EscalationConfig>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct OnOff<T> {
+    enabled: bool,
+    config: Option<T>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,7 +101,7 @@ pub async fn run() -> Result<()> {
     let content = std::fs::read_to_string(&cli.config)?;
     let config: Config = serde_yaml::from_str(&content)?;
 
-    if config.rooms.is_empty() {
+    if config.matrix.rooms.is_empty() {
         return Err(anyhow!("No alert rooms have been configured"));
     }
 
@@ -110,8 +115,9 @@ pub async fn run() -> Result<()> {
     let escalation_window = config
         .escalation
         .as_ref()
-        .map(|c| c.escalation_window)
-        .unwrap_or(MIN_ESCALATION_WINDOW)
+        .map(|c| c.config.as_ref().map(|c| c.escalation_window))
+        .unwrap_or(Some(MIN_ESCALATION_WINDOW))
+        .unwrap()
         .max(MIN_ESCALATION_WINDOW);
 
     if should_escalate && config.database.is_none() {
@@ -140,13 +146,16 @@ pub async fn run() -> Result<()> {
 
     info!("Initializing Matrix client");
     // Only handle user commands if escalations are enabled.
-    let matrix = MatrixClient::new(&config.matrix, config.rooms, should_escalate).await?;
+    let matrix = MatrixClient::new(config.matrix, should_escalate).await?;
     SystemRegistry::set(matrix.start());
 
     info!("Initializing PagerDuty client");
     if let Some(pd_config) = config.pager_duty {
-        let pager_duty = PagerDutyClient::new(pd_config);
-        SystemRegistry::set(pager_duty.start());
+        if pd_config.enabled {
+            // TODO: Handle unwrap.
+            let pager_duty = PagerDutyClient::new(pd_config.config.unwrap());
+            SystemRegistry::set(pager_duty.start());
+        }
     }
 
     info!("Starting API server");

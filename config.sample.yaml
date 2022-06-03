@@ -2,22 +2,27 @@ database:
   uri: mongodb://localhost:27017
   name: matrixbot
 matrix:
-  homeserver: https://matrix.org
-  username: username
-  password: password
-  db_path: db/matrix.db
-  device_name: matrixbot-ack
-  device_id: matrixbot-some-id
+  enabled: false
+  config:
+    homeserver: https://matrix.org
+    username: username
+    password: password
+    db_path: db/matrix.db
+    device_name: matrixbot-ack
+    device_id: matrixbot-some-id
 pager_duty:
-  api_key: abcdefg
-  integration_key: ABCDEFG
-  payload_source: "Matrixbot Ack Service"
-  # Possible values: critical, error, warning, info
-  payload_severity: warning
+  enabled: false
+  config:
+    api_key: abcdefg
+    integration_key: ABCDEFG
+    payload_source: "Matrixbot Ack Service"
+    # Possible values: critical, error, warning, info
+    payload_severity: warning
 listener: 127.0.0.1:8000
 escalation:
   enabled: true
-  escalation_window: 3600 # one hour
+  config:
+    escalation_window: 3600 # one hour
 rooms:
   - "!abcdef:matrix.org"
   - "!ghijkl:matrix.org"
