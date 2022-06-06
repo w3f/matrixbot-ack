@@ -225,8 +225,18 @@ pub enum Command {
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "()")]
 pub struct NotifyAlert {
-    pub alerts: Vec<AlertContext>,
+    alerts: Vec<AlertContext>,
 }
+
+impl NotifyAlert {
+    pub fn contexts(&self) -> &[AlertContext] {
+        self.alerts.as_ref()
+    }
+    pub fn contexts_owned(self) -> Vec<AlertContext> {
+        self.alerts
+    }
+}
+
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "()")]
@@ -235,7 +245,7 @@ pub struct Escalation {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Message)]
-#[rtype(result = "Result<()>")]
+#[rtype(result = "()")]
 pub struct InsertAlerts {
     alerts: Vec<Alert>,
 }

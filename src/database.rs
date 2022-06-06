@@ -1,4 +1,4 @@
-use crate::processor::{AlertContext, UserConfirmation};
+use crate::processor::{AlertContext, UserConfirmation, InsertAlerts};
 use crate::webhook::Alert;
 use crate::{unix_time, AlertId, Result};
 use bson::{doc, to_bson};
@@ -19,6 +19,7 @@ pub struct DatabaseConfig {
     name: String,
 }
 
+#[derive(Debug, Clone)]
 pub struct Database {
     db: MongoDb,
 }
@@ -46,7 +47,7 @@ impl Database {
                 .database(&config.name),
         })
     }
-    pub async fn insert_alerts(&self, alerts: &[AlertContext]) -> Result<()> {
+    pub async fn insert_alerts(&self, alerts: &InsertAlerts) -> Result<()> {
         if alerts.is_empty() {
             return Ok(());
         }

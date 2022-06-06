@@ -1,8 +1,11 @@
-use crate::processor::NotifyAlert;
+use std::sync::Arc;
+
+use crate::processor::{NotifyAlert, InsertAlerts};
 use crate::AlertId;
 use crate::Result;
 use actix::prelude::*;
 use actix::SystemService;
+use actix_broker::{BrokerSubscribe};
 use reqwest::header::AUTHORIZATION;
 use reqwest::StatusCode;
 use tokio::time::{sleep, Duration};
@@ -66,37 +69,32 @@ impl PagerDutyClient {
     }
 }
 
-fn new_alert_events(config: &ServiceConfig, notify: &NotifyAlert) -> Vec<AlertEvent> {
-    let mut alerts = vec![];
-
-    for alert in &notify.alerts {
-        alerts.push(AlertEvent {
-            id: alert.id,
-            routing_key: config.integration_key.clone(),
-            event_action: EventAction::Trigger,
-            payload: Payload {
-                summary: alert.to_string(),
-                source: config.payload_source.clone(),
-                severity: config.payload_severity,
-            },
-        });
-    }
-
-    alerts
-}
-
-impl Default for PagerDutyClient {
-    fn default() -> Self {
-        panic!("PagerDuty client was not initialized in the system registry. This is a bug.");
-    }
+fn new_alert_events(key: String, source: String, severity: PayloadSeverity, notify: NotifyAlert) -> Vec<AlertEvent> {
+    notify
+        .contexts_owned()
+        .into_iter()
+        .map(|alert| {
+            AlertEvent {
+                id: alert.id,
+                routing_key: key.clone(),
+                event_action: EventAction::Trigger,
+                payload: Payload {
+                    summary: alert.to_string(),
+                    source: source.clone(),
+                    severity,
+                },
+            }
+        })
+        .collect()
 }
 
 impl Actor for PagerDutyClient {
     type Context = Context<Self>;
-}
 
-impl SystemService for PagerDutyClient {}
-impl Supervised for PagerDutyClient {}
+    fn started(&mut self, ctx: &mut Self::Context) {
+        self.subscribe_system_async::<NotifyAlert>(ctx);
+    }
+}
 
 impl Handler<NotifyAlert> for PagerDutyClient {
     type Result = ResponseActFuture<Self, ()>;
