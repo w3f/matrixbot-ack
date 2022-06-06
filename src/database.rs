@@ -101,7 +101,7 @@ impl Database {
         Ok(id)
     }
     // TODO
-    pub async fn ack(alert_id: AlertId, acked_by: User) -> Result<UserConfirmation> {
+    pub async fn ack(alert_id: &AlertId, acked_by: &User) -> Result<UserConfirmation> {
         unimplemented!()
     }
     pub async fn acknowledge_alert(

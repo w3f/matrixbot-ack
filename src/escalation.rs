@@ -104,41 +104,51 @@ impl<'a, T, P> Handler<NotifyAlert> for EscalationService<'a, T, P> {
 }
 
 impl <'a, T, P> Handler<Acknowledgement<P>> for EscalationService<'a, T, P> {
-    type Result = ResponseActFuture<Self, UserConfirmation>;
+    type Result = ResponseActFuture<Self, Result<UserConfirmation>>;
 
     fn handle(&mut self, ack: Acknowledgement<P>, ctx: &mut Self::Context) -> Self::Result {
-		match self.acks {
-			AckPermission::Users(users) => {
-				if users.contains(ack.user) {
-					// Ack Id
-				} else {
-					UserConfirmation::NoPermission
+		let f = async move {
+			match self.acks {
+				AckPermission::Users(users) => {
+					if users.contains(ack.user) {
+						// Acknowledge alert.
+						self.db.ack(&ack.alert_id, &ack.user).await?;
+						UserConfirmation::AlertAcknowledged(ack.alert_id)
+					} else {
+						UserConfirmation::NoPermission
+					}
+				},
+				AckPermission::MinRole(min) => {
+					if self.roles.is_above_minimum(min, &ack.user) {
+						// Acknowledge alert.
+						self.db.ack(&ack.alert_id, &ack.user).await?;
+						UserConfirmation::AlertAcknowledged(ack.alert_id)
+					} else {
+						UserConfirmation::NoPermission
+					}
+				},
+				AckPermission::Roles(roles) => {
+					if self.roles.user_is_permitted(&ack.user, &roles) {
+						// Acknowledge alert.
+						self.db.ack(&ack.alert_id, &ack.user).await?;
+						UserConfirmation::AlertAcknowledged(ack.alert_id)
+					} else {
+						UserConfirmation::NoPermission
+					}
 				}
-			},
-			AckPermission::MinRole(min) => {
-				if self.roles.is_above_minimum(min, &ack.user) {
-					// Ack Id
-				} else {
-					UserConfirmation::NoPermission
-				}
-			},
-			AckPermission::Roles(roles) => {
-				if self.roles.user_is_permitted(&ack.user, &roles) {
-					// Ack Id
-				} else {
-					UserConfirmation::NoPermission
+				AckPermission::EscalationLevel(level) => {
+					if self.levels.is_above_level(&level, &level) {
+						// Acknowledge alert.
+						self.db.ack(&ack.alert_id, &ack.user).await?;
+						UserConfirmation::AlertAcknowledged(ack.alert_id)
+					} else {
+						UserConfirmation::AlertOutOfScope
+					}
 				}
 			}
-			AckPermission::EscalationLevel(level) => {
-				if self.levels.is_above_level(&level, &level) {
-					// Ack
-				} else {
-					UserConfirmation::AlertOutOfScope
-				}
-			}
-		}
+		};
 
-		unimplemented!()
+		Box::pin(f.into_actor(self))
 	}
 }
 
