@@ -6,23 +6,30 @@ escalation:
   enabled: true
   config:
     escalation_window: 3600 # one hour
-matrix:
-  enabled: false
-  config:
-    homeserver: https://matrix.org
-    username: username
-    password: password
-    db_path: db/matrix.db
-    device_name: matrixbot-ack
-    device_id: matrixbot-some-id
-    rooms:
+adapter:
+  matrix:
+    enabled: false
+    # Overwrites the 'escalation' above.
+    escalation:
+      enabled: false
+    config:
+      homeserver: https://matrix.org
+      username: username
+      password: password
+      db_path: db/matrix.db
+      device_name: matrixbot-ack
+      device_id: matrixbot-some-id
+      ecalation_levels:
       - "!abcdef:matrix.org"
       - "!ghijkl:matrix.org"
-pager_duty:
-  enabled: false
-  config:
-    api_key: abcdefg
-    integration_key: ABCDEFG
-    payload_source: "Matrixbot Ack Service"
-    # Possible values: critical, error, warning, info
-    payload_severity: warning
+  pager_duty:
+    enabled: false
+    config:
+      api_key: abcdefg
+      payload_source: "Matrixbot Ack Service"
+      ecalation_levels:
+      - integration_key: ABC
+        # Possible values: critical, error, warning, info
+        payload_severity: warning
+      - integration_key: XYZ
+        payload_severity: critical
