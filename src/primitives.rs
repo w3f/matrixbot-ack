@@ -73,7 +73,22 @@ impl Escalation {
     }
 }
 
-pub struct Acknowledgement {}
+pub struct Acknowledgement<T> {
+    pub user: User,
+    pub level: T,
+    pub alert_id: AlertId,
+}
 
 pub struct User;
 pub struct Role;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum UserConfirmation {
+    PendingAlerts(Vec<AlertContext>),
+    NoPermission,
+    AlertOutOfScope,
+    AlertAcknowledged(AlertId),
+    AlertNotFound,
+    Help,
+    InternalError,
+}
