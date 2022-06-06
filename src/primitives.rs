@@ -75,7 +75,7 @@ impl Escalation {
 
 pub struct Acknowledgement<T> {
     pub user: User,
-    pub level: T,
+    pub channel_id: T,
     pub alert_id: AlertId,
 }
 

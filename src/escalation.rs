@@ -47,8 +47,29 @@ pub struct EscalationService<'a, T, P> {
 	actor: Addr<T>,
 	last: SystemTime,
 	is_locked: bool,
-	acks: AckPermission<&'a P>,
+	levels: LevelHandler<P>,
+	acks: AckPermission<'a, P>,
 	roles: &'a RoleIndex,
+}
+
+struct LevelHandler<P> {
+	levels: Vec<P>,
+}
+
+impl<P> LevelHandler<P> {
+	pub fn is_above_level(&self, min: &P, check: &P) -> Option<bool> {
+		let min_idx = self.levels
+			.iter()
+			.position(|level| level == min)?;
+
+		let is_above = self.levels
+			.iter()
+			.enumerate()
+			.filter(|(_, level)| level == check)
+			.any(|(idx, _)| idx <= min_idx);
+
+		Some(is_above)
+	}
 }
 
 impl<'a, T, P> Actor for EscalationService<'a, T, P> {
@@ -109,7 +130,11 @@ impl <'a, T, P> Handler<Acknowledgement<P>> for EscalationService<'a, T, P> {
 				}
 			}
 			AckPermission::EscalationLevel(level) => {
-
+				if self.levels.is_above_level(&level, &level) {
+					// Ack
+				} else {
+					UserConfirmation::AlertOutOfScope
+				}
 			}
 		}
 
