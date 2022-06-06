@@ -1,3 +1,5 @@
+use crate::Result;
+
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct AlertId(u64);
 
@@ -23,9 +25,28 @@ impl std::fmt::Display for AlertId {
 pub struct AlertContext {
     pub id: AlertId,
     pub alert: Alert,
-    pub to: NotificationLevel,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Alert {
+    pub annotations: Annotations,
+    pub labels: Labels,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Annotations {
+    pub message: Option<String>,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Labels {
+    pub severity: String,
+    #[serde(rename = "alertname")]
+    pub alert_name: String,
+}
+
+// TODO: Rename
 enum NotificationLevel {
     Matrix(String),
     // TODO
@@ -33,12 +54,10 @@ enum NotificationLevel {
 }
 
 impl AlertContext {
-    pub fn new(alert: Alert, id: AlertId, should_escalate: bool) -> Self {
+    pub fn new(alert: Alert, id: AlertId) -> Self {
         AlertContext {
             id,
             alert,
-            escalation_idx: 0,
-            last_notified: unix_time(),
         }
     }
 }
@@ -59,27 +78,16 @@ impl NotifyAlert {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
-#[rtype(result = "()")]
-pub struct Escalation {
-    lerts: Vec<AlertContext>,
-}
-
-impl Escalation {
-    pub fn contexts(&self) -> &[AlertContext] {
-        self.alerts.as_ref()
-    }
-    pub fn contexts_owned(self) -> Vec<AlertContext> {
-        self.alerts
-    }
-}
-
+#[rtype(result = "Result<()>")]
 pub struct Acknowledgement<T> {
     pub user: User,
     pub channel_id: T,
     pub alert_id: AlertId,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct User;
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Role;
 
 #[derive(Clone, Debug, Eq, PartialEq)]

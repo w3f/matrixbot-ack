@@ -1,8 +1,5 @@
-use std::sync::Arc;
-
-use crate::processor::{InsertAlerts, NotifyAlert};
-use crate::AlertId;
 use crate::Result;
+use crate::primitives::{NotifyAlert, AlertId};
 use actix::prelude::*;
 use actix::SystemService;
 use actix_broker::BrokerSubscribe;
@@ -47,7 +44,7 @@ impl Handler<NotifyAlert> for PagerDutyClient {
                 "".to_string(),
                 "".to_string(),
                 config.payload_severity,
-                &notify,
+                notify,
             ) {
                 loop {
                     let resp = post_alerts(&client, config.api_key.as_str(), alert)
@@ -138,7 +135,8 @@ fn new_alert_events(
             routing_key: key.clone(),
             event_action: EventAction::Trigger,
             payload: Payload {
-                summary: alert.to_string(),
+                //summary: alert.to_string(),
+                summary: "TODO".to_string(),
                 source: source.clone(),
                 severity,
             },
@@ -163,13 +161,14 @@ async fn post_alerts(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::processor::AlertContext;
+    use crate::primitives::AlertContext;
     use actix::SystemRegistry;
     use std::env;
 
     #[ignore]
     #[actix_web::test]
     async fn submit_alert_event() {
+        /*
         // Keep those entries a SECRET!
         let integration_key = env::var("PD_SERVICE_KEY").unwrap();
         let api_key = env::var("PD_API_KEY").unwrap();
@@ -194,5 +193,6 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
+        */
     }
 }

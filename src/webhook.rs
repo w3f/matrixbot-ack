@@ -1,27 +1,22 @@
-use crate::database::Database;
-use crate::processor::{InsertAlerts, Processor};
 use crate::Result;
+use crate::database::Database;
+use crate::primitives::Alert;
 use actix::prelude::*;
 use actix_broker::{Broker, BrokerIssue, SystemBroker};
 use actix_web::{web, App, HttpResponse, HttpServer};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct Alert {
-    pub annotations: Annotations,
-    pub labels: Labels,
+pub struct InsertAlerts {
+    alerts: Vec<Alert>,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct Annotations {
-    pub message: Option<String>,
-    pub description: Option<String>,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct Labels {
-    pub severity: String,
-    #[serde(rename = "alertname")]
-    pub alert_name: String,
+impl InsertAlerts {
+    pub fn alerts(&self) -> &[Alert] {
+        self.alerts.as_ref()
+    }
+    pub fn alerts_owned(self) -> Vec<Alert> {
+        self.alerts
+    }
 }
 
 pub async fn run_api_server(endpoint: &str, db: Database) -> Result<()> {
@@ -42,17 +37,17 @@ async fn healthcheck() -> HttpResponse {
 }
 
 async fn insert_alerts(req: web::Json<InsertAlerts>, db: web::Data<Database>) -> HttpResponse {
-    let alerts = req.into_inner();
+    let insert = req.into_inner();
 
     // Check if alerts are empty.
-    if alerts.is_empty() {
+    if insert.alerts().is_empty() {
         return HttpResponse::Ok().body("OK");
     }
 
-    debug!("New alerts received from webhook: {:?}", alerts);
+    debug!("New alerts received from webhook: {:?}", insert);
 
     // Attempt to insert the events into the database.
-    match db.insert_alerts(alerts).await {
+    match db.insert_alerts(insert).await {
         Ok(notify) => {
             // Notify broker about new alerts.
             Broker::<SystemBroker>::issue_async(notify);

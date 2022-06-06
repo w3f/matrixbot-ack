@@ -4,14 +4,16 @@ use crate::processor::{NotifyAlert, Escalation};
 use crate::adapter::{MatrixClient, PagerDutyClient};
 use crate::primitives::{Acknowledgement, User, Role, UserConfirmation};
 use actix::prelude::*;
+use actix_broker::{BrokerSubscribe};
 use matrix_sdk::instant::SystemTime;
 use std::time::Duration;
 use std::collections::HashMap;
+use std::sync::Arc;
 
-enum AckPermission<'a, T> {
-	Users(Vec<&'a User>),
-	MinRole(&'a Role),
-	Roles(Vec<&'a Role>),
+enum AckPermission<T> {
+	Users(Vec<User>),
+	MinRole(Role),
+	Roles(Vec<Role>),
 	EscalationLevel(T),
 }
 
@@ -41,22 +43,22 @@ impl RoleIndex {
 	}
 }
 
-pub struct EscalationService<'a, T, P> {
+pub struct EscalationService<T: Actor, P> {
 	db: Database,
 	window: Duration,
-	actor: Addr<T>,
+	adapter: Addr<T>,
 	last: SystemTime,
 	is_locked: bool,
-	levels: LevelHandler<P>,
-	acks: AckPermission<'a, P>,
-	roles: &'a RoleIndex,
+	levels: Arc<LevelHandler<P>>,
+	acks: Arc<AckPermission<P>>,
+	roles: Arc<RoleIndex>,
 }
 
 struct LevelHandler<P> {
 	levels: Vec<P>,
 }
 
-impl<P> LevelHandler<P> {
+impl<P: Eq> LevelHandler<P> {
 	pub fn is_above_level(&self, min: &P, check: &P) -> Option<bool> {
 		let min_idx = self.levels
 			.iter()
@@ -65,18 +67,17 @@ impl<P> LevelHandler<P> {
 		let is_above = self.levels
 			.iter()
 			.enumerate()
-			.filter(|(_, level)| level == check)
+			.filter(|(_, level)| *level == check)
 			.any(|(idx, _)| idx <= min_idx);
 
 		Some(is_above)
 	}
 }
 
-impl<'a, T, P> Actor for EscalationService<'a, T, P> {
+impl<T: Actor, P: 'static + Unpin> Actor for EscalationService<T, P> {
 	type Context = Context<Self>;
 
 	fn started(&mut self, ctx: &mut Self::Context) {
-		// TODO. Set appropriate duration
 		ctx.run_interval(self.window, |actor, ctx| {
 			if actor.last.elapsed().unwrap() < actor.window {
 				return;
@@ -86,6 +87,13 @@ impl<'a, T, P> Actor for EscalationService<'a, T, P> {
 			let db = self.db.clone();
 
 			actix::spawn(async {
+				// TODO: Handle unwrap
+				/*
+				let pending = actor.db.get_pending().await.unwrap();
+				for alert in pending {
+					let x = actor.adapter.send(alert).await;
+				}
+				*/
 
 				actor.last = SystemTime::now();
 				actor.is_locked = false;
@@ -94,66 +102,59 @@ impl<'a, T, P> Actor for EscalationService<'a, T, P> {
 	}
 }
 
-impl<'a, T, P> Handler<NotifyAlert> for EscalationService<'a, T, P> {
-    type Result = ResponseActFuture<Self, ()>;
-
-    fn handle(&mut self, notify: NotifyAlert, _ctx: &mut Self::Context) -> Self::Result {
-
-		unimplemented!()
-	}
-}
-
-impl <'a, T, P> Handler<Acknowledgement<P>> for EscalationService<'a, T, P> {
+impl <T: Actor, P: 'static + Unpin + Eq> Handler<Acknowledgement<P>> for EscalationService<T, P> {
     type Result = ResponseActFuture<Self, Result<UserConfirmation>>;
 
     fn handle(&mut self, ack: Acknowledgement<P>, ctx: &mut Self::Context) -> Self::Result {
+		let db = self.db.clone();
+		let roles = Arc::clone(&self.roles);
+		let levels = Arc::clone(&self.levels);
+		let acks = Arc::clone(&self.acks);
+
 		let f = async move {
-			match self.acks {
+			let res = match acks {
 				AckPermission::Users(users) => {
-					if users.contains(ack.user) {
+					if users.contains(&ack.user) {
 						// Acknowledge alert.
-						self.db.ack(&ack.alert_id, &ack.user).await?;
+						db.ack(&ack.alert_id, &ack.user).await?;
 						UserConfirmation::AlertAcknowledged(ack.alert_id)
 					} else {
 						UserConfirmation::NoPermission
 					}
 				},
 				AckPermission::MinRole(min) => {
-					if self.roles.is_above_minimum(min, &ack.user) {
+					if roles.is_above_minimum(&min, &ack.user) {
 						// Acknowledge alert.
-						self.db.ack(&ack.alert_id, &ack.user).await?;
+						db.ack(&ack.alert_id, &ack.user).await?;
 						UserConfirmation::AlertAcknowledged(ack.alert_id)
 					} else {
 						UserConfirmation::NoPermission
 					}
 				},
 				AckPermission::Roles(roles) => {
-					if self.roles.user_is_permitted(&ack.user, &roles) {
+					if roles.user_is_permitted(&ack.user, &roles) {
 						// Acknowledge alert.
-						self.db.ack(&ack.alert_id, &ack.user).await?;
+						db.ack(&ack.alert_id, &ack.user).await?;
 						UserConfirmation::AlertAcknowledged(ack.alert_id)
 					} else {
 						UserConfirmation::NoPermission
 					}
 				}
 				AckPermission::EscalationLevel(level) => {
-					if self.levels.is_above_level(&level, &level) {
+					if levels.is_above_level(&level, &level)
+					.ok_or_else(|| anyhow!("TODO"))? {
 						// Acknowledge alert.
-						self.db.ack(&ack.alert_id, &ack.user).await?;
+						db.ack(&ack.alert_id, &ack.user).await?;
 						UserConfirmation::AlertAcknowledged(ack.alert_id)
 					} else {
 						UserConfirmation::AlertOutOfScope
 					}
 				}
-			}
+			};
+
+			Ok(res)
 		};
 
 		Box::pin(f.into_actor(self))
 	}
-}
-
-async fn handle_pending(db: Database) -> Result<()> {
-	let pending = db.get_pending(None).await?;
-
-	unimplemented!()
 }

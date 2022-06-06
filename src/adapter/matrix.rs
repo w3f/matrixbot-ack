@@ -133,34 +133,8 @@ impl Handler<NotifyAlert> for MatrixClient {
     type Result = ResponseActFuture<Self, ()>;
 
     fn handle(&mut self, notify: NotifyAlert, _ctx: &mut Self::Context) -> Self::Result {
-        let client = Arc::clone(&self.client);
-        let rooms = Arc::clone(&self.rooms);
-
         let f = async move {
-            if notify.alerts.is_empty() {
-                return;
-            }
-
-            let current_room_id = rooms.get(0).unwrap_or_else(|| rooms.last().unwrap());
-
-            let mut msg = String::from("⚠️ Alert occurred!\n\n");
-
-            // Send alerts to room.
-            for alert in notify.alerts {
-                let content = if alert.should_escalate() {
-                    alert.to_string()
-                } else {
-                    // If the alert should not escalate, send trimmed version (no Id).
-                    AlertContextTrimmed::from(alert).to_string()
-                };
-
-                msg.push_str(&format!("{}\n\n", content));
-            }
-
-            msg.pop();
-            msg.pop();
-
-            client.send_msg(current_room_id, &msg).await.unwrap();
+            unimplemented!()
         };
 
         Box::pin(f.into_actor(self))
@@ -173,83 +147,13 @@ impl Handler<Escalation> for MatrixClient {
     type Result = ResponseActFuture<Self, ()>;
 
     fn handle(&mut self, notify: Escalation, _ctx: &mut Self::Context) -> Self::Result {
-        let client = Arc::clone(&self.client);
-        let rooms = Arc::clone(&self.rooms);
-
         let f = async move {
-            if notify.alerts.is_empty() {
-                return;
-            }
-
-            // Determine which rooms to send the alerts to.
-            let current_room_id = rooms
-                .get(notify.escalation_idx.saturating_sub(1))
-                .unwrap_or_else(|| rooms.last().unwrap());
-
-            let next_room_id = rooms
-                .get(notify.escalation_idx)
-                .unwrap_or_else(|| rooms.last().unwrap());
-
-            let is_last = current_room_id == next_room_id;
-
-            // No further rooms to inform if the final room has been reached.
-            if !is_last {
-                // Notify current room that missed to acknowledge the alert.
-                debug!("Notifying current room about escalation");
-                client
-                    .send_msg(
-                        current_room_id,
-                        &format!(
-                            "🚨 ESCALATION OCCURRED! Notifying next room regarding Alerts: {}",
-                            {
-                                let mut list = String::new();
-                                for alert in &notify.alerts {
-                                    list.push_str(&format!("ID: {}, ", alert.id));
-                                }
-
-                                list.pop();
-                                list.pop();
-                                list
-                            }
-                        ),
-                    )
-                    .await
-                    .unwrap();
-            }
-
-            let mut msg = String::from("🚨 ESCALATION OCCURRED!\n\n");
-
-            if is_last {
-                warn!("Notifying final room about escalation");
-            } else {
-                debug!("Notifying *next* room about escalation");
-            }
-
-            // Send alerts to room.
-            for alert in notify.alerts {
-                if !alert.should_escalate() {
-                    /* TODO
-                    return Err(anyhow!(
-                        "Received an alert that shouldn't escalate as an escalation message"
-                    ));
-                    */
-                }
-
-                msg.push_str(&format!("{}\n\n", alert.to_string()));
-            }
-
-            msg.pop();
-            msg.pop();
-
-            client.send_msg(next_room_id, &msg).await.unwrap();
+            unimplemented!()
         };
 
         Box::pin(f.into_actor(self))
     }
 }
-
-impl SystemService for MatrixClient {}
-impl Supervised for MatrixClient {}
 
 pub struct Listener {
     rooms: Vec<RoomId>,
