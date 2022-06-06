@@ -1,7 +1,5 @@
-use crate::processor::{
-    AlertContextTrimmed, Command, Escalation, NotifyAlert, Processor, UserAction,
-};
-use crate::{AlertId, Result};
+use crate::primitives::{AlertId, NotifyAlert};
+use crate::Result;
 use actix::prelude::*;
 use actix::SystemService;
 use actix_broker::BrokerSubscribe;
@@ -120,11 +118,6 @@ impl Default for MatrixClient {
 
 impl Actor for MatrixClient {
     type Context = Context<Self>;
-
-    fn started(&mut self, ctx: &mut Self::Context) {
-        self.subscribe_system_async::<NotifyAlert>(ctx);
-        self.subscribe_system_async::<Escalation>(ctx);
-    }
 }
 
 /// Handler for alerts on first entry, when the webhook gets called by the
@@ -133,23 +126,7 @@ impl Handler<NotifyAlert> for MatrixClient {
     type Result = ResponseActFuture<Self, ()>;
 
     fn handle(&mut self, notify: NotifyAlert, _ctx: &mut Self::Context) -> Self::Result {
-        let f = async move {
-            unimplemented!()
-        };
-
-        Box::pin(f.into_actor(self))
-    }
-}
-
-/// Handler for escalations triggered by the Processor event loop. *Must* only
-/// process escalating alerts or an error is returned.
-impl Handler<Escalation> for MatrixClient {
-    type Result = ResponseActFuture<Self, ()>;
-
-    fn handle(&mut self, notify: Escalation, _ctx: &mut Self::Context) -> Self::Result {
-        let f = async move {
-            unimplemented!()
-        };
+        let f = async move { unimplemented!() };
 
         Box::pin(f.into_actor(self))
     }
@@ -199,6 +176,7 @@ impl EventHandler for Listener {
                 let msg_body = msg_body.replace("  ", " ").trim().to_lowercase();
 
                 // Parse precise command.
+                /*
                 let cmd = match msg_body.as_str() {
                     "pending" => Command::Pending,
                     "help" => Command::Help,
@@ -246,6 +224,7 @@ impl EventHandler for Listener {
                 // Notify the room.
                 debug!("Notifying room");
                 room.send(content, None).await?;
+                */
 
                 Result::<()>::Ok(())
             };
@@ -256,14 +235,4 @@ impl EventHandler for Listener {
             }
         }
     }
-}
-
-async fn bad_msg(room: &Joined) -> Result<Command> {
-    let content = AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(
-        "I don't understand 🤔",
-    ));
-
-    room.send(content, None).await?;
-
-    Ok(Command::Help)
 }

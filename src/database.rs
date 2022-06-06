@@ -1,7 +1,7 @@
-use crate::primitives::{AlertContext, NotifyAlert, UserConfirmation, AlertId};
-use crate::webhook::{InsertAlerts};
-use crate::{unix_time, Result};
 use crate::primitives::User;
+use crate::primitives::{AlertContext, AlertId, NotifyAlert, UserConfirmation};
+use crate::webhook::InsertAlerts;
+use crate::{unix_time, Result};
 use bson::{doc, to_bson};
 use futures::stream::StreamExt;
 use mongodb::{

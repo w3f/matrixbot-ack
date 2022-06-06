@@ -1,5 +1,5 @@
+use crate::primitives::{AlertId, NotifyAlert};
 use crate::Result;
-use crate::primitives::{NotifyAlert, AlertId};
 use actix::prelude::*;
 use actix::SystemService;
 use actix_broker::BrokerSubscribe;
@@ -47,17 +47,18 @@ impl Handler<NotifyAlert> for PagerDutyClient {
                 notify,
             ) {
                 loop {
-                    let resp = post_alerts(&client, config.api_key.as_str(), alert)
+                    // TODO: Avoid clone?
+                    let resp = post_alerts(&client, config.api_key.as_str(), alert.clone())
                         .await
                         .unwrap();
 
                     match resp.status() {
                         StatusCode::ACCEPTED => {
-                            info!("Submitted alert {} to PagerDuty", alert.id);
+                            //info!("Submitted alert {} to PagerDuty", alert.id);
                             break;
                         }
                         StatusCode::BAD_REQUEST => {
-                            error!("BAD REQUEST when submitting alert {}", alert.id);
+                            //error!("BAD REQUEST when submitting alert {}", alert.id);
                             // Do not retry on this error type.
                             break;
                         }

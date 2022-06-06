@@ -55,10 +55,7 @@ enum NotificationLevel {
 
 impl AlertContext {
     pub fn new(alert: Alert, id: AlertId) -> Self {
-        AlertContext {
-            id,
-            alert,
-        }
+        AlertContext { id, alert }
     }
 }
 
@@ -78,7 +75,7 @@ impl NotifyAlert {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
-#[rtype(result = "Result<()>")]
+#[rtype(result = "Result<UserConfirmation>")]
 pub struct Acknowledgement<T> {
     pub user: User,
     pub channel_id: T,

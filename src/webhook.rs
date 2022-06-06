@@ -1,6 +1,6 @@
-use crate::Result;
 use crate::database::Database;
 use crate::primitives::Alert;
+use crate::Result;
 use actix::prelude::*;
 use actix_broker::{Broker, BrokerIssue, SystemBroker};
 use actix_web::{web, App, HttpResponse, HttpServer};
