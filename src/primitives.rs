@@ -23,8 +23,13 @@ impl std::fmt::Display for AlertId {
 pub struct AlertContext {
     pub id: AlertId,
     pub alert: Alert,
-    pub escalation_idx: EscalationSteps,
-    pub last_notified: u64,
+    pub to: NotificationLevel,
+}
+
+enum NotificationLevel {
+    Matrix(String),
+    // TODO
+    PagerDuty(()),
 }
 
 impl AlertContext {
@@ -56,5 +61,19 @@ impl NotifyAlert {
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "()")]
 pub struct Escalation {
-    pub alerts: Vec<AlertContext>,
+    lerts: Vec<AlertContext>,
 }
+
+impl Escalation {
+    pub fn contexts(&self) -> &[AlertContext] {
+        self.alerts.as_ref()
+    }
+    pub fn contexts_owned(self) -> Vec<AlertContext> {
+        self.alerts
+    }
+}
+
+pub struct Acknowledgement {}
+
+pub struct User;
+pub struct Role;

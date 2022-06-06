@@ -1,6 +1,7 @@
 use crate::processor::{AlertContext, InsertAlerts, NotifyAlert, UserConfirmation};
 use crate::webhook::Alert;
 use crate::{unix_time, AlertId, Result};
+use crate::primitives::User;
 use bson::{doc, to_bson};
 use futures::stream::StreamExt;
 use mongodb::{
@@ -98,6 +99,10 @@ impl Database {
             .unwrap();
 
         Ok(id)
+    }
+    // TODO
+    pub async fn ack(alert_id: AlertId, acked_by: User) -> Result<UserConfirmation> {
+        unimplemented!()
     }
     pub async fn acknowledge_alert(
         &self,
