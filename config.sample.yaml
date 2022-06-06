@@ -9,9 +9,10 @@ escalation:
 adapter:
   matrix:
     enabled: false
-    # Overwrites the 'escalation' above.
     escalation:
       enabled: false
+      acks:
+        min_role: mods
     config:
       homeserver: https://matrix.org
       username: username
@@ -24,6 +25,11 @@ adapter:
       - "!ghijkl:matrix.org"
   pager_duty:
     enabled: false
+    escalation:
+      enabled: true
+      acks:
+        users:
+        - bob
     config:
       api_key: abcdefg
       payload_source: "Matrixbot Ack Service"
@@ -33,3 +39,26 @@ adapter:
         payload_severity: warning
       - integration_key: XYZ
         payload_severity: critical
+
+users:
+- name: alice
+  email: alice@email.com
+  matrix: @alice:matrix.org
+  pagerduty: alice@email.com
+- name: bob
+  email: bob@email.com
+  matrix: @bob:matrix.org
+  pagerduty: bob@email.com
+- name: dave
+  email: dave@email.com
+  matrix: @dave:matrix.org
+  pagerduty: dave@email.com
+
+roles:
+- name: mods
+  members:
+  - alice
+- name: admins
+  members:
+  - bob
+  - dave

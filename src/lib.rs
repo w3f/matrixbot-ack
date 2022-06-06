@@ -18,33 +18,11 @@ mod adapter;
 mod database;
 mod escalation;
 mod primitives;
-mod processor;
 mod webhook;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;
 
 const MIN_ESCALATION_WINDOW: u64 = 60; // 60 seconds
-
-#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
-pub struct AlertId(u64);
-
-impl AlertId {
-    fn from_str(str: &str) -> Result<Self> {
-        Ok(AlertId(str.parse()?))
-    }
-}
-
-impl From<u64> for AlertId {
-    fn from(val: u64) -> Self {
-        AlertId(val)
-    }
-}
-
-impl std::fmt::Display for AlertId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
 
 fn unix_time() -> u64 {
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -86,7 +64,9 @@ struct Cli {
 
 pub async fn run() -> Result<()> {
     let cli = Cli::from_args();
+    unimplemented!()
 
+    /*
     env_logger::builder()
         .filter_module("system", log::LevelFilter::Debug)
         .init();
@@ -179,4 +159,5 @@ pub async fn run() -> Result<()> {
     loop {
         sleep(Duration::from_secs(u64::MAX)).await;
     }
+    */
 }

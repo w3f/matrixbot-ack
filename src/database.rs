@@ -73,7 +73,7 @@ impl Database {
 
         unimplemented!()
     }
-    pub async fn get_next_id(&self) -> Result<AlertId> {
+    async fn get_next_id(&self) -> Result<AlertId> {
         let id_cursor = self.db.collection::<IdCursor>(ID_CURSOR);
 
         let id = id_cursor
