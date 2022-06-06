@@ -13,50 +13,6 @@ use tokio::time::{sleep, Duration};
 const SEND_ALERT_ENDPOINT: &str = "https://events.pagerduty.com/v2/enqueue";
 const RETRY_TIMEOUT: u64 = 10; // seconds
 
-/// Alert Event for the PagerDuty API.
-#[derive(Debug, Clone, Serialize)]
-pub struct AlertEvent {
-    #[serde(skip_serializing)]
-    id: AlertId,
-    routing_key: String,
-    event_action: EventAction,
-    payload: Payload,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub struct Payload {
-    summary: String,
-    source: String,
-    severity: PayloadSeverity,
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-/// We only use Trigger.
-pub enum EventAction {
-    Trigger,
-    Acknowledge,
-    Resolve,
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum PayloadSeverity {
-    Critical,
-    Error,
-    Warning,
-    Info,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ServiceConfig {
-    api_key: String,
-    integration_key: String,
-    payload_source: String,
-    payload_severity: PayloadSeverity,
-}
-
 pub struct PagerDutyClient {
     config: ServiceConfig,
 }
@@ -67,35 +23,6 @@ impl PagerDutyClient {
 
         PagerDutyClient { config }
     }
-}
-
-fn new_alert_events(key: String, source: String, severity: PayloadSeverity, notify: NotifyAlert) -> Vec<AlertEvent> {
-    notify
-        .contexts_owned()
-        .into_iter()
-        .map(|alert| {
-            AlertEvent {
-                id: alert.id,
-                routing_key: key.clone(),
-                event_action: EventAction::Trigger,
-                payload: Payload {
-                    summary: alert.to_string(),
-                    source: source.clone(),
-                    severity,
-                },
-            }
-        })
-        .collect()
-}
-
-async fn post_alerts(client: &reqwest::Client, api_key: &str, alert: AlertEvent) -> Result<reqwest::Response> {
-    client
-        .post(SEND_ALERT_ENDPOINT)
-        .header(AUTHORIZATION, api_key)
-        .json(&alert)
-        .send()
-        .await
-        .map_err(|err| err.into())
 }
 
 impl Actor for PagerDutyClient {
@@ -144,6 +71,79 @@ impl Handler<NotifyAlert> for PagerDutyClient {
 
         Box::pin(f.into_actor(self))
     }
+}
+
+/// Alert Event for the PagerDuty API.
+#[derive(Debug, Clone, Serialize)]
+pub struct AlertEvent {
+    #[serde(skip_serializing)]
+    id: AlertId,
+    routing_key: String,
+    event_action: EventAction,
+    payload: Payload,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub struct Payload {
+    summary: String,
+    source: String,
+    severity: PayloadSeverity,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+/// We only use Trigger.
+pub enum EventAction {
+    Trigger,
+    Acknowledge,
+    Resolve,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PayloadSeverity {
+    Critical,
+    Error,
+    Warning,
+    Info,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServiceConfig {
+    api_key: String,
+    integration_key: String,
+    payload_source: String,
+    payload_severity: PayloadSeverity,
+}
+
+fn new_alert_events(key: String, source: String, severity: PayloadSeverity, notify: NotifyAlert) -> Vec<AlertEvent> {
+    notify
+        .contexts_owned()
+        .into_iter()
+        .map(|alert| {
+            AlertEvent {
+                id: alert.id,
+                routing_key: key.clone(),
+                event_action: EventAction::Trigger,
+                payload: Payload {
+                    summary: alert.to_string(),
+                    source: source.clone(),
+                    severity,
+                },
+            }
+        })
+        .collect()
+}
+
+async fn post_alerts(client: &reqwest::Client, api_key: &str, alert: AlertEvent) -> Result<reqwest::Response> {
+    client
+        .post(SEND_ALERT_ENDPOINT)
+        .header(AUTHORIZATION, api_key)
+        .json(&alert)
+        .send()
+        .await
+        .map_err(|err| err.into())
 }
 
 #[cfg(test)]

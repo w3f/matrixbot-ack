@@ -16,7 +16,6 @@ pub struct AlertContext {
     pub alert: Alert,
     pub escalation_idx: EscalationSteps,
     pub last_notified: u64,
-    pub should_escalate: bool,
 }
 
 impl AlertContext {
@@ -26,11 +25,7 @@ impl AlertContext {
             alert,
             escalation_idx: 0,
             last_notified: unix_time(),
-            should_escalate,
         }
-    }
-    pub fn should_escalate(&self) -> bool {
-        self.should_escalate
     }
 }
 

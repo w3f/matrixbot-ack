@@ -19,6 +19,7 @@ mod database;
 mod processor;
 mod webhook;
 mod primitives;
+mod escalation;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;
 
