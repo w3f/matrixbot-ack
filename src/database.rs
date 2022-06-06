@@ -1,4 +1,4 @@
-use crate::processor::{AlertContext, UserConfirmation, InsertAlerts, NotifyAlert};
+use crate::processor::{AlertContext, InsertAlerts, NotifyAlert, UserConfirmation};
 use crate::webhook::Alert;
 use crate::{unix_time, AlertId, Result};
 use bson::{doc, to_bson};

@@ -2,8 +2,8 @@ use crate::database::Database;
 use crate::processor::{InsertAlerts, Processor};
 use crate::Result;
 use actix::prelude::*;
-use actix_web::{web, App, HttpResponse, HttpServer};
 use actix_broker::{Broker, BrokerIssue, SystemBroker};
+use actix_web::{web, App, HttpResponse, HttpServer};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Alert {
@@ -46,7 +46,7 @@ async fn insert_alerts(req: web::Json<InsertAlerts>, db: web::Data<Database>) ->
 
     // Check if alerts are empty.
     if alerts.is_empty() {
-        return HttpResponse::Ok().body("OK")
+        return HttpResponse::Ok().body("OK");
     }
 
     debug!("New alerts received from webhook: {:?}", alerts);
@@ -58,7 +58,7 @@ async fn insert_alerts(req: web::Json<InsertAlerts>, db: web::Data<Database>) ->
             Broker::<SystemBroker>::issue_async(notify);
 
             HttpResponse::Ok().body("OK")
-        },
+        }
         Err(err) => {
             error!("Failed to process new alerts: {:?}", err);
             HttpResponse::InternalServerError().finish()

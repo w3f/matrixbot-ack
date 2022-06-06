@@ -232,7 +232,6 @@ impl NotifyAlert {
     }
 }
 
-
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "()")]
 pub struct Escalation {

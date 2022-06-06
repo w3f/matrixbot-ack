@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use crate::processor::{NotifyAlert, InsertAlerts};
+use crate::processor::{InsertAlerts, NotifyAlert};
 use crate::AlertId;
 use crate::Result;
 use actix::prelude::*;
 use actix::SystemService;
-use actix_broker::{BrokerSubscribe};
+use actix_broker::BrokerSubscribe;
 use reqwest::header::AUTHORIZATION;
 use reqwest::StatusCode;
 use tokio::time::{sleep, Duration};
@@ -43,9 +43,16 @@ impl Handler<NotifyAlert> for PagerDutyClient {
             let client = reqwest::Client::new();
 
             // TODO
-            for alert in new_alert_events("".to_string(), "".to_string(), config.payload_severity, &notify) {
+            for alert in new_alert_events(
+                "".to_string(),
+                "".to_string(),
+                config.payload_severity,
+                &notify,
+            ) {
                 loop {
-                    let resp = post_alerts(&client, config.api_key.as_str(), alert).await.unwrap();
+                    let resp = post_alerts(&client, config.api_key.as_str(), alert)
+                        .await
+                        .unwrap();
 
                     match resp.status() {
                         StatusCode::ACCEPTED => {
@@ -117,26 +124,33 @@ pub struct ServiceConfig {
     payload_severity: PayloadSeverity,
 }
 
-fn new_alert_events(key: String, source: String, severity: PayloadSeverity, notify: NotifyAlert) -> Vec<AlertEvent> {
+fn new_alert_events(
+    key: String,
+    source: String,
+    severity: PayloadSeverity,
+    notify: NotifyAlert,
+) -> Vec<AlertEvent> {
     notify
         .contexts_owned()
         .into_iter()
-        .map(|alert| {
-            AlertEvent {
-                id: alert.id,
-                routing_key: key.clone(),
-                event_action: EventAction::Trigger,
-                payload: Payload {
-                    summary: alert.to_string(),
-                    source: source.clone(),
-                    severity,
-                },
-            }
+        .map(|alert| AlertEvent {
+            id: alert.id,
+            routing_key: key.clone(),
+            event_action: EventAction::Trigger,
+            payload: Payload {
+                summary: alert.to_string(),
+                source: source.clone(),
+                severity,
+            },
         })
         .collect()
 }
 
-async fn post_alerts(client: &reqwest::Client, api_key: &str, alert: AlertEvent) -> Result<reqwest::Response> {
+async fn post_alerts(
+    client: &reqwest::Client,
+    api_key: &str,
+    alert: AlertEvent,
+) -> Result<reqwest::Response> {
     client
         .post(SEND_ALERT_ENDPOINT)
         .header(AUTHORIZATION, api_key)

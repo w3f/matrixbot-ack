@@ -16,10 +16,10 @@ use structopt::StructOpt;
 
 mod adapter;
 mod database;
+mod escalation;
+mod primitives;
 mod processor;
 mod webhook;
-mod primitives;
-mod escalation;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;
 
