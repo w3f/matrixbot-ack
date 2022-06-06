@@ -250,6 +250,12 @@ pub struct InsertAlerts {
     alerts: Vec<Alert>,
 }
 
+impl InsertAlerts {
+    pub fn is_empty(&self) -> bool {
+        self.alerts.is_empty()
+    }
+}
+
 impl Handler<UserAction> for Processor {
     type Result = ResponseActFuture<Self, UserConfirmation>;
 

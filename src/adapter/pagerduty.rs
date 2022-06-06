@@ -88,6 +88,16 @@ fn new_alert_events(key: String, source: String, severity: PayloadSeverity, noti
         .collect()
 }
 
+async fn post_alerts(client: &reqwest::Client, api_key: &str, alert: AlertEvent) -> Result<reqwest::Response> {
+    client
+        .post(SEND_ALERT_ENDPOINT)
+        .header(AUTHORIZATION, api_key)
+        .json(&alert)
+        .send()
+        .await
+        .map_err(|err| err.into())
+}
+
 impl Actor for PagerDutyClient {
     type Context = Context<Self>;
 
@@ -103,21 +113,12 @@ impl Handler<NotifyAlert> for PagerDutyClient {
         let config = self.config.clone();
 
         let f = async move {
-            if notify.alerts.is_empty() {
-                return;
-            }
-
             let client = reqwest::Client::new();
 
-            for alert in new_alert_events(&config, &notify) {
+            // TODO
+            for alert in new_alert_events("".to_string(), "".to_string(), config.payload_severity, &notify) {
                 loop {
-                    let resp = client
-                        .post(SEND_ALERT_ENDPOINT)
-                        .header(AUTHORIZATION, &config.api_key)
-                        .json(&alert)
-                        .send()
-                        .await
-                        .unwrap();
+                    let resp = post_alerts(&client, config.api_key.as_str(), alert).await.unwrap();
 
                     match resp.status() {
                         StatusCode::ACCEPTED => {

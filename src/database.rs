@@ -1,4 +1,4 @@
-use crate::processor::{AlertContext, UserConfirmation, InsertAlerts};
+use crate::processor::{AlertContext, UserConfirmation, InsertAlerts, NotifyAlert};
 use crate::webhook::Alert;
 use crate::{unix_time, AlertId, Result};
 use bson::{doc, to_bson};
@@ -47,7 +47,7 @@ impl Database {
                 .database(&config.name),
         })
     }
-    pub async fn insert_alerts(&self, alerts: &InsertAlerts) -> Result<()> {
+    pub async fn insert_alerts(&self, alerts: InsertAlerts) -> Result<NotifyAlert> {
         if alerts.is_empty() {
             return Ok(());
         }
@@ -71,7 +71,7 @@ impl Database {
                 .await?;
         }
 
-        Ok(())
+        unimplemented!()
     }
     pub async fn get_next_id(&self) -> Result<AlertId> {
         let id_cursor = self.db.collection::<IdCursor>(ID_CURSOR);

@@ -43,13 +43,19 @@ async fn healthcheck() -> HttpResponse {
 
 async fn insert_alerts(req: web::Json<InsertAlerts>, db: web::Data<Database>) -> HttpResponse {
     let alerts = req.into_inner();
+
+    // Check if alerts are empty.
+    if alerts.is_empty() {
+        return HttpResponse::Ok().body("OK")
+    }
+
     debug!("New alerts received from webhook: {:?}", alerts);
 
     // Attempt to insert the events into the database.
-    match db.insert_alerts(&alerts).await {
-        Ok(_) => {
+    match db.insert_alerts(alerts).await {
+        Ok(notify) => {
             // Notify broker about new alerts.
-            Broker::<SystemBroker>::issue_async(alerts);
+            Broker::<SystemBroker>::issue_async(notify);
 
             HttpResponse::Ok().body("OK")
         },
