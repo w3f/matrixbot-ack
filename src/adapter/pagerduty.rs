@@ -26,7 +26,7 @@ impl Actor for PagerDutyClient {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        self.subscribe_system_async::<NotifyAlert>(ctx);
+        //self.subscribe_system_async::<NotifyAlert>(ctx);
     }
 }
 

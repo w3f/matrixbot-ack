@@ -107,7 +107,7 @@ impl Database {
     ) -> Result<UserConfirmation> {
         unimplemented!()
     }
-    pub async fn get_pending(&self) -> Result<Vec<AlertContext>> {
+    pub async fn get_pending(&self) -> Result<NotifyAlert> {
         unimplemented!()
     }
 }

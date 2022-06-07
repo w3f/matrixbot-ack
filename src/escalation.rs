@@ -69,7 +69,13 @@ impl<P: Eq> LevelHandler<P> {
     }
 }
 
-impl<T: Actor, P: 'static + Unpin> Actor for EscalationService<T, P> {
+
+impl<T, P> Actor for EscalationService<T, P>
+where
+    T: Actor + Handler<NotifyAlert>,
+    P: 'static + Unpin,
+    <T as Actor>::Context: actix::dev::ToEnvelope<T, NotifyAlert>
+{
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
@@ -82,14 +88,13 @@ impl<T: Actor, P: 'static + Unpin> Actor for EscalationService<T, P> {
 
             actor.is_locked = true;
 
+            let db = actor.db.clone();
+            let addr = actor.adapter.clone();
+
             actix::spawn(async move {
                 // TODO: Handle unwrap
-                /*
-                let pending = actor.db.get_pending().await.unwrap();
-                for alert in pending {
-                    let x = actor.adapter.send(alert).await;
-                }
-                */
+                let pending = db.get_pending().await.unwrap();
+                let x = addr.send(pending).await;
 
                 //actor.last = SystemTime::now();
                 //actor.is_locked = false;
@@ -98,7 +103,12 @@ impl<T: Actor, P: 'static + Unpin> Actor for EscalationService<T, P> {
     }
 }
 
-impl<T: Actor, P: 'static + Unpin + Eq> Handler<Acknowledgement<P>> for EscalationService<T, P> {
+impl<T: Actor, P: 'static + Unpin + Eq> Handler<Acknowledgement<P>> for EscalationService<T, P>
+where
+    T: Actor + Handler<NotifyAlert>,
+    P: 'static + Unpin,
+    <T as Actor>::Context: actix::dev::ToEnvelope<T, NotifyAlert>
+{
     type Result = ResponseActFuture<Self, Result<UserConfirmation>>;
 
     fn handle(&mut self, ack: Acknowledgement<P>, ctx: &mut Self::Context) -> Self::Result {
