@@ -1,4 +1,4 @@
-use crate::Result;
+use crate::{unix_time, Result};
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct AlertId(u64);
@@ -25,6 +25,7 @@ impl std::fmt::Display for AlertId {
 pub struct AlertContext {
     pub id: AlertId,
     pub alert: Alert,
+    pub timestamp: u64,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -55,7 +56,11 @@ enum NotificationLevel {
 
 impl AlertContext {
     pub fn new(alert: Alert, id: AlertId) -> Self {
-        AlertContext { id, alert }
+        AlertContext {
+            id,
+            alert,
+            timestamp: unix_time(),
+        }
     }
 }
 
@@ -71,6 +76,13 @@ impl NotifyAlert {
     }
     pub fn contexts_owned(self) -> Vec<AlertContext> {
         self.alerts
+    }
+    pub fn update_timestamp_now(&mut self) {
+        let now = unix_time();
+
+        self.alerts
+            .iter_mut()
+            .for_each(|alert| alert.timestamp = now);
     }
 }
 

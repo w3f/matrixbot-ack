@@ -20,6 +20,7 @@ mod adapter;
 mod database;
 mod escalation;
 mod primitives;
+mod user_request;
 mod webhook;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;

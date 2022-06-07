@@ -2,13 +2,15 @@ use crate::adapter::{MatrixClient, PagerDutyClient};
 use crate::database::Database;
 use crate::primitives::{Acknowledgement, NotifyAlert, Role, User, UserConfirmation};
 use crate::Result;
-use tokio::sync::RwLock;
 use actix::prelude::*;
 use actix_broker::BrokerSubscribe;
 use matrix_sdk::instant::SystemTime;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::RwLock;
+
+const INTERVAL: u64 = 10;
 
 enum AckPermission<T> {
     Users(Vec<User>),
@@ -42,7 +44,7 @@ impl RoleIndex {
 
 pub struct EscalationService<T: Actor, P> {
     db: Database,
-    interval: Duration,
+    window: Duration,
     adapter: Addr<T>,
     is_locked: Arc<RwLock<bool>>,
     levels: Arc<LevelHandler<P>>,
@@ -69,22 +71,21 @@ impl<P: Eq> LevelHandler<P> {
     }
 }
 
-
 impl<T, P> Actor for EscalationService<T, P>
 where
     T: Actor + Handler<NotifyAlert>,
     P: 'static + Unpin,
-    <T as Actor>::Context: actix::dev::ToEnvelope<T, NotifyAlert>
+    <T as Actor>::Context: actix::dev::ToEnvelope<T, NotifyAlert>,
 {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.run_interval(self.interval, |actor, ctx| {
+        ctx.run_interval(Duration::from_secs(INTERVAL), |actor, ctx| {
             let db = actor.db.clone();
             let addr = actor.adapter.clone();
 
             let is_locked = Arc::clone(&actor.is_locked);
-            let interval = actor.interval;
+            let window = actor.window;
 
             actix::spawn(async move {
                 // Lock escalation process, do not overlap.
@@ -93,11 +94,20 @@ where
                 std::mem::drop(l);
 
                 // TODO: Handle unwrap
-                let pending = db.get_pending(Some(interval)).await.unwrap();
-                let x = addr.send(pending).await;
+                let mut pending = db.get_pending(Some(window)).await.unwrap();
+                match addr.send(pending.clone()).await {
+                    Ok(_) => {
+                        pending.update_timestamp_now();
+                        let _ = db.update_pending(pending).await.map_err(|err| {
+                            // TODO: Log
+                        });
+                    }
+                    // TODO: Log
+                    Err(_err) => {}
+                }
 
                 // Unlock escalation process, ready to be picked up on the next
-                // interval.
+                // window.
                 let mut l = is_locked.write().await;
                 *l = false;
             });
@@ -109,7 +119,7 @@ impl<T: Actor, P: 'static + Unpin + Eq> Handler<Acknowledgement<P>> for Escalati
 where
     T: Actor + Handler<NotifyAlert>,
     P: 'static + Unpin,
-    <T as Actor>::Context: actix::dev::ToEnvelope<T, NotifyAlert>
+    <T as Actor>::Context: actix::dev::ToEnvelope<T, NotifyAlert>,
 {
     type Result = ResponseActFuture<Self, Result<UserConfirmation>>;
 
