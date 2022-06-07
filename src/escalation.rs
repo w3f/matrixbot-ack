@@ -84,6 +84,7 @@ where
             let addr = actor.adapter.clone();
 
             let is_locked = Arc::clone(&actor.is_locked);
+            let interval = actor.interval;
 
             actix::spawn(async move {
                 // Lock escalation process, do not overlap.
@@ -92,7 +93,7 @@ where
                 std::mem::drop(l);
 
                 // TODO: Handle unwrap
-                let pending = db.get_pending().await.unwrap();
+                let pending = db.get_pending(Some(interval)).await.unwrap();
                 let x = addr.send(pending).await;
 
                 // Unlock escalation process, ready to be picked up on the next

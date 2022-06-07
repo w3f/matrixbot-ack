@@ -9,6 +9,7 @@ use mongodb::{
     Client, Database as MongoDb,
 };
 use std::collections::HashMap;
+use std::time::Duration;
 
 const PENDING: &str = "pending";
 const HISTORY: &str = "history";
@@ -107,7 +108,7 @@ impl Database {
     ) -> Result<UserConfirmation> {
         unimplemented!()
     }
-    pub async fn get_pending(&self) -> Result<NotifyAlert> {
+    pub async fn get_pending(&self, interval: Option<Duration>) -> Result<NotifyAlert> {
         unimplemented!()
     }
 }
