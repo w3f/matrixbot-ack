@@ -100,11 +100,27 @@ impl Actor for MatrixClient {
     }
 }
 
+// TODO: Unify this with other adapters.
 impl Handler<NotifyNewlyInserted> for MatrixClient {
     type Result = ResponseActFuture<Self, ()>;
 
-    fn handle(&mut self, notify: NotifyNewlyInserted, _ctx: &mut Self::Context) -> Self::Result {
-        unimplemented!()
+    fn handle(&mut self, notify: NotifyNewlyInserted, ctx: &mut Self::Context) -> Self::Result {
+        let self_addr = ctx.address();
+
+        let f = async move {
+            match self_addr.send(NotifyAlert::from(notify)).await {
+                Ok(res) => {
+                    if let Err(err) = res {
+                        // TODO: Log
+                    }
+                }
+                Err(err) => {
+                    // TODO: Log
+                }
+            }
+        };
+
+        Box::pin(f.into_actor(self))
     }
 }
 

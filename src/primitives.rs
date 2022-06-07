@@ -76,6 +76,12 @@ pub struct NotifyAlert {
     alerts: Vec<AlertContext>,
 }
 
+impl From<NotifyNewlyInserted> for NotifyAlert {
+    fn from(val: NotifyNewlyInserted) -> Self {
+        NotifyAlert { alerts: val.alerts }
+    }
+}
+
 impl NotifyAlert {
     pub fn contexts(&self) -> &[AlertContext] {
         self.alerts.as_ref()
