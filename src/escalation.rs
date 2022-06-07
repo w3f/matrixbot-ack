@@ -42,7 +42,7 @@ impl RoleIndex {
 
 pub struct EscalationService<T: Actor, P> {
     db: Database,
-    window: Duration,
+    interval: Duration,
     adapter: Addr<T>,
     is_locked: Arc<RwLock<bool>>,
     levels: Arc<LevelHandler<P>>,
@@ -79,7 +79,7 @@ where
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.run_interval(self.window, |actor, ctx| {
+        ctx.run_interval(self.interval, |actor, ctx| {
             let db = actor.db.clone();
             let addr = actor.adapter.clone();
 
