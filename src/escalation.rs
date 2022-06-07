@@ -2,6 +2,7 @@ use crate::adapter::{MatrixClient, PagerDutyClient};
 use crate::database::Database;
 use crate::primitives::{Acknowledgement, NotifyAlert, Role, User, UserConfirmation};
 use crate::Result;
+use tokio::sync::RwLock;
 use actix::prelude::*;
 use actix_broker::BrokerSubscribe;
 use matrix_sdk::instant::SystemTime;
@@ -43,8 +44,7 @@ pub struct EscalationService<T: Actor, P> {
     db: Database,
     window: Duration,
     adapter: Addr<T>,
-    last: SystemTime,
-    is_locked: bool,
+    is_locked: Arc<RwLock<bool>>,
     levels: Arc<LevelHandler<P>>,
     acks: Arc<AckPermission<P>>,
     roles: Arc<RoleIndex>,
@@ -79,25 +79,26 @@ where
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        let db = self.db.clone();
-
         ctx.run_interval(self.window, |actor, ctx| {
-            if actor.last.elapsed().unwrap() < actor.window {
-                return;
-            }
-
-            actor.is_locked = true;
-
             let db = actor.db.clone();
             let addr = actor.adapter.clone();
 
+            let is_locked = Arc::clone(&actor.is_locked);
+
             actix::spawn(async move {
+                // Lock escalation process, do not overlap.
+                let mut l = is_locked.write().await;
+                *l = true;
+                std::mem::drop(l);
+
                 // TODO: Handle unwrap
                 let pending = db.get_pending().await.unwrap();
                 let x = addr.send(pending).await;
 
-                //actor.last = SystemTime::now();
-                //actor.is_locked = false;
+                // Unlock escalation process, ready to be picked up on the next
+                // interval.
+                let mut l = is_locked.write().await;
+                *l = false;
             });
         });
     }
