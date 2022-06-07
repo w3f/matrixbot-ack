@@ -50,7 +50,7 @@ async fn insert_alerts(req: web::Json<InsertAlerts>, db: web::Data<Database>) ->
     match db.insert_alerts(insert).await {
         Ok(notify) => {
             // Notify broker about new alerts.
-            //Broker::<SystemBroker>::issue_async(notify);
+            Broker::<SystemBroker>::issue_async(notify);
 
             HttpResponse::Ok().body("OK")
         }
