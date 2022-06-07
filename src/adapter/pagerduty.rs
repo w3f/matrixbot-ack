@@ -1,4 +1,4 @@
-use crate::primitives::{AlertId, NotifyAlert};
+use crate::primitives::{AlertId, NotifyAlert, NotifyNewlyInserted};
 use crate::Result;
 use actix::prelude::*;
 use actix::SystemService;
@@ -26,12 +26,20 @@ impl Actor for PagerDutyClient {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        self.subscribe_system_async::<NotifyAlert>(ctx);
+        self.subscribe_system_async::<NotifyNewlyInserted>(ctx);
+    }
+}
+
+impl Handler<NotifyNewlyInserted> for PagerDutyClient {
+    type Result = ResponseActFuture<Self, ()>;
+
+    fn handle(&mut self, notify: NotifyNewlyInserted, _ctx: &mut Self::Context) -> Self::Result {
+        unimplemented!()
     }
 }
 
 impl Handler<NotifyAlert> for PagerDutyClient {
-    type Result = ResponseActFuture<Self, ()>;
+    type Result = ResponseActFuture<Self, Result<()>>;
 
     fn handle(&mut self, notify: NotifyAlert, _ctx: &mut Self::Context) -> Self::Result {
         let config = self.config.clone();
@@ -72,6 +80,8 @@ impl Handler<NotifyAlert> for PagerDutyClient {
                     sleep(Duration::from_secs(RETRY_TIMEOUT)).await;
                 }
             }
+
+            Ok(())
         };
 
         Box::pin(f.into_actor(self))

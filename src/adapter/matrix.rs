@@ -1,4 +1,4 @@
-use crate::primitives::{AlertId, NotifyAlert};
+use crate::primitives::{AlertId, NotifyAlert, NotifyNewlyInserted};
 use crate::Result;
 use actix::prelude::*;
 use actix::SystemService;
@@ -94,10 +94,22 @@ impl MatrixClient {
 
 impl Actor for MatrixClient {
     type Context = Context<Self>;
+
+    fn started(&mut self, ctx: &mut Self::Context) {
+        self.subscribe_system_async::<NotifyNewlyInserted>(ctx);
+    }
+}
+
+impl Handler<NotifyNewlyInserted> for MatrixClient {
+    type Result = ResponseActFuture<Self, ()>;
+
+    fn handle(&mut self, notify: NotifyNewlyInserted, _ctx: &mut Self::Context) -> Self::Result {
+        unimplemented!()
+    }
 }
 
 impl Handler<NotifyAlert> for MatrixClient {
-    type Result = ResponseActFuture<Self, ()>;
+    type Result = ResponseActFuture<Self, Result<()>>;
 
     fn handle(&mut self, notify: NotifyAlert, _ctx: &mut Self::Context) -> Self::Result {
         let f = async move { unimplemented!() };

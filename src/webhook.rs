@@ -48,9 +48,9 @@ async fn insert_alerts(req: web::Json<InsertAlerts>, db: web::Data<Database>) ->
 
     // Attempt to insert the events into the database.
     match db.insert_alerts(insert).await {
-        Ok(notify) => {
+        Ok(newly_inserted) => {
             // Notify broker about new alerts.
-            Broker::<SystemBroker>::issue_async(notify);
+            Broker::<SystemBroker>::issue_async(newly_inserted);
 
             HttpResponse::Ok().body("OK")
         }

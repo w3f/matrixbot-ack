@@ -1,5 +1,5 @@
-use crate::primitives::User;
 use crate::primitives::{AlertContext, AlertId, NotifyAlert, UserConfirmation};
+use crate::primitives::{NotifyNewlyInserted, User};
 use crate::webhook::InsertAlerts;
 use crate::{unix_time, Result};
 use bson::{doc, to_bson};
@@ -46,7 +46,7 @@ impl Database {
                 .database(&config.name),
         })
     }
-    pub async fn insert_alerts(&self, inserts: InsertAlerts) -> Result<NotifyAlert> {
+    pub async fn insert_alerts(&self, inserts: InsertAlerts) -> Result<NotifyNewlyInserted> {
         let pending = self.db.collection::<AlertContext>(PENDING);
 
         // Insert the alerts themselves.

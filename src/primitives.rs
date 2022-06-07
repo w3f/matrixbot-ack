@@ -66,6 +66,12 @@ impl AlertContext {
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "()")]
+pub struct NotifyNewlyInserted {
+    alerts: Vec<AlertContext>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Message)]
+#[rtype(result = "Result<()>")]
 pub struct NotifyAlert {
     alerts: Vec<AlertContext>,
 }
