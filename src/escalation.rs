@@ -1,6 +1,6 @@
 use crate::adapter::{MatrixClient, PagerDutyClient};
 use crate::database::Database;
-use crate::primitives::{Acknowledgement, NotifyAlert, Role, User, UserConfirmation};
+use crate::primitives::{Acknowledgement, ChannelId, NotifyAlert, Role, User, UserConfirmation};
 use crate::Result;
 use actix::prelude::*;
 use actix_broker::BrokerSubscribe;
@@ -12,11 +12,11 @@ use tokio::sync::RwLock;
 
 const INTERVAL: u64 = 10;
 
-enum AckPermission<T> {
+enum AckPermission {
     Users(Vec<User>),
     MinRole(Role),
     Roles(Vec<Role>),
-    EscalationLevel(T),
+    EscalationLevel(ChannelId),
 }
 
 pub struct RoleIndex {
@@ -42,22 +42,22 @@ impl RoleIndex {
     }
 }
 
-pub struct EscalationService<T: Actor, P> {
+pub struct EscalationService<T: Actor> {
     db: Database,
     window: Duration,
     adapter: Addr<T>,
     is_locked: Arc<RwLock<bool>>,
-    levels: Arc<LevelHandler<P>>,
-    acks: Arc<AckPermission<P>>,
+    levels: Arc<LevelHandler>,
+    acks: Arc<AckPermission>,
     roles: Arc<RoleIndex>,
 }
 
-struct LevelHandler<P> {
-    levels: Vec<P>,
+struct LevelHandler {
+    levels: Vec<ChannelId>,
 }
 
-impl<P: Eq> LevelHandler<P> {
-    pub fn is_above_level(&self, min: &P, check: &P) -> Option<bool> {
+impl LevelHandler {
+    pub fn is_above_level(&self, min: &ChannelId, check: &ChannelId) -> Option<bool> {
         let min_idx = self.levels.iter().position(|level| level == min)?;
 
         let is_above = self
@@ -71,10 +71,9 @@ impl<P: Eq> LevelHandler<P> {
     }
 }
 
-impl<T, P> Actor for EscalationService<T, P>
+impl<T> Actor for EscalationService<T>
 where
     T: Actor + Handler<NotifyAlert>,
-    P: 'static + Unpin,
     <T as Actor>::Context: actix::dev::ToEnvelope<T, NotifyAlert>,
 {
     type Context = Context<Self>;
@@ -115,15 +114,14 @@ where
     }
 }
 
-impl<T: Actor, P: 'static + Unpin + Eq> Handler<Acknowledgement<P>> for EscalationService<T, P>
+impl<T: Actor> Handler<Acknowledgement> for EscalationService<T>
 where
     T: Actor + Handler<NotifyAlert>,
-    P: 'static + Unpin,
     <T as Actor>::Context: actix::dev::ToEnvelope<T, NotifyAlert>,
 {
     type Result = ResponseActFuture<Self, Result<UserConfirmation>>;
 
-    fn handle(&mut self, ack: Acknowledgement<P>, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, ack: Acknowledgement, ctx: &mut Self::Context) -> Self::Result {
         let db = self.db.clone();
 
         let roles = Arc::clone(&self.roles);

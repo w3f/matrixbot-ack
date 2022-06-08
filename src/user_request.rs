@@ -1,5 +1,5 @@
+use crate::primitives::{Command, UserAction, UserConfirmation};
 use crate::Result;
-use crate::primitives::{UserAction, UserConfirmation, Command};
 use actix::prelude::*;
 
 pub struct RequestHandler {}
@@ -14,15 +14,9 @@ impl Handler<UserAction> for RequestHandler {
     fn handle(&mut self, msg: UserAction, ctx: &mut Self::Context) -> Self::Result {
         let f = async move {
             match msg.command {
-                Command::Ack(alert_id) => {
-
-                },
-                Command::Pending => {
-
-                },
-                Command::Help => {
-
-                },
+                Command::Ack(alert_id) => {}
+                Command::Pending => {}
+                Command::Help => {}
             }
 
             unimplemented!()

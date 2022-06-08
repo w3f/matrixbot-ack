@@ -100,9 +100,9 @@ impl NotifyAlert {
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "Result<UserConfirmation>")]
-pub struct Acknowledgement<T> {
+pub struct Acknowledgement {
     pub user: User,
-    pub channel_id: T,
+    pub channel_id: ChannelId,
     pub alert_id: AlertId,
 }
 
@@ -123,9 +123,7 @@ pub enum UserConfirmation {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ChannelId {
-
-}
+pub enum ChannelId {}
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "Result<UserConfirmation>")]
