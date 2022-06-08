@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::{unix_time, Result};
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
@@ -138,4 +140,36 @@ pub enum Command {
     Ack(AlertId),
     Pending,
     Help,
+}
+
+impl Command {
+    fn from_str(input: &str) -> Result<Option<Self>> {
+        let input = input.replace("  ", " ");
+        let input = input.to_lowercase();
+        let input = input.trim();
+
+        let cmd = match input {
+            "pending" => Command::Pending,
+            "help" => Command::Help,
+            txt => {
+                if txt.starts_with("ack") || txt.starts_with("acknowledge") {
+                    let parts: Vec<&str> = txt.split(" ").collect();
+                    if parts.len() == 2 {
+                        if let Ok(id) = AlertId::from_str(parts[1]) {
+                            Command::Ack(id)
+                        } else {
+                            return Err(anyhow!("invalid command"));
+                        }
+                    } else {
+                        return Err(anyhow!("invalid command"));
+                    }
+                } else {
+                    // Ignore unrecognized commands
+                    return Ok(None);
+                }
+            }
+        };
+
+        Ok(Some(cmd))
+    }
 }
