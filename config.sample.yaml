@@ -7,7 +7,7 @@ escalation:
   config:
     escalation_window: 3600 # one hour
 adapter:
-  matrix:
+  - name: matrix
     enabled: false
     escalation:
       enabled: false
@@ -23,7 +23,7 @@ adapter:
       ecalation_levels:
       - "!abcdef:matrix.org"
       - "!ghijkl:matrix.org"
-  pager_duty:
+  - name: pager_duty
     enabled: false
     escalation:
       enabled: true
@@ -43,15 +43,15 @@ adapter:
 users:
 - name: alice
   email: alice@email.com
-  matrix: @alice:matrix.org
+  matrix: '@alice:matrix.org'
   pagerduty: alice@email.com
 - name: bob
   email: bob@email.com
-  matrix: @bob:matrix.org
+  matrix: '@bob:matrix.org'
   pagerduty: bob@email.com
 - name: dave
   email: dave@email.com
-  matrix: @dave:matrix.org
+  matrix: '@dave:matrix.org'
   pagerduty: dave@email.com
 
 roles:
