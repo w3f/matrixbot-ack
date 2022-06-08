@@ -121,3 +121,23 @@ pub enum UserConfirmation {
     Help,
     InternalError,
 }
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ChannelId {
+
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Message)]
+#[rtype(result = "Result<UserConfirmation>")]
+pub struct UserAction {
+    pub user: User,
+    pub channel_id: ChannelId,
+    pub command: Command,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Command {
+    Ack(AlertId),
+    Pending,
+    Help,
+}
