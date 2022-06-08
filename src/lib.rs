@@ -1,5 +1,5 @@
 #[macro_use]
-extern crate log;
+extern crate tracing;
 #[macro_use]
 extern crate anyhow;
 #[macro_use]
@@ -39,7 +39,7 @@ fn unix_time() -> u64 {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Config {
-    database: Option<database::DatabaseConfig>,
+    database: database::DatabaseConfig,
     listener: String,
     matrix: Option<OnOff<MatrixConfig>>,
     pager_duty: Option<OnOff<ServiceConfig>>,
@@ -67,12 +67,6 @@ struct Cli {
 
 pub async fn run() -> Result<()> {
     let cli = Cli::from_args();
-    unimplemented!()
-
-    /*
-    env_logger::builder()
-        .filter_module("system", log::LevelFilter::Debug)
-        .init();
 
     info!("Logger initialized");
 
@@ -86,81 +80,13 @@ pub async fn run() -> Result<()> {
     let content = std::fs::read_to_string(&cli.config)?;
     let config: Config = serde_yaml::from_str(&content)?;
 
-    // Retrieve relevant escalation data.
-    let should_escalate = config
-        .escalation
-        .as_ref()
-        .map(|c| c.enabled)
-        .unwrap_or(false);
-
-    let escalation_window = config
-        .escalation
-        .as_ref()
-        .map(|c| c.config.as_ref().map(|c| c.escalation_window))
-        .unwrap_or(Some(MIN_ESCALATION_WINDOW))
-        .unwrap()
-        .max(MIN_ESCALATION_WINDOW);
-
-    if should_escalate && config.database.is_none() {
-        return Err(anyhow!(
-            "Escalations require a database configuration, which isn't provided"
-        ));
-    }
-
-    let opt_db = if let Some(db_conf) = config.database {
-        info!("Setting up database {:?}", db_conf);
-        let db = database::Database::new(db_conf).await?;
-        Some(db)
-    } else {
-        warn!("Skipping database setup");
-        None
-    };
-
-    info!("Adding message processor to system registry");
-    let proc = processor::Processor::new(
-        opt_db,
-        escalation_window,
-        should_escalate,
-        config
-            .pager_duty
-            .as_ref()
-            .map(|c| c.enabled)
-            .unwrap_or(false),
-    );
-    SystemRegistry::set(proc.start());
-
-    if let Some(matrix_ctx) = config.matrix {
-        if matrix_ctx.enabled {
-            let matrix_config = matrix_ctx
-                .config
-                .ok_or_else(|| anyhow!("matrix config not specified"))?;
-
-            if matrix_config.rooms.is_empty() {
-                return Err(anyhow!("No alert rooms have been configured"));
-            }
-
-            info!("Initializing Matrix client");
-            // Only handle user commands if escalations are enabled.
-            let matrix = MatrixClient::new(matrix_config, should_escalate).await?;
-            SystemRegistry::set(matrix.start());
-        }
-    }
-
-    info!("Initializing PagerDuty client");
-    if let Some(pd_ctx) = config.pager_duty {
-        if pd_ctx.enabled {
-            let pd_config = pd_ctx.config.ok_or_else(|| anyhow!(""))?;
-
-            let pager_duty = PagerDutyClient::new(pd_config);
-            SystemRegistry::set(pager_duty.start());
-        }
-    }
+    info!("Setting up database {:?}", config.database);
+    let db = database::Database::new(config.database).await?;
 
     info!("Starting API server");
-    webhook::run_api_server(&config.listener).await?;
+    webhook::run_api_server(&config.listener, db).await?;
 
     loop {
         sleep(Duration::from_secs(u64::MAX)).await;
     }
-    */
 }

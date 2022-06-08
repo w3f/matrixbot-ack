@@ -95,11 +95,18 @@ where
                 // TODO: Handle unwrap
                 let mut pending = db.get_pending(Some(window)).await.unwrap();
                 match addr.send(pending.clone()).await {
-                    Ok(_) => {
-                        pending.update_timestamp_now();
-                        let _ = db.update_pending(pending).await.map_err(|err| {
-                            // TODO: Log
-                        });
+                    Ok(resp) => {
+                        match resp {
+                            Ok(_) => {
+                                pending.update_timestamp_now();
+                                let _ = db.update_pending(pending).await.map_err(|err| {
+                                    // TODO: Log
+                                });
+                            }
+                            Err(_err) => {
+                                // TODO: Log
+                            }
+                        }
                     }
                     // TODO: Log
                     Err(_err) => {}
