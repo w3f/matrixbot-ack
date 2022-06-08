@@ -36,10 +36,6 @@ pub struct MatrixClient {
 }
 
 impl MatrixClient {
-    // TODO
-    pub async fn new_tmp(config: ()) -> Result<Self> {
-        unimplemented!()
-    }
     pub async fn new(config: MatrixConfig) -> Result<Self> {
         info!("Setting up Matrix client");
         // Setup client

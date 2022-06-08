@@ -9,10 +9,11 @@ extern crate async_trait;
 #[macro_use]
 extern crate actix;
 
-use crate::adapter::matrix::{MatrixClient, MatrixConfig};
-use crate::adapter::pagerduty::{PagerDutyClient, PagerDutyConfig};
 use actix::clock::sleep;
 use actix::{prelude::*, SystemRegistry};
+use adapter::matrix::{MatrixClient, MatrixConfig};
+use adapter::pagerduty::{PagerDutyClient, PagerDutyConfig};
+use database::DatabaseConfig;
 use std::time::Duration;
 use structopt::StructOpt;
 
@@ -39,7 +40,7 @@ fn unix_time() -> u64 {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Config {
-    database: database::DatabaseConfig,
+    database: DatabaseConfig,
     listener: String,
     escalation: Option<EscalationConfig>,
     adapters: AdapterOptions,
@@ -52,11 +53,50 @@ struct AdapterOptions {
     pagerduty: Option<AdapterConfig<PagerDutyConfig>>,
 }
 
+impl AdapterOptions {
+    fn into_mappings(
+        self,
+        root_escalation: Option<EscalationConfig>,
+    ) -> Result<Vec<AdapterMapping>> {
+        let mut mappings = vec![];
+
+        if let Some(matrix) = self.matrix {
+            if matrix.enabled {
+                mappings.push(AdapterMapping::Matrix {
+                    client_config: matrix
+                        .config
+                        .ok_or_else(|| anyhow!("Matrix config not provided"))?,
+                    escalation_config: matrix
+                        .escation
+                        .or(root_escalation.clone())
+                        .unwrap_or(EscalationConfig::disabled()),
+                });
+            }
+        }
+
+        if let Some(pagerduty) = self.pagerduty {
+            if pagerduty.enabled {
+                mappings.push(AdapterMapping::PagerDuty {
+                    client_config: pagerduty
+                        .config
+                        .ok_or_else(|| anyhow!("PagerDuty config not provided"))?,
+                    escalation_config: pagerduty
+                        .escation
+                        .or(root_escalation.clone())
+                        .unwrap_or(EscalationConfig::disabled()),
+                });
+            }
+        }
+
+        Ok(mappings)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct AdapterConfig<T> {
     enabled: bool,
     escation: Option<EscalationConfig>,
-    config: T,
+    config: Option<T>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,7 +108,16 @@ struct OnOff<T> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct EscalationConfig {
     enabled: bool,
-    escalation_window: u64,
+    escalation_window: Option<u64>,
+}
+
+impl EscalationConfig {
+    fn disabled() -> Self {
+        EscalationConfig {
+            enabled: false,
+            escalation_window: None,
+        }
+    }
 }
 
 #[derive(StructOpt, Debug)]
@@ -81,12 +130,18 @@ struct Cli {
 use primitives::NotifyAlert;
 
 enum AdapterMapping {
-    Matrix(()),
-    PagerDuty(()),
+    Matrix {
+        client_config: MatrixConfig,
+        escalation_config: EscalationConfig,
+    },
+    PagerDuty {
+        client_config: PagerDutyConfig,
+        escalation_config: EscalationConfig,
+    },
 }
 
 async fn start_clients(adapters: Vec<AdapterMapping>) -> Result<()> {
-    fn start_tasks<T>(client: T)
+    fn start_tasks<T>(client: T, escalation_config: EscalationConfig)
     where
         T: Actor + Handler<NotifyAlert>,
         <T as Actor>::Context: actix::dev::ToEnvelope<T, NotifyAlert>,
@@ -97,11 +152,17 @@ async fn start_clients(adapters: Vec<AdapterMapping>) -> Result<()> {
 
     for adapter in adapters {
         match adapter {
-            AdapterMapping::Matrix(config) => {
-                start_tasks(MatrixClient::new_tmp(config).await?);
+            AdapterMapping::Matrix {
+                client_config,
+                escalation_config,
+            } => {
+                start_tasks(MatrixClient::new(client_config).await?, escalation_config);
             }
-            AdapterMapping::PagerDuty(config) => {
-                start_tasks(PagerDutyClient::new(config));
+            AdapterMapping::PagerDuty {
+                client_config,
+                escalation_config,
+            } => {
+                start_tasks(PagerDutyClient::new(client_config), escalation_config);
             }
         }
     }
