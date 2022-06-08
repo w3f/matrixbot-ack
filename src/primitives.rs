@@ -115,7 +115,7 @@ pub enum User {
     Matrix(String),
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Role;
+pub struct Role(String);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum UserConfirmation {

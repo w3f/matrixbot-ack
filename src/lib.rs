@@ -53,15 +53,15 @@ struct Config {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserInfo {
     name: String,
-    email: String,
-    matrix: String,
-    pagerduty: String,
+    email: Option<String>,
+    matrix: Option<String>,
+    pagerduty: Option<String>,
 }
 
 impl UserInfo {
     pub fn matches(&self, user: &User) -> bool {
         match user {
-            User::Matrix(name) => name == &self.matrix,
+            User::Matrix(name) => self.matrix.as_ref().map(|s| s == name).unwrap_or(false),
         }
     }
 }
@@ -126,15 +126,19 @@ struct AdapterConfig<T> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct OnOff<T> {
-    enabled: bool,
-    config: Option<T>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 struct EscalationConfig {
     enabled: bool,
     window: Option<u64>,
+    acks: Option<AckType>,
+}
+
+// TODO: Rename
+#[derive(Debug, Clone, Serialize, Deserialize)]
+enum AckType {
+    Users(Vec<String>),
+    MinRole(String),
+    Roles(Vec<String>),
+    EscalationLevel(String),
 }
 
 impl EscalationConfig {
@@ -142,6 +146,7 @@ impl EscalationConfig {
         EscalationConfig {
             enabled: false,
             window: None,
+            acks: None,
         }
     }
 }
@@ -153,7 +158,8 @@ struct Cli {
     config: String,
 }
 
-use primitives::{NotifyAlert, User};
+// TODO: Move to top.
+use primitives::{ChannelId, NotifyAlert, Role, User};
 
 enum AdapterMapping {
     Matrix {
