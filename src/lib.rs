@@ -14,6 +14,7 @@ use actix::{prelude::*, SystemRegistry};
 use adapter::matrix::{MatrixClient, MatrixConfig};
 use adapter::pagerduty::{PagerDutyClient, PagerDutyConfig};
 use database::{Database, DatabaseConfig};
+use std::collections::HashMap;
 use std::time::Duration;
 use structopt::StructOpt;
 use tracing::Instrument;
@@ -45,8 +46,8 @@ struct Config {
     listener: String,
     escalation: Option<EscalationConfig>,
     adapters: AdapterOptions,
-    roles: Vec<UserInfo>,
-    users: Vec<RoleInfo>,
+    users: Vec<UserInfo>,
+    roles: Vec<RoleInfo>,
 }
 
 // TODO: Move to primitives.
@@ -68,7 +69,7 @@ impl UserInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RoleInfo {
-    name: String,
+    name: Role,
     members: Vec<String>,
 }
 
@@ -170,6 +171,35 @@ enum AdapterMapping {
         client_config: PagerDutyConfig,
         escalation_config: EscalationConfig,
     },
+}
+
+// TODO: Avoid clones??
+fn create_role_index(users: Vec<UserInfo>, roles: Vec<RoleInfo>) -> Result<()> {
+    // Create a lookup table for all user entries, searchable by name.
+    let mut lookup = HashMap::new();
+    for user in users {
+        lookup.insert(user.name.clone(), user);
+    }
+
+    // Create a role index by grouping users based on roles. Users can appear in
+    // multiple roles or in none.
+    let mut role_index = vec![];
+    for role in roles {
+        let mut user_infos = vec![];
+        for member in role.members {
+            let info = lookup.get(&member).ok_or_else(|| {
+                anyhow!(
+                    "user {} specified in role {} does not exit",
+                    member,
+                    role.name
+                )
+            })?;
+            user_infos.push(info.clone());
+        }
+        role_index.push((role.name, user_infos));
+    }
+
+    Ok(())
 }
 
 async fn start_clients(db: Database, adapters: Vec<AdapterMapping>) -> Result<()> {
