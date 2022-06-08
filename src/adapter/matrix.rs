@@ -1,4 +1,8 @@
-use crate::primitives::{AlertId, NotifyAlert, NotifyNewlyInserted};
+use crate::escalation::EscalationService;
+use crate::primitives::{
+    AlertId, ChannelId, Command, NotifyAlert, NotifyNewlyInserted, User, UserAction,
+};
+use crate::user_request::RequestHandler;
 use crate::Result;
 use actix::prelude::*;
 use actix::SystemService;
@@ -62,6 +66,7 @@ impl MatrixClient {
             .collect::<Result<Vec<RoomId>>>()?;
 
         // Add event handler
+        /* TODO
         if handle_user_command {
             client
                 .set_event_handler(Box::new(Listener {
@@ -69,6 +74,7 @@ impl MatrixClient {
                 }))
                 .await;
         }
+         */
 
         // Start backend syncing service
         info!("Executing background sync");
@@ -136,6 +142,7 @@ impl Handler<NotifyAlert> for MatrixClient {
 
 pub struct Listener {
     rooms: Vec<RoomId>,
+    request_handler: Addr<RequestHandler<EscalationService<MatrixClient>>>,
 }
 
 #[async_trait]
@@ -145,6 +152,29 @@ impl EventHandler for Listener {
             // Only process whitelisted rooms.
             if !self.rooms.contains(room.room_id()) {
                 return;
+            }
+
+            let msg = if let MessageType::Text(text) = &event.content.msgtype {
+                text.body.clone()
+            } else {
+                return;
+            };
+
+            match Command::from_string(msg) {
+                Ok(try_cmd) => {
+                    if let Some(cmd) = try_cmd {
+                        let action = UserAction {
+                            user: User::Matrix(event.sender.to_string()),
+                            channel_id: ChannelId::Matrix(room.room_id().clone()),
+                            command: cmd,
+                        };
+
+                        let x = self.request_handler.send(action).await;
+                    }
+                }
+                Err(err) => {
+                    // TODO: Resp error
+                }
             }
         }
     }

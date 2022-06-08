@@ -1,5 +1,7 @@
 use std::str::FromStr;
 
+use ruma::RoomId;
+
 use crate::{unix_time, Result};
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
@@ -109,7 +111,9 @@ pub struct Acknowledgement {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct User;
+pub enum User {
+    Matrix(String),
+}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Role;
 
@@ -125,7 +129,9 @@ pub enum UserConfirmation {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ChannelId {}
+pub enum ChannelId {
+    Matrix(RoomId),
+}
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "Result<UserConfirmation>")]
@@ -143,7 +149,8 @@ pub enum Command {
 }
 
 impl Command {
-    fn from_str(input: &str) -> Result<Option<Self>> {
+    pub fn from_string(input: String) -> Result<Option<Self>> {
+        // TODO: Beautify this?
         let input = input.replace("  ", " ");
         let input = input.to_lowercase();
         let input = input.trim();
