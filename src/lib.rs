@@ -185,8 +185,14 @@ pub async fn run() -> Result<()> {
     let content = std::fs::read_to_string(&cli.config)?;
     let config: Config = serde_yaml::from_str(&content)?;
 
+    info!("Preparing adapter config data");
+    let mappings = config.adapters.into_mappings(config.escalation)?;
+
     info!("Setting up database {:?}", config.database);
     let db = database::Database::new(config.database).await?;
+
+    info!("Starting clients and background tasks");
+    start_clients(mappings).await?;
 
     info!("Starting API server");
     webhook::run_api_server(&config.listener, db).await?;
