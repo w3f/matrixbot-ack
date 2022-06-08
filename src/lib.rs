@@ -45,6 +45,31 @@ struct Config {
     listener: String,
     escalation: Option<EscalationConfig>,
     adapters: AdapterOptions,
+    roles: Vec<UserInfo>,
+    users: Vec<RoleInfo>,
+}
+
+// TODO: Move to primitives.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserInfo {
+    name: String,
+    email: String,
+    matrix: String,
+    pagerduty: String,
+}
+
+impl UserInfo {
+    pub fn matches(&self, user: &User) -> bool {
+        match user {
+            User::Matrix(name) => name == &self.matrix,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RoleInfo {
+    name: String,
+    members: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -128,7 +153,7 @@ struct Cli {
     config: String,
 }
 
-use primitives::NotifyAlert;
+use primitives::{NotifyAlert, User};
 
 enum AdapterMapping {
     Matrix {

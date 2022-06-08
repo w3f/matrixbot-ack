@@ -1,7 +1,7 @@
 use crate::adapter::{MatrixClient, PagerDutyClient};
 use crate::database::Database;
 use crate::primitives::{Acknowledgement, ChannelId, NotifyAlert, Role, User, UserConfirmation};
-use crate::Result;
+use crate::{Result, UserInfo};
 use actix::prelude::*;
 use actix_broker::BrokerSubscribe;
 use matrix_sdk::instant::SystemTime;
@@ -20,14 +20,14 @@ enum AckPermission {
 }
 
 pub struct RoleIndex {
-    roles: Vec<(Role, Vec<User>)>,
+    roles: Vec<(Role, Vec<UserInfo>)>,
 }
 
 impl RoleIndex {
     pub fn user_is_permitted(&self, user: &User, expected: &[Role]) -> bool {
         self.roles
             .iter()
-            .filter(|(_, users)| users.contains(user))
+            .filter(|(_, users)| users.iter().any(|info| info.matches(&user)))
             .any(|(role, _)| expected.contains(role))
     }
     pub fn is_above_minimum(&self, min: &Role, user: &User) -> bool {
@@ -36,7 +36,7 @@ impl RoleIndex {
         self.roles
             .iter()
             .enumerate()
-            .filter(|(_, (_, users))| users.contains(&user))
+            .filter(|(_, (_, users))| users.iter().any(|info| info.matches(&user)))
             .find(|(idx, _)| idx >= &min_idx)
             .is_some()
     }
