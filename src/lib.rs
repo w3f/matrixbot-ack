@@ -10,7 +10,7 @@ extern crate async_trait;
 extern crate actix;
 
 use crate::adapter::matrix::{MatrixClient, MatrixConfig};
-use crate::adapter::pagerduty::{PagerDutyClient, ServiceConfig};
+use crate::adapter::pagerduty::{PagerDutyClient, PagerDutyConfig};
 use actix::clock::sleep;
 use actix::{prelude::*, SystemRegistry};
 use std::time::Duration;
@@ -41,9 +41,22 @@ fn unix_time() -> u64 {
 struct Config {
     database: database::DatabaseConfig,
     listener: String,
-    matrix: Option<OnOff<MatrixConfig>>,
-    pager_duty: Option<OnOff<ServiceConfig>>,
-    escalation: Option<OnOff<EscalationConfig>>,
+    escalation: Option<EscalationConfig>,
+    adapters: AdapterOptions,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct AdapterOptions {
+    matrix: Option<AdapterConfig<MatrixConfig>>,
+    #[serde(alias = "pager_duty")]
+    pagerduty: Option<AdapterConfig<PagerDutyConfig>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct AdapterConfig<T> {
+    enabled: bool,
+    escation: Option<EscalationConfig>,
+    config: T,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,12 +80,12 @@ struct Cli {
 
 use primitives::NotifyAlert;
 
-enum AdapterConfig {
+enum AdapterMapping {
     Matrix(()),
     PagerDuty(()),
 }
 
-async fn start_clients(adapters: Vec<AdapterConfig>) -> Result<()> {
+async fn start_clients(adapters: Vec<AdapterMapping>) -> Result<()> {
     fn start_tasks<T>(client: T)
     where
         T: Actor + Handler<NotifyAlert>,
@@ -84,10 +97,10 @@ async fn start_clients(adapters: Vec<AdapterConfig>) -> Result<()> {
 
     for adapter in adapters {
         match adapter {
-            AdapterConfig::Matrix(config) => {
+            AdapterMapping::Matrix(config) => {
                 start_tasks(MatrixClient::new_tmp(config).await?);
             }
-            AdapterConfig::PagerDuty(config) => {
+            AdapterMapping::PagerDuty(config) => {
                 start_tasks(PagerDutyClient::new(config));
             }
         }

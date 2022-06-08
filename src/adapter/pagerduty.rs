@@ -11,12 +11,12 @@ const SEND_ALERT_ENDPOINT: &str = "https://events.pagerduty.com/v2/enqueue";
 const RETRY_TIMEOUT: u64 = 10; // seconds
 
 pub struct PagerDutyClient {
-    config: ServiceConfig,
+    config: PagerDutyConfig,
 }
 
 impl PagerDutyClient {
     /*
-    pub fn new(mut config: ServiceConfig) -> Self {
+    pub fn new(mut config: PagerDutyConfig) -> Self {
         config.api_key = format!("Token token={}", config.api_key);
 
         PagerDutyClient { config }
@@ -146,7 +146,7 @@ pub enum PayloadSeverity {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ServiceConfig {
+pub struct PagerDutyConfig {
     api_key: String,
     integration_key: String,
     payload_source: String,
@@ -205,7 +205,7 @@ mod tests {
         let integration_key = env::var("PD_SERVICE_KEY").unwrap();
         let api_key = env::var("PD_API_KEY").unwrap();
 
-        let config = ServiceConfig {
+        let config = PagerDutyConfig {
             api_key,
             integration_key,
             payload_source: "matrixbot-ack-test".to_string(),

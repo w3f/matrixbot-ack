@@ -7,7 +7,7 @@ escalation:
   config:
     escalation_window: 3600 # one hour
 adapter:
-  - name: matrix
+  matrix:
     enabled: false
     escalation:
       enabled: false
@@ -23,7 +23,7 @@ adapter:
       ecalation_levels:
       - "!abcdef:matrix.org"
       - "!ghijkl:matrix.org"
-  - name: pager_duty
+  pager_duty:
     enabled: false
     escalation:
       enabled: true
