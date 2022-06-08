@@ -16,6 +16,7 @@ use adapter::pagerduty::{PagerDutyClient, PagerDutyConfig};
 use database::DatabaseConfig;
 use std::time::Duration;
 use structopt::StructOpt;
+use tracing::Instrument;
 
 mod adapter;
 mod database;
@@ -173,8 +174,8 @@ async fn start_clients(adapters: Vec<AdapterMapping>) -> Result<()> {
 pub async fn run() -> Result<()> {
     let cli = Cli::from_args();
 
+    // Initial setup and config.
     info!("Logger initialized");
-
     info!(
         "Opening config at {}",
         std::fs::canonicalize(&cli.config)?
@@ -191,9 +192,15 @@ pub async fn run() -> Result<()> {
     info!("Setting up database {:?}", config.database);
     let db = database::Database::new(config.database).await?;
 
-    info!("Starting clients and background tasks");
-    start_clients(mappings).await?;
+    // Starting adapters.
+    let span = info_span!("starting_adapter_clients");
+    span.in_scope(|| {
+        info!("Starting clients and background tasks");
+    });
 
+    start_clients(mappings).instrument(span).await?;
+
+    // Starting webhook.
     info!("Starting API server");
     webhook::run_api_server(&config.listener, db).await?;
 
