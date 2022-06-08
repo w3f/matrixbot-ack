@@ -15,10 +15,15 @@ pub struct PagerDutyClient {
 }
 
 impl PagerDutyClient {
+    /*
     pub fn new(mut config: ServiceConfig) -> Self {
         config.api_key = format!("Token token={}", config.api_key);
 
         PagerDutyClient { config }
+    }
+    */
+    pub fn new(mut config: ()) -> Self {
+        unimplemented!()
     }
 }
 

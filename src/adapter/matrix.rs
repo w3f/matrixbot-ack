@@ -36,7 +36,11 @@ pub struct MatrixClient {
 }
 
 impl MatrixClient {
-    pub async fn new(config: MatrixConfig, handle_user_command: bool) -> Result<Self> {
+    // TODO
+    pub async fn new_tmp(config: ()) -> Result<Self> {
+        unimplemented!()
+    }
+    pub async fn new(config: MatrixConfig) -> Result<Self> {
         info!("Setting up Matrix client");
         // Setup client
         let client_config = ClientConfig::new().store_path(&config.db_path);

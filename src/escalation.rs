@@ -52,6 +52,12 @@ pub struct EscalationService<T: Actor> {
     roles: Arc<RoleIndex>,
 }
 
+impl<T: Actor> EscalationService<T> {
+    pub fn new() -> Self {
+        unimplemented!()
+    }
+}
+
 struct LevelHandler {
     levels: Vec<ChannelId>,
 }

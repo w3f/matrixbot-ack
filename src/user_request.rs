@@ -9,6 +9,12 @@ pub struct RequestHandler<T: Actor> {
     db: Database,
 }
 
+impl<T: Actor> RequestHandler<T> {
+    pub fn new() -> Self {
+        unimplemented!()
+    }
+}
+
 impl<T: Actor> Actor for RequestHandler<T> {
     type Context = Context<Self>;
 }

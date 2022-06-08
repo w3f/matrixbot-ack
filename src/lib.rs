@@ -65,6 +65,37 @@ struct Cli {
     config: String,
 }
 
+use primitives::NotifyAlert;
+
+enum AdapterConfig {
+    Matrix(()),
+    PagerDuty(()),
+}
+
+async fn start_clients(adapters: Vec<AdapterConfig>) -> Result<()> {
+    fn start_tasks<T>(client: T)
+    where
+        T: Actor + Handler<NotifyAlert>,
+        <T as Actor>::Context: actix::dev::ToEnvelope<T, NotifyAlert>,
+    {
+        escalation::EscalationService::<T>::new().start();
+        user_request::RequestHandler::<T>::new().start();
+    }
+
+    for adapter in adapters {
+        match adapter {
+            AdapterConfig::Matrix(config) => {
+                start_tasks(MatrixClient::new_tmp(config).await?);
+            }
+            AdapterConfig::PagerDuty(config) => {
+                start_tasks(PagerDutyClient::new(config));
+            }
+        }
+    }
+
+    Ok(())
+}
+
 pub async fn run() -> Result<()> {
     let cli = Cli::from_args();
 
