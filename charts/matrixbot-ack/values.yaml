@@ -24,7 +24,7 @@ config:
   listener: 127.0.0.1:8000
   escalation:
     enabled: true
-    escalation_window: 3600 # one hour
+    window: 3600 # one hour
   rooms:
     - "!abcdef:matrix.org"
     - "!ghijkl:matrix.org"

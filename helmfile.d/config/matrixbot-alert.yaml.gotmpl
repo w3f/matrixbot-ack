@@ -26,6 +26,6 @@ config:
   listener: 0.0.0.0:8000
   escalation:
     enabled: false
-    escalation_window: 0
+    window: 0
   rooms:
     - {{ env "ALERT_ROOM_1" | quote }}

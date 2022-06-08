@@ -53,8 +53,17 @@ pub struct EscalationService<T: Actor> {
 }
 
 impl<T: Actor> EscalationService<T> {
-    pub fn new() -> Self {
+    pub fn new(db: Database, window: Duration, adapter: Addr<T>) -> Self {
         unimplemented!()
+        /*
+        EscalationService {
+            db,
+            window,
+            adapter,
+            is_locked: Arc::new(RwLock::new(false)),
+            levels: Arc::new(),
+        }
+         */
     }
 }
 

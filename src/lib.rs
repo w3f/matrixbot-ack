@@ -13,7 +13,7 @@ use actix::clock::sleep;
 use actix::{prelude::*, SystemRegistry};
 use adapter::matrix::{MatrixClient, MatrixConfig};
 use adapter::pagerduty::{PagerDutyClient, PagerDutyConfig};
-use database::DatabaseConfig;
+use database::{Database, DatabaseConfig};
 use std::time::Duration;
 use structopt::StructOpt;
 use tracing::Instrument;
@@ -69,8 +69,8 @@ impl AdapterOptions {
                         .ok_or_else(|| anyhow!("Matrix config not provided"))?,
                     escalation_config: matrix
                         .escation
-                        .or(root_escalation.clone())
-                        .unwrap_or(EscalationConfig::disabled()),
+                        .or_else(|| root_escalation.clone())
+                        .unwrap_or_else(EscalationConfig::disabled),
                 });
             }
         }
@@ -83,8 +83,8 @@ impl AdapterOptions {
                         .ok_or_else(|| anyhow!("PagerDuty config not provided"))?,
                     escalation_config: pagerduty
                         .escation
-                        .or(root_escalation.clone())
-                        .unwrap_or(EscalationConfig::disabled()),
+                        .or_else(|| root_escalation.clone())
+                        .unwrap_or_else(EscalationConfig::disabled),
                 });
             }
         }
@@ -109,14 +109,14 @@ struct OnOff<T> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct EscalationConfig {
     enabled: bool,
-    escalation_window: Option<u64>,
+    window: Option<u64>,
 }
 
 impl EscalationConfig {
     fn disabled() -> Self {
         EscalationConfig {
             enabled: false,
-            escalation_window: None,
+            window: None,
         }
     }
 }
@@ -141,14 +141,31 @@ enum AdapterMapping {
     },
 }
 
-async fn start_clients(adapters: Vec<AdapterMapping>) -> Result<()> {
-    fn start_tasks<T>(client: T, escalation_config: EscalationConfig)
+async fn start_clients(db: Database, adapters: Vec<AdapterMapping>) -> Result<()> {
+    fn start_tasks<T>(
+        db: Database,
+        client: Addr<T>,
+        escalation_config: EscalationConfig,
+    ) -> Result<()>
     where
         T: Actor + Handler<NotifyAlert>,
         <T as Actor>::Context: actix::dev::ToEnvelope<T, NotifyAlert>,
     {
-        escalation::EscalationService::<T>::new().start();
+        if escalation_config.enabled {
+            escalation::EscalationService::<T>::new(
+                db,
+                Duration::from_secs(
+                    escalation_config
+                        .window
+                        .ok_or_else(|| anyhow!("escalation window not defined"))?,
+                ),
+                client,
+            )
+            .start();
+        }
         user_request::RequestHandler::<T>::new().start();
+
+        Ok(())
     }
 
     for adapter in adapters {
@@ -157,13 +174,21 @@ async fn start_clients(adapters: Vec<AdapterMapping>) -> Result<()> {
                 client_config,
                 escalation_config,
             } => {
-                start_tasks(MatrixClient::new(client_config).await?, escalation_config);
+                start_tasks(
+                    db.clone(),
+                    MatrixClient::new(client_config).await?.start(),
+                    escalation_config,
+                )?;
             }
             AdapterMapping::PagerDuty {
                 client_config,
                 escalation_config,
             } => {
-                start_tasks(PagerDutyClient::new(client_config), escalation_config);
+                start_tasks(
+                    db.clone(),
+                    PagerDutyClient::new(client_config).start(),
+                    escalation_config,
+                )?;
             }
         }
     }
@@ -198,7 +223,7 @@ pub async fn run() -> Result<()> {
         info!("Starting clients and background tasks");
     });
 
-    start_clients(mappings).instrument(span).await?;
+    start_clients(db.clone(), mappings).instrument(span).await?;
 
     // Starting webhook.
     info!("Starting API server");

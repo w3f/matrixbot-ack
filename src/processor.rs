@@ -82,7 +82,7 @@ impl ToString for AlertContext {
 
 pub struct Processor {
     db: Option<Arc<Database>>,
-    escalation_window: u64,
+    window: u64,
     should_escalate: bool,
     // Ensures that only one escalation task is running at the time.
     escalation_lock: Arc<Mutex<()>>,
@@ -92,13 +92,13 @@ pub struct Processor {
 impl Processor {
     pub fn new(
         db: Option<Database>,
-        escalation_window: u64,
+        window: u64,
         should_escalate: bool,
         pager_duty_enabled: bool,
     ) -> Self {
         Processor {
             db: db.map(Arc::new),
-            escalation_window,
+            window,
             should_escalate,
             escalation_lock: Default::default(),
             pager_duty_enabled,
@@ -121,10 +121,10 @@ impl Actor for Processor {
     fn started(&mut self, ctx: &mut Self::Context) {
         if self.should_escalate {
             let db = self.db();
-            let escalation_window = self.escalation_window;
+            let window = self.window;
 
-            let local = |db: Arc<Database>, escalation_window: u64| async move {
-                let mut pending = db.get_pending(Some(escalation_window)).await?;
+            let local = |db: Arc<Database>, window: u64| async move {
+                let mut pending = db.get_pending(Some(window)).await?;
 
                 for alert in &mut pending {
                     debug!("Alert escalated: {:?}", alert);
@@ -168,7 +168,7 @@ impl Actor for Processor {
                             // `_l` goes out of scope.
                             let _l = locked;
 
-                            match local(db, escalation_window).await {
+                            match local(db, window).await {
                                 Ok(_) => {}
                                 Err(err) => error!("{:?}", err),
                             }

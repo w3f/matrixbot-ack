@@ -34,6 +34,7 @@ where
             let res = match msg.command {
                 Command::Ack(alert_id) => {
                     // TODO: Handle unwrap
+                    // TODO: Consider the case of disabled escalation (it will go into the void).
                     let x = escalation_service
                         .send(Acknowledgement {
                             user: msg.user,
