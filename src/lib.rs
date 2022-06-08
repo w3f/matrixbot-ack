@@ -14,6 +14,7 @@ use actix::{prelude::*, SystemRegistry};
 use adapter::matrix::{MatrixClient, MatrixConfig};
 use adapter::pagerduty::{PagerDutyClient, PagerDutyConfig};
 use database::{Database, DatabaseConfig};
+use escalation::RoleIndex;
 use std::collections::HashMap;
 use std::time::Duration;
 use structopt::StructOpt;
@@ -51,7 +52,7 @@ struct Config {
 }
 
 // TODO: Move to primitives.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct UserInfo {
     name: String,
     email: Option<String>,
@@ -173,35 +174,6 @@ enum AdapterMapping {
     },
 }
 
-// TODO: Avoid clones??
-fn create_role_index(users: Vec<UserInfo>, roles: Vec<RoleInfo>) -> Result<()> {
-    // Create a lookup table for all user entries, searchable by name.
-    let mut lookup = HashMap::new();
-    for user in users {
-        lookup.insert(user.name.clone(), user);
-    }
-
-    // Create a role index by grouping users based on roles. Users can appear in
-    // multiple roles or in none.
-    let mut role_index = vec![];
-    for role in roles {
-        let mut user_infos = vec![];
-        for member in role.members {
-            let info = lookup.get(&member).ok_or_else(|| {
-                anyhow!(
-                    "user {} specified in role {} does not exit",
-                    member,
-                    role.name
-                )
-            })?;
-            user_infos.push(info.clone());
-        }
-        role_index.push((role.name, user_infos));
-    }
-
-    Ok(())
-}
-
 async fn start_clients(db: Database, adapters: Vec<AdapterMapping>) -> Result<()> {
     fn start_tasks<T>(
         db: Database,
@@ -274,6 +246,9 @@ pub async fn run() -> Result<()> {
 
     info!("Preparing adapter config data");
     let mappings = config.adapters.into_mappings(config.escalation)?;
+
+    info!("Creating role index");
+    let role_index = RoleIndex::create_index(config.users, config.roles)?;
 
     info!("Setting up database {:?}", config.database);
     let db = database::Database::new(config.database).await?;

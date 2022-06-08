@@ -1,11 +1,11 @@
 use crate::adapter::{MatrixClient, PagerDutyClient};
 use crate::database::Database;
 use crate::primitives::{Acknowledgement, ChannelId, NotifyAlert, Role, User, UserConfirmation};
-use crate::{Result, UserInfo};
+use crate::{Result, UserInfo, RoleInfo};
 use actix::prelude::*;
 use actix_broker::BrokerSubscribe;
 use matrix_sdk::instant::SystemTime;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
@@ -20,11 +20,45 @@ enum AckPermission {
 }
 
 pub struct RoleIndex {
+    users: HashSet<UserInfo>,
     roles: Vec<(Role, Vec<UserInfo>)>,
 }
 
 impl RoleIndex {
-    pub fn user_is_permitted(&self, user: &User, expected: &[Role]) -> bool {
+    pub fn create_index(users: Vec<UserInfo>, roles: Vec<RoleInfo>) -> Result<Self> {
+        // Create a lookup table for all user entries, searchable by name.
+        let mut lookup = HashMap::new();
+        for user in users {
+            lookup.insert(user.name.clone(), user);
+        }
+
+        // Create a role index by grouping users based on roles. Users can appear in
+        // multiple roles or in none.
+        let mut index = vec![];
+        for role in roles {
+            let mut user_infos = vec![];
+            for member in role.members {
+                let info = lookup.get(&member).ok_or_else(|| {
+                    anyhow!(
+                        "user {} specified in role {} does not exit",
+                        member,
+                        role.name
+                    )
+                })?;
+                user_infos.push(info.clone());
+            }
+            index.push((role.name, user_infos));
+        }
+
+        Ok(RoleIndex {
+            users: lookup.into_iter().map(|(_, info)| info).collect(),
+            roles: index,
+        })
+    }
+    pub fn user_is_permitted(&self, user: &User) -> bool {
+        self.users.iter().any(|info| info.matches(user))
+    }
+    pub fn user_is_in_role(&self, user: &User, expected: &[Role]) -> bool {
         self.roles
             .iter()
             .filter(|(_, users)| users.iter().any(|info| info.matches(&user)))
@@ -171,7 +205,7 @@ where
                     }
                 }
                 AckPermission::Roles(allowed) => {
-                    if roles.user_is_permitted(&ack.user, &allowed) {
+                    if roles.user_is_in_role(&ack.user, &allowed) {
                         // Acknowledge alert.
                         db.ack(&ack.alert_id, &ack.user).await?;
                         UserConfirmation::AlertAcknowledged(ack.alert_id)
