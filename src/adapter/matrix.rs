@@ -154,12 +154,16 @@ impl EventHandler for Listener {
                 return;
             }
 
+            // Try to retrieve text message. If the message is not text based,
+            // then just ignore.
             let msg = if let MessageType::Text(text) = &event.content.msgtype {
                 text.body.clone()
             } else {
                 return;
             };
 
+            // Try to parse text message as a command. Ignore if no command was
+            // recognized.
             match Command::from_string(msg) {
                 Ok(try_cmd) => {
                     if let Some(cmd) = try_cmd {
@@ -169,6 +173,7 @@ impl EventHandler for Listener {
                             command: cmd,
                         };
 
+                        // TODO: Handle
                         let x = self.request_handler.send(action).await;
                     }
                 }
