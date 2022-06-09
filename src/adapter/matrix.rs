@@ -117,11 +117,11 @@ impl Handler<NotifyNewlyInserted> for MatrixClient {
             match self_addr.send(NotifyAlert::from(notify)).await {
                 Ok(res) => {
                     if let Err(err) = res {
-                        // TODO: Log
+                        error!("failed to notify adapter about new alerts: {:?}", err);
                     }
                 }
                 Err(err) => {
-                    // TODO: Log
+                    error!("failed to notify actor about new alerts: {:?}", err);
                 }
             }
         };
