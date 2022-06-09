@@ -171,7 +171,6 @@ impl Database {
 
         Ok(())
     }
-    // TODO: This should also mark as delivered.
     pub async fn increment_alert_state(&self, id: AlertId, new_idx: usize) -> Result<()> {
         let pending = self.db.collection::<AlertContext>(PENDING);
         let now = unix_time();
