@@ -31,17 +31,19 @@ pub struct EscalationService<T: Actor> {
 }
 
 impl<T: Actor> EscalationService<T> {
-    pub fn new(db: Database, window: Duration, adapter: Addr<T>) -> Self {
-        unimplemented!()
-        /*
+    pub fn new(
+        db: Database,
+        window: Duration,
+        adapter: Addr<T>,
+        permission: PermissionType,
+    ) -> Self {
         EscalationService {
             db,
             window,
             adapter,
             is_locked: Arc::new(RwLock::new(false)),
-            levels: Arc::new(),
+            permission: Arc::new(permission),
         }
-         */
     }
 }
 

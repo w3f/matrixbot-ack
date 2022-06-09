@@ -171,12 +171,13 @@ enum AdapterMapping {
 async fn start_clients(
     db: Database,
     adapters: Vec<AdapterMapping>,
-    role_index: RoleIndex,
+    role_index: &RoleIndex,
 ) -> Result<()> {
     fn start_tasks<T, L>(
         db: Database,
         client: Addr<T>,
         escalation_config: EscalationConfig<L>,
+        role_index: &RoleIndex,
     ) -> Result<()>
     where
         T: Actor + Handler<NotifyAlert>,
@@ -191,6 +192,8 @@ async fn start_clients(
                         .ok_or_else(|| anyhow!("escalation window not defined"))?,
                 ),
                 client,
+                role_index
+                    .into_permission_type(escalation_config.acks.ok_or_else(|| anyhow!(""))?)?,
             )
             .start();
         }
@@ -209,6 +212,7 @@ async fn start_clients(
                     db.clone(),
                     MatrixClient::new(client_config).await?.start(),
                     escalation_config,
+                    role_index,
                 )?;
             }
             AdapterMapping::PagerDuty {
@@ -219,6 +223,7 @@ async fn start_clients(
                     db.clone(),
                     PagerDutyClient::new(client_config).start(),
                     escalation_config,
+                    role_index,
                 )?;
             }
         }
@@ -257,7 +262,7 @@ pub async fn run() -> Result<()> {
         info!("Starting clients and background tasks");
     });
 
-    start_clients(db.clone(), mappings, role_index)
+    start_clients(db.clone(), mappings, &role_index)
         .instrument(span)
         .await?;
 
