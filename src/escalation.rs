@@ -78,13 +78,14 @@ where
 
                 // TODO: Handle unwrap
                 // TODO!!: Increment levels.
-                let mut pending = db.get_pending(Some(window)).await.unwrap();
+                let pending = db.get_pending(Some(window)).await.unwrap();
                 let (updated, notify) = pending.into_notifications(&levels);
 
                 match addr.send(notify).await {
                     Ok(resp) => {
                         match resp {
                             Ok(_) => {
+                                // TODO: This should be done on an per-message basis.
                                 let _ = db.update_pending(updated).await.map_err(|err| {
                                     // TODO: Log
                                 });
@@ -105,6 +106,11 @@ where
             });
         });
     }
+}
+
+// TODO: Rename
+async fn send_alert_delivery() -> Result<()> {
+    unimplemented!()
 }
 
 impl<T: Actor> Handler<NotifyNewlyInserted> for EscalationService<T>

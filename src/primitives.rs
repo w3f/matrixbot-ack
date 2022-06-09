@@ -39,6 +39,7 @@ pub struct AlertContext {
 pub struct AlertDelivery {
     pub id: AlertId,
     pub alert: Alert,
+    pub prev_room: Option<ChannelId>,
     pub channel_id: ChannelId,
 }
 
@@ -77,7 +78,7 @@ impl AlertContext {
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "()")]
 pub struct NotifyNewlyInserted {
-    alerts: Vec<AlertDelivery>,
+    alerts: Vec<AlertContext>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -86,6 +87,7 @@ pub struct PendingAlerts {
 }
 
 impl PendingAlerts {
+    // TODO: Document
     pub fn into_notifications(mut self, levels: &[ChannelId]) -> (PendingAlerts, NotifyAlert) {
         let alerts = self
             .alerts
@@ -94,11 +96,21 @@ impl PendingAlerts {
                 AlertDelivery {
                     id: alert.id,
                     alert: alert.alert.clone(),
-                    // TODO: Beautify this
+                    prev_room: {
+                        if alert.level_idx == 0 && alert.last_notified_tmsp.is_none() {
+                            None
+                        } else {
+                            levels
+                                .get(alert.level_idx)
+                                .cloned()
+                        }
+                    },
                     channel_id: levels
-                        .get(alert.level_idx)
-                        .or_else(|| levels.last().clone())
-                        .map(|l| l.clone())
+                        .get(alert.level_idx + 1)
+                        .or_else(|| levels.last())
+                        .cloned()
+                        // This will only panic if `levels` is empty, which is
+                        // checked for on application startup.
                         .unwrap(),
                 }
             })
