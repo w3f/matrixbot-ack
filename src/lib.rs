@@ -308,6 +308,9 @@ impl RoleIndex {
             roles: index,
         })
     }
+    /// Fetches the necessary data from the role index and converts it into a
+    /// `PermissionType`, which is used by the escalation service to check for
+    /// permissions when receiving acknowledgments.
     fn as_permission_type(&self, ack_type: AckType) -> Result<PermissionType> {
         let ty = match ack_type {
             AckType::Users(users) => {
