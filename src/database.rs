@@ -115,7 +115,7 @@ impl Database {
         unimplemented!()
     }
     // TODO: This should also mark as delivered.
-    pub async fn increment_alert_state(&self, alert: AlertId) -> Result<()> {
+    pub async fn increment_alert_state(&self, alert: AlertId, new_idx: usize) -> Result<()> {
         unimplemented!()
     }
 }

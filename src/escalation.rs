@@ -91,15 +91,17 @@ where
                     }
                 };
 
+                // Notify adapter about each alert.
                 for alert in pending.alerts {
-                    let delivery = alert.into_delivery(&levels);
+                    // Increment the escalation level, if necessary
+                    let (delivery, new_idx) = alert.into_delivery(&levels);
                     let id = delivery.id;
 
                     // If delivery fails, it will be attempted again on the next interval.
                     match addr.send(delivery).await {
                         Ok(resp) => match resp {
                             Ok(_) => {
-                                let _ = db.increment_alert_state(id).await.map_err(|err| {
+                                let _ = db.increment_alert_state(id, new_idx).await.map_err(|err| {
                                     error!("failed to increment alert state of {}, error: {:?}", id, err)
                                 });
                             }
@@ -138,7 +140,7 @@ where
 
         let f = async move {
             for alert in inserted.alerts {
-                let delivery = alert.into_delivery(&levels);
+                let (delivery, _) = alert.into_delivery(&levels);
                 let id = delivery.id;
 
                 // If delivery fails, it will be attempted again by the

@@ -35,7 +35,7 @@ pub struct AlertContext {
 }
 
 impl AlertContext {
-    pub fn into_delivery(self, levels: &[ChannelId]) -> AlertDelivery {
+    pub fn into_delivery(self, levels: &[ChannelId]) -> (AlertDelivery, usize) {
         // Unwraps in this method will only panic if `levels` is
         // empty, which is checked for on application startup. I.e. panicing
         // indicates a bug.
@@ -56,12 +56,21 @@ impl AlertContext {
             }
         };
 
-        AlertDelivery {
-            id: self.id,
-            alert: self.alert,
-            prev_room,
-            channel_id,
-        }
+        (
+            AlertDelivery {
+                id: self.id,
+                alert: self.alert,
+                prev_room,
+                channel_id,
+            },
+            {
+                if self.level_idx == levels.len() - 1 {
+                    self.level_idx
+                } else {
+                    self.level_idx + 1
+                }
+            },
+        )
     }
 }
 
