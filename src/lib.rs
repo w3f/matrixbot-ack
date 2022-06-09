@@ -31,7 +31,7 @@ mod webhook;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;
 
-fn unix_time() -> u64 {
+fn _unix_time() -> u64 {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     let start = SystemTime::now();
@@ -53,7 +53,7 @@ struct Config {
 
 // TODO: Move to primitives.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
-struct UserInfo {
+pub struct UserInfo {
     name: String,
     email: Option<String>,
     matrix: Option<String>,

@@ -3,15 +3,12 @@ use crate::primitives::{NotifyNewlyInserted, User};
 use crate::webhook::InsertAlerts;
 use crate::Result;
 use bson::doc;
-use mongodb::{
-    options::{FindOneAndUpdateOptions, ReturnDocument},
-    Client, Database as MongoDb,
-};
+use mongodb::{Client, Database as MongoDb};
 use std::time::Duration;
 
 const PENDING: &str = "pending";
 const _HISTORY: &str = "history";
-const ID_CURSOR: &str = "id_cursor";
+const _ID_CURSOR: &str = "id_cursor";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseConfig {
@@ -50,6 +47,8 @@ impl Database {
         unimplemented!()
     }
     async fn _get_next_id(&self) -> Result<AlertId> {
+        unimplemented!()
+        /*
         let id_cursor = self.db.collection::<IdCursor>(ID_CURSOR);
 
         let id = id_cursor
@@ -74,6 +73,7 @@ impl Database {
             .unwrap();
 
         Ok(id)
+         */
     }
     // TODO
     pub async fn ack(&self, _alert_id: &AlertId, _acked_by: &User) -> Result<UserConfirmation> {
