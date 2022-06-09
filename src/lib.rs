@@ -46,7 +46,7 @@ fn unix_time() -> u64 {
 struct Config {
     database: DatabaseConfig,
     listener: String,
-    escalation: Option<EscalationConfig>,
+    escalation: Option<EscalationConfig<()>>,
     adapters: AdapterOptions,
     users: Vec<UserInfo>,
     roles: Vec<RoleInfo>,
@@ -77,16 +77,14 @@ pub struct RoleInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct AdapterOptions {
-    matrix: Option<AdapterConfig<MatrixConfig>>,
+    matrix: Option<AdapterConfig<MatrixConfig, String>>,
     #[serde(alias = "pager_duty")]
-    pagerduty: Option<AdapterConfig<PagerDutyConfig>>,
+    // TODO
+    pagerduty: Option<AdapterConfig<PagerDutyConfig, ()>>,
 }
 
 impl AdapterOptions {
-    fn into_mappings(
-        self,
-        root_escalation: Option<EscalationConfig>,
-    ) -> Result<Vec<AdapterMapping>> {
+    fn into_mappings(self) -> Result<Vec<AdapterMapping>> {
         let mut mappings = vec![];
 
         if let Some(matrix) = self.matrix {
@@ -95,10 +93,7 @@ impl AdapterOptions {
                     client_config: matrix
                         .config
                         .ok_or_else(|| anyhow!("Matrix config not provided"))?,
-                    escalation_config: matrix
-                        .escation
-                        .or_else(|| root_escalation.clone())
-                        .unwrap_or_else(EscalationConfig::disabled),
+                    escalation_config: matrix.escation.unwrap_or_else(EscalationConfig::disabled),
                 });
             }
         }
@@ -111,7 +106,6 @@ impl AdapterOptions {
                         .ok_or_else(|| anyhow!("PagerDuty config not provided"))?,
                     escalation_config: pagerduty
                         .escation
-                        .or_else(|| root_escalation.clone())
                         .unwrap_or_else(EscalationConfig::disabled),
                 });
             }
@@ -122,17 +116,18 @@ impl AdapterOptions {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct AdapterConfig<T> {
+struct AdapterConfig<T, L> {
     enabled: bool,
-    escation: Option<EscalationConfig>,
+    escation: Option<EscalationConfig<L>>,
     config: Option<T>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct EscalationConfig {
+struct EscalationConfig<T> {
     enabled: bool,
     window: Option<u64>,
     acks: Option<AckType>,
+    levels: Option<T>,
 }
 
 // TODO: Rename
@@ -144,12 +139,13 @@ enum AckType {
     EscalationLevel(String),
 }
 
-impl EscalationConfig {
+impl<T> EscalationConfig<T> {
     fn disabled() -> Self {
         EscalationConfig {
             enabled: false,
             window: None,
             acks: None,
+            levels: None,
         }
     }
 }
@@ -164,11 +160,11 @@ struct Cli {
 enum AdapterMapping {
     Matrix {
         client_config: MatrixConfig,
-        escalation_config: EscalationConfig,
+        escalation_config: EscalationConfig<String>,
     },
     PagerDuty {
         client_config: PagerDutyConfig,
-        escalation_config: EscalationConfig,
+        escalation_config: EscalationConfig<()>,
     },
 }
 
@@ -177,10 +173,10 @@ async fn start_clients(
     adapters: Vec<AdapterMapping>,
     role_index: RoleIndex,
 ) -> Result<()> {
-    fn start_tasks<T>(
+    fn start_tasks<T, L>(
         db: Database,
         client: Addr<T>,
-        escalation_config: EscalationConfig,
+        escalation_config: EscalationConfig<L>,
     ) -> Result<()>
     where
         T: Actor + Handler<NotifyAlert>,
@@ -247,7 +243,7 @@ pub async fn run() -> Result<()> {
     let config: Config = serde_yaml::from_str(&content)?;
 
     info!("Preparing adapter config data");
-    let mappings = config.adapters.into_mappings(config.escalation)?;
+    let mappings = config.adapters.into_mappings()?;
 
     info!("Creating role index");
     let role_index = RoleIndex::create_index(config.users, config.roles)?;
