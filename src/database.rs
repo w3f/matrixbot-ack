@@ -111,7 +111,7 @@ impl Database {
     pub async fn get_pending(&self, interval: Option<Duration>) -> Result<PendingAlerts> {
         unimplemented!()
     }
-    pub async fn update_pending(&self, alert: PendingAlerts) -> Result<()> {
+    pub async fn mark_delivered(&self, alert: AlertId) -> Result<()> {
         unimplemented!()
     }
 }

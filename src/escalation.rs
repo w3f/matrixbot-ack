@@ -1,7 +1,8 @@
 use crate::adapter::{MatrixClient, PagerDutyClient};
 use crate::database::Database;
 use crate::primitives::{
-    Acknowledgement, AlertDelivery, ChannelId, NotifyNewlyInserted, Role, User, UserConfirmation,
+    Acknowledgement, AlertContext, AlertDelivery, ChannelId, NotifyNewlyInserted, Role, User,
+    UserConfirmation,
 };
 use crate::{AckType, Result, RoleInfo, UserInfo};
 use actix::prelude::*;
@@ -81,25 +82,26 @@ where
                 let pending = db.get_pending(Some(window)).await.unwrap();
                 for alert in pending.alerts {
                     let delivery = alert.into_delivery(&levels);
+                    let id = delivery.id;
 
+                    // If delivery fails, it will be attempted again on the next interval.
                     match addr.send(delivery).await {
-                        Ok(resp) => {
-                            match resp {
-                                Ok(_) => {
-                                    //TODO:
-                                    /*
-                                    let _ = db.update_pending(updated).await.map_err(|err| {
-                                        // TODO: Log
-                                    });
-                                     */
-                                }
-                                Err(_err) => {
-                                    // TODO: Log
-                                }
+                        Ok(resp) => match resp {
+                            Ok(_) => {
+                                let _ = db.mark_delivered(id).await.map_err(|err| {
+                                    error!("failed to mark alert {} as delivered: {:?}", id, err)
+                                });
                             }
+                            Err(err) => {
+                                error!("failed to notify users about new alert: {:?}", err);
+                            }
+                        },
+                        Err(err) => {
+                            error!(
+                                "actor mailbox error when attempting to notify about new alert: {:?}",
+                                err
+                            );
                         }
-                        // TODO: Log
-                        Err(_err) => {}
                     }
                 }
 
@@ -122,13 +124,32 @@ where
     fn handle(&mut self, inserted: NotifyNewlyInserted, ctx: &mut Self::Context) -> Self::Result {
         let levels = Arc::clone(&self.levels);
         let addr = self.adapter.clone();
+        let db = self.db.clone();
 
         let f = async move {
             for alert in inserted.alerts {
                 let delivery = alert.into_delivery(&levels);
+                let id = delivery.id;
+
+                // If delivery fails, it will be attempted again by the
+                // background interval in `<Self as Actor>::started`.
                 match addr.send(delivery).await {
-                    // TODO
-                    _ => {}
+                    Ok(resp) => match resp {
+                        Ok(_) => {
+                            let _ = db.mark_delivered(id).await.map_err(|err| {
+                                error!("failed to mark alert {} as delivered: {:?}", id, err)
+                            });
+                        }
+                        Err(err) => {
+                            error!("failed to notify users about new alert: {:?}", err);
+                        }
+                    },
+                    Err(err) => {
+                        error!(
+                            "actor mailbox error when attempting to notify about new alert: {:?}",
+                            err
+                        );
+                    }
                 }
             }
         };

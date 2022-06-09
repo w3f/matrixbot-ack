@@ -36,23 +36,31 @@ pub struct AlertContext {
 
 impl AlertContext {
     pub fn into_delivery(self, levels: &[ChannelId]) -> AlertDelivery {
+        // Unwraps in this method will only panic if `levels` is
+        // empty, which is checked for on application startup. I.e. panicing
+        // indicates a bug.
+
+        // TODO: Document
+        let (prev_room, channel_id) = {
+            if self.level_idx == 0 && self.last_notified_tmsp.is_none() {
+                (None, levels.get(self.level_idx).cloned().unwrap())
+            } else {
+                (
+                    levels.get(self.level_idx).cloned(),
+                    levels
+                        .get(self.level_idx + 1)
+                        .or_else(|| levels.last())
+                        .cloned()
+                        .unwrap(),
+                )
+            }
+        };
+
         AlertDelivery {
             id: self.id,
             alert: self.alert,
-            prev_room: {
-                if self.level_idx == 0 && self.last_notified_tmsp.is_none() {
-                    None
-                } else {
-                    levels.get(self.level_idx).cloned()
-                }
-            },
-            channel_id: levels
-                .get(self.level_idx + 1)
-                .or_else(|| levels.last())
-                .cloned()
-                // This will only panic if `levels` is empty, which is
-                // checked for on application startup.
-                .unwrap(),
+            prev_room,
+            channel_id,
         }
     }
 }
