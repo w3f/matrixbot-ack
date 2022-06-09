@@ -29,7 +29,18 @@ impl std::fmt::Display for AlertId {
 pub struct AlertContext {
     pub id: AlertId,
     pub alert: Alert,
-    pub timestamp: u64,
+    pub inserted_tmsp: u64,
+    pub level_idx: usize,
+    pub last_notified_tmsp: Option<u64>,
+}
+
+// TODO: Rename
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AlertDelivery {
+    pub id: AlertId,
+    pub alert: Alert,
+    pub prev_room: Option<ChannelId>,
+    pub channel_id: ChannelId,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -60,11 +71,7 @@ enum NotificationLevel {
 
 impl AlertContext {
     pub fn new(alert: Alert, id: AlertId) -> Self {
-        AlertContext {
-            id,
-            alert,
-            timestamp: unix_time(),
-        }
+        unimplemented!()
     }
 }
 
@@ -74,31 +81,63 @@ pub struct NotifyNewlyInserted {
     alerts: Vec<AlertContext>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Message)]
-#[rtype(result = "Result<()>")]
-pub struct NotifyAlert {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PendingAlerts {
     alerts: Vec<AlertContext>,
 }
 
-impl From<NotifyNewlyInserted> for NotifyAlert {
-    fn from(val: NotifyNewlyInserted) -> Self {
-        NotifyAlert { alerts: val.alerts }
+impl PendingAlerts {
+    // TODO: Document
+    pub fn into_notifications(mut self, levels: &[ChannelId]) -> (PendingAlerts, NotifyAlert) {
+        let alerts = self
+            .alerts
+            .iter()
+            .map(|alert| {
+                AlertDelivery {
+                    id: alert.id,
+                    alert: alert.alert.clone(),
+                    prev_room: {
+                        if alert.level_idx == 0 && alert.last_notified_tmsp.is_none() {
+                            None
+                        } else {
+                            levels
+                                .get(alert.level_idx)
+                                .cloned()
+                        }
+                    },
+                    channel_id: levels
+                        .get(alert.level_idx + 1)
+                        .or_else(|| levels.last())
+                        .cloned()
+                        // This will only panic if `levels` is empty, which is
+                        // checked for on application startup.
+                        .unwrap(),
+                }
+            })
+            .collect();
+
+        let now = unix_time();
+        self.alerts.iter_mut().for_each(|alert| {
+            alert.level_idx += 1;
+            alert.last_notified_tmsp = Some(now);
+        });
+
+        (self, NotifyAlert { alerts })
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Message)]
+#[rtype(result = "Result<()>")]
+pub struct NotifyAlert {
+    alerts: Vec<AlertDelivery>,
+}
+
 impl NotifyAlert {
-    pub fn contexts(&self) -> &[AlertContext] {
+    pub fn contexts(&self) -> &[AlertDelivery] {
         self.alerts.as_ref()
     }
-    pub fn contexts_owned(self) -> Vec<AlertContext> {
+    pub fn contexts_owned(self) -> Vec<AlertDelivery> {
         self.alerts
-    }
-    pub fn update_timestamp_now(&mut self) {
-        let now = unix_time();
-
-        self.alerts
-            .iter_mut()
-            .for_each(|alert| alert.timestamp = now);
     }
 }
 
@@ -125,7 +164,7 @@ impl Display for Role {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum UserConfirmation {
-    PendingAlerts(Vec<AlertContext>),
+    PendingAlerts(PendingAlerts),
     NoPermission,
     AlertOutOfScope,
     AlertAcknowledged(AlertId),
