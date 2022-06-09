@@ -1,5 +1,4 @@
 use crate::database::Database;
-use crate::escalation::EscalationService;
 use crate::primitives::{Acknowledgement, Command, UserAction, UserConfirmation};
 use crate::Result;
 use actix::prelude::*;
@@ -29,7 +28,7 @@ where
 {
     type Result = ResponseActFuture<Self, Result<UserConfirmation>>;
 
-    fn handle(&mut self, msg: UserAction, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: UserAction, _ctx: &mut Self::Context) -> Self::Result {
         let escalation_service = self.escalation_service.clone();
         let db = self.db.clone();
 
@@ -38,7 +37,7 @@ where
                 Command::Ack(alert_id) => {
                     // TODO: Handle unwrap
                     // TODO: Consider the case of disabled escalation (it will go into the void).
-                    let x = escalation_service
+                    let _x = escalation_service
                         .send(Acknowledgement {
                             user: msg.user,
                             channel_id: msg.channel_id,

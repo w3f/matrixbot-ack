@@ -1,14 +1,11 @@
-use crate::adapter::{MatrixClient, PagerDutyClient};
 use crate::database::Database;
 use crate::primitives::{
-    Acknowledgement, AlertContext, AlertDelivery, ChannelId, NotifyNewlyInserted, Role, User,
-    UserConfirmation,
+    Acknowledgement, AlertDelivery, ChannelId, NotifyNewlyInserted, Role, UserConfirmation,
 };
-use crate::{AckType, Result, RoleInfo, UserInfo};
+use crate::{Result, UserInfo};
 use actix::prelude::*;
 use actix_broker::BrokerSubscribe;
-use matrix_sdk::instant::SystemTime;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
@@ -63,7 +60,7 @@ where
     fn started(&mut self, ctx: &mut Self::Context) {
         self.subscribe_system_async::<NotifyNewlyInserted>(ctx);
 
-        ctx.run_interval(Duration::from_secs(INTERVAL), |actor, ctx| {
+        ctx.run_interval(Duration::from_secs(INTERVAL), |actor, _ctx| {
             let db = actor.db.clone();
             let addr = actor.adapter.clone();
 
@@ -133,7 +130,7 @@ where
 {
     type Result = ResponseActFuture<Self, ()>;
 
-    fn handle(&mut self, inserted: NotifyNewlyInserted, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, inserted: NotifyNewlyInserted, _ctx: &mut Self::Context) -> Self::Result {
         let levels = Arc::clone(&self.levels);
         let addr = self.adapter.clone();
         let db = self.db.clone();
@@ -177,7 +174,7 @@ where
 {
     type Result = ResponseActFuture<Self, Result<UserConfirmation>>;
 
-    fn handle(&mut self, ack: Acknowledgement, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, ack: Acknowledgement, _ctx: &mut Self::Context) -> Self::Result {
         let db = self.db.clone();
 
         let acks = Arc::clone(&self.permission);
@@ -200,8 +197,7 @@ where
                         .iter()
                         .enumerate()
                         .filter(|(_, (_, users))| users.iter().any(|info| info.matches(&ack.user)))
-                        .find(|(idx, _)| idx >= &min_idx)
-                        .is_some()
+                        .any(|(idx, _)| idx >= min_idx)
                     {
                         // Acknowledge alert.
                         db.ack(&ack.alert_id, &ack.user).await?;
@@ -213,8 +209,7 @@ where
                 PermissionType::Roles(roles) => {
                     if roles
                         .iter()
-                        .find(|(_, users)| users.iter().any(|info| info.matches(&ack.user)))
-                        .is_some()
+                        .any(|(_, users)| users.iter().any(|info| info.matches(&ack.user)))
                     {
                         // Acknowledge alert.
                         db.ack(&ack.alert_id, &ack.user).await?;
@@ -223,7 +218,7 @@ where
                         UserConfirmation::NoPermission
                     }
                 }
-                PermissionType::EscalationLevel(level) => {
+                PermissionType::EscalationLevel(_level) => {
                     unimplemented!()
                     /*
                     if false {

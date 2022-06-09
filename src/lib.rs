@@ -21,7 +21,6 @@ use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::time::Duration;
 use structopt::StructOpt;
-use tracing::Instrument;
 
 mod adapter;
 mod database;
@@ -116,17 +115,6 @@ enum AckType {
 struct Cli {
     #[structopt(short, long)]
     config: String,
-}
-
-enum AdapterMapping {
-    Matrix {
-        client_config: MatrixConfig,
-        escalation_config: EscalationConfig<String>,
-    },
-    PagerDuty {
-        client_config: PagerDutyConfig,
-        escalation_config: EscalationConfig<()>,
-    },
 }
 
 pub async fn run() -> Result<()> {
@@ -227,7 +215,7 @@ async fn start_matrix_tasks(
         .await?
         .start(),
         adapter.escation,
-        &role_index,
+        role_index,
         levels,
     )
 }
@@ -260,7 +248,7 @@ async fn start_pager_duty_tasks(
         )
         .start(),
         adapter.escation,
-        &role_index,
+        role_index,
         levels,
     )
 }

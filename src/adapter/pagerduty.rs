@@ -1,8 +1,6 @@
-use crate::primitives::{Alert, AlertDelivery, AlertId, NotifyNewlyInserted};
+use crate::primitives::{AlertDelivery, AlertId};
 use crate::Result;
 use actix::prelude::*;
-use actix::SystemService;
-use actix_broker::BrokerSubscribe;
 use reqwest::header::AUTHORIZATION;
 use reqwest::StatusCode;
 use tokio::time::{sleep, Duration};
@@ -50,11 +48,11 @@ impl Handler<AlertDelivery> for PagerDutyClient {
 
                 match resp.status() {
                     StatusCode::ACCEPTED => {
-                        //info!("Submitted alert {} to PagerDuty", alert.id);
+                        info!("Submitted alert {} to PagerDuty", alert.id);
                         break;
                     }
                     StatusCode::BAD_REQUEST => {
-                        //error!("BAD REQUEST when submitting alert {}", alert.id);
+                        error!("BAD REQUEST when submitting alert {}", alert.id);
                         // Do not retry on this error type.
                         break;
                     }
@@ -127,11 +125,11 @@ fn new_alert_event(
 ) -> AlertEvent {
     AlertEvent {
         id: alert.id,
-        routing_key: key.clone(),
+        routing_key: key,
         event_action: EventAction::Trigger,
         payload: Payload {
             summary: "TODO".to_string(),
-            source: source.clone(),
+            source,
             severity,
         },
     }
@@ -154,8 +152,6 @@ async fn post_alert(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::primitives::AlertContext;
-    use actix::SystemRegistry;
     use std::env;
 
     #[ignore]
@@ -172,8 +168,8 @@ mod tests {
             payload_severity: PayloadSeverity::Warning,
         };
 
-        let client = PagerDutyClient::new(config);
+        let _client = PagerDutyClient::new(config);
 
-        // TODO...
+        // TODO
     }
 }

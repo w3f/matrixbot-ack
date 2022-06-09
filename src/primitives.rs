@@ -1,7 +1,7 @@
 use crate::adapter::pagerduty::PayloadSeverity;
-use crate::{unix_time, Result};
+use crate::Result;
 use ruma::RoomId;
-use std::{fmt::Display, str::FromStr};
+use std::fmt::Display;
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct AlertId(u64);
@@ -102,19 +102,6 @@ pub struct Labels {
     pub alert_name: String,
 }
 
-// TODO: Rename
-enum NotificationLevel {
-    Matrix(String),
-    // TODO
-    PagerDuty(()),
-}
-
-impl AlertContext {
-    pub fn new(alert: Alert, id: AlertId) -> Self {
-        unimplemented!()
-    }
-}
-
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "()")]
 pub struct NotifyNewlyInserted {
@@ -151,11 +138,11 @@ impl Display for Role {
 pub enum UserConfirmation {
     PendingAlerts(PendingAlerts),
     NoPermission,
-    AlertOutOfScope,
+    _AlertOutOfScope,
     AlertAcknowledged(AlertId),
-    AlertNotFound,
+    _AlertNotFound,
     Help,
-    InternalError,
+    _InternalError,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -194,7 +181,7 @@ impl Command {
             "help" => Command::Help,
             txt => {
                 if txt.starts_with("ack") || txt.starts_with("acknowledge") {
-                    let parts: Vec<&str> = txt.split(" ").collect();
+                    let parts: Vec<&str> = txt.split(' ').collect();
                     if parts.len() == 2 {
                         if let Ok(id) = AlertId::from_str(parts[1]) {
                             Command::Ack(id)

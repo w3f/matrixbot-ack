@@ -1,18 +1,16 @@
 use crate::primitives::{AlertContext, AlertId, PendingAlerts, UserConfirmation};
 use crate::primitives::{NotifyNewlyInserted, User};
 use crate::webhook::InsertAlerts;
-use crate::{unix_time, Result};
-use bson::{doc, to_bson};
-use futures::stream::StreamExt;
+use crate::Result;
+use bson::doc;
 use mongodb::{
-    options::{FindOneAndUpdateOptions, ReplaceOptions, ReturnDocument},
+    options::{FindOneAndUpdateOptions, ReturnDocument},
     Client, Database as MongoDb,
 };
-use std::collections::HashMap;
 use std::time::Duration;
 
 const PENDING: &str = "pending";
-const HISTORY: &str = "history";
+const _HISTORY: &str = "history";
 const ID_CURSOR: &str = "id_cursor";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,31 +44,12 @@ impl Database {
                 .database(&config.name),
         })
     }
-    pub async fn insert_alerts(&self, inserts: InsertAlerts) -> Result<NotifyNewlyInserted> {
-        let pending = self.db.collection::<AlertContext>(PENDING);
-
-        // Insert the alerts themselves.
-        for alert in inserts.alerts() {
-            /*
-            let _ = pending
-                .replace_one(
-                    doc! {
-                        "id": to_bson(&alert.id)?,
-                    },
-                    alert,
-                    {
-                        let mut ops = ReplaceOptions::default();
-                        ops.upsert = Some(true);
-                        ops
-                    },
-                )
-                .await?;
-            */
-        }
+    pub async fn insert_alerts(&self, _inserts: InsertAlerts) -> Result<NotifyNewlyInserted> {
+        let _pending = self.db.collection::<AlertContext>(PENDING);
 
         unimplemented!()
     }
-    async fn get_next_id(&self) -> Result<AlertId> {
+    async fn _get_next_id(&self) -> Result<AlertId> {
         let id_cursor = self.db.collection::<IdCursor>(ID_CURSOR);
 
         let id = id_cursor
@@ -97,25 +76,17 @@ impl Database {
         Ok(id)
     }
     // TODO
-    pub async fn ack(&self, alert_id: &AlertId, acked_by: &User) -> Result<UserConfirmation> {
+    pub async fn ack(&self, _alert_id: &AlertId, _acked_by: &User) -> Result<UserConfirmation> {
         unimplemented!()
     }
-    pub async fn acknowledge_alert(
-        &self,
-        escalation_idx: usize,
-        alert_id: AlertId,
-        acked_by: String,
-    ) -> Result<UserConfirmation> {
+    pub async fn get_pending(&self, _interval: Option<Duration>) -> Result<PendingAlerts> {
         unimplemented!()
     }
-    pub async fn get_pending(&self, interval: Option<Duration>) -> Result<PendingAlerts> {
-        unimplemented!()
-    }
-    pub async fn mark_delivered(&self, alert: AlertId) -> Result<()> {
+    pub async fn mark_delivered(&self, _alert: AlertId) -> Result<()> {
         unimplemented!()
     }
     // TODO: This should also mark as delivered.
-    pub async fn increment_alert_state(&self, alert: AlertId, new_idx: usize) -> Result<()> {
+    pub async fn increment_alert_state(&self, _alert: AlertId, _new_idx: usize) -> Result<()> {
         unimplemented!()
     }
 }

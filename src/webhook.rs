@@ -1,22 +1,12 @@
 use crate::database::Database;
 use crate::primitives::Alert;
 use crate::Result;
-use actix::prelude::*;
-use actix_broker::{Broker, BrokerIssue, SystemBroker};
+use actix_broker::{Broker, SystemBroker};
 use actix_web::{web, App, HttpResponse, HttpServer};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct InsertAlerts {
     alerts: Vec<Alert>,
-}
-
-impl InsertAlerts {
-    pub fn alerts(&self) -> &[Alert] {
-        self.alerts.as_ref()
-    }
-    pub fn alerts_owned(self) -> Vec<Alert> {
-        self.alerts
-    }
 }
 
 pub async fn run_api_server(endpoint: &str, db: Database) -> Result<()> {
@@ -40,7 +30,7 @@ async fn insert_alerts(req: web::Json<InsertAlerts>, db: web::Data<Database>) ->
     let insert = req.into_inner();
 
     // Check if alerts are empty.
-    if insert.alerts().is_empty() {
+    if insert.alerts.is_empty() {
         return HttpResponse::Ok().body("OK");
     }
 
