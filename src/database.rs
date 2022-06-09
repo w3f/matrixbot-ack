@@ -2,13 +2,14 @@ use crate::primitives::{AlertContext, AlertId, PendingAlerts, UserConfirmation};
 use crate::primitives::{NotifyNewlyInserted, User};
 use crate::webhook::InsertAlerts;
 use crate::Result;
-use bson::doc;
+use bson::{doc, to_bson};
+use mongodb::options::{FindOneAndUpdateOptions, ReturnDocument};
 use mongodb::{Client, Database as MongoDb};
 use std::time::Duration;
 
 const PENDING: &str = "pending";
 const _HISTORY: &str = "history";
-const _ID_CURSOR: &str = "id_cursor";
+const ID_CURSOR: &str = "id_cursor";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseConfig {
@@ -41,14 +42,22 @@ impl Database {
                 .database(&config.name),
         })
     }
-    pub async fn insert_alerts(&self, _inserts: InsertAlerts) -> Result<NotifyNewlyInserted> {
-        let _pending = self.db.collection::<AlertContext>(PENDING);
+    pub async fn insert_alerts(&self, inserts: InsertAlerts) -> Result<NotifyNewlyInserted> {
+        let pending = self.db.collection::<AlertContext>(PENDING);
 
-        unimplemented!()
+        let mut contexts = vec![];
+        for alert in inserts.alerts_owned() {
+            let ctx = AlertContext::new(self.get_next_id().await?, alert);
+
+            // Insert the alert
+            pending.insert_one(&ctx, None).await?;
+
+            contexts.push(ctx);
+        }
+
+        Ok(NotifyNewlyInserted { alerts: contexts })
     }
-    async fn _get_next_id(&self) -> Result<AlertId> {
-        unimplemented!()
-        /*
+    async fn get_next_id(&self) -> Result<AlertId> {
         let id_cursor = self.db.collection::<IdCursor>(ID_CURSOR);
 
         let id = id_cursor
@@ -73,7 +82,6 @@ impl Database {
             .unwrap();
 
         Ok(id)
-         */
     }
     // TODO
     pub async fn ack(&self, _alert_id: &AlertId, _acked_by: &User) -> Result<UserConfirmation> {

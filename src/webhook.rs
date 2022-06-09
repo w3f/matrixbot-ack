@@ -9,6 +9,12 @@ pub struct InsertAlerts {
     alerts: Vec<Alert>,
 }
 
+impl InsertAlerts {
+    pub fn alerts_owned(self) -> Vec<Alert> {
+        self.alerts
+    }
+}
+
 pub async fn run_api_server(endpoint: &str, db: Database) -> Result<()> {
     let server = HttpServer::new(move || {
         App::new()

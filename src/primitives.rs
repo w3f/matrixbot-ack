@@ -1,5 +1,5 @@
 use crate::adapter::pagerduty::PayloadSeverity;
-use crate::Result;
+use crate::{unix_time, Result};
 use ruma::RoomId;
 use std::fmt::Display;
 
@@ -27,13 +27,22 @@ impl std::fmt::Display for AlertId {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AlertContext {
     pub id: AlertId,
-    pub alert: Alert,
-    pub inserted_tmsp: u64,
-    pub level_idx: usize,
-    pub last_notified_tmsp: Option<u64>,
+    alert: Alert,
+    inserted_tmsp: u64,
+    level_idx: usize,
+    last_notified_tmsp: Option<u64>,
 }
 
 impl AlertContext {
+    pub fn new(id: AlertId, alert: Alert) -> Self {
+        AlertContext {
+            id,
+            alert,
+            inserted_tmsp: unix_time(),
+            level_idx: 0,
+            last_notified_tmsp: None,
+        }
+    }
     pub fn into_delivery(self, levels: &[ChannelId]) -> (AlertDelivery, usize) {
         // Unwraps in this method will only panic if `levels` is
         // empty, which is checked for on application startup. I.e. panicing
