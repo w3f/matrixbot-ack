@@ -35,9 +35,7 @@ where
         let f = async move {
             let res = match msg.command {
                 Command::Ack(alert_id) => {
-                    // TODO: Handle unwrap
-                    // TODO: Consider the case of disabled escalation (it will go into the void).
-                    let _x = escalation_service
+                    let res = escalation_service
                         .send(Acknowledgement {
                             user: msg.user,
                             channel_id: msg.channel_id,
@@ -45,14 +43,33 @@ where
                         })
                         .await;
 
-                    UserConfirmation::AlertAcknowledged(alert_id)
+                    match res {
+                        Ok(resp) => match resp {
+                            Ok(confirmation) => confirmation,
+                            Err(err) => {
+                                error!(
+                                    "failed to acknowledge alert {}, error: {:?}",
+                                    alert_id, err
+                                );
+                                UserConfirmation::InternalError
+                            }
+                        },
+                        Err(err) => {
+                            error!(
+                                "actor mailbox error when attempting to notify about new alert: {:?}",
+                                err
+                            );
+                            UserConfirmation::InternalError
+                        }
+                    }
                 }
-                Command::Pending => {
-                    // TODO: Handle unwrap.
-                    let pending = db.get_pending(None).await.unwrap();
-
-                    UserConfirmation::PendingAlerts(pending)
-                }
+                Command::Pending => match db.get_pending(None).await {
+                    Ok(pending) => UserConfirmation::PendingAlerts(pending),
+                    Err(err) => {
+                        error!("failed to retrieve pending alerts: {:?}", err);
+                        UserConfirmation::InternalError
+                    }
+                },
                 Command::Help => UserConfirmation::Help,
             };
 

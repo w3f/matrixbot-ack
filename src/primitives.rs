@@ -142,7 +142,7 @@ pub enum UserConfirmation {
     AlertAcknowledged(AlertId),
     _AlertNotFound,
     Help,
-    _InternalError,
+    InternalError,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

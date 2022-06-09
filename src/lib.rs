@@ -101,7 +101,6 @@ struct EscalationConfig<T> {
     levels: Vec<T>,
 }
 
-// TODO: Rename
 #[derive(Debug, Clone, Serialize, Deserialize)]
 enum AckType {
     Users(Vec<String>),
