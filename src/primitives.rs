@@ -80,16 +80,44 @@ pub struct NotifyNewlyInserted {
     alerts: Vec<AlertDelivery>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PendingAlerts {
+    alerts: Vec<AlertContext>,
+}
+
+impl PendingAlerts {
+    pub fn into_notifications(mut self, levels: &[ChannelId]) -> (PendingAlerts, NotifyAlert) {
+        let alerts = self
+            .alerts
+            .iter()
+            .map(|alert| {
+                AlertDelivery {
+                    id: alert.id,
+                    alert: alert.alert.clone(),
+                    // TODO: Beautify this
+                    channel_id: levels
+                        .get(alert.level_idx)
+                        .or_else(|| levels.last().clone())
+                        .map(|l| l.clone())
+                        .unwrap(),
+                }
+            })
+            .collect();
+
+        let now = unix_time();
+        self.alerts.iter_mut().for_each(|alert| {
+            alert.level_idx += 1;
+            alert.last_notified_tmsp = Some(now);
+        });
+
+        (self, NotifyAlert { alerts })
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "Result<()>")]
 pub struct NotifyAlert {
     alerts: Vec<AlertDelivery>,
-}
-
-impl From<NotifyNewlyInserted> for NotifyAlert {
-    fn from(val: NotifyNewlyInserted) -> Self {
-        NotifyAlert { alerts: val.alerts }
-    }
 }
 
 impl NotifyAlert {
@@ -98,15 +126,6 @@ impl NotifyAlert {
     }
     pub fn contexts_owned(self) -> Vec<AlertDelivery> {
         self.alerts
-    }
-    // TODO: Rename?
-    pub fn stage_next_level(&mut self) {
-        let now = unix_time();
-
-        self.alerts.iter_mut().for_each(|alert| {
-            //alert.level_idx += 1;
-            //alert.last_notified_tmsp = Some(now);
-        });
     }
 }
 
@@ -133,7 +152,7 @@ impl Display for Role {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum UserConfirmation {
-    PendingAlerts(Vec<AlertDelivery>),
+    PendingAlerts(PendingAlerts),
     NoPermission,
     AlertOutOfScope,
     AlertAcknowledged(AlertId),

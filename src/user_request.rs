@@ -49,7 +49,7 @@ where
                     // TODO: Handle unwrap.
                     let pending = db.get_pending(None).await.unwrap();
 
-                    UserConfirmation::PendingAlerts(pending.contexts_owned())
+                    UserConfirmation::PendingAlerts(pending)
                 }
                 Command::Help => UserConfirmation::Help,
             };

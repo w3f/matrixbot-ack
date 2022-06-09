@@ -236,6 +236,7 @@ async fn start_clients(
                     .ok_or_else(|| anyhow!("no acknowledgement type set"))?,
             )?;
 
+            // TODO: This must always be executed.
             escalation::EscalationService::<T>::new(db, window, client, permissions).start();
         }
         user_request::RequestHandler::<T>::new().start();

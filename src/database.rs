@@ -1,4 +1,4 @@
-use crate::primitives::{AlertContext, AlertId, NotifyAlert, UserConfirmation};
+use crate::primitives::{AlertContext, AlertId, NotifyAlert, PendingAlerts, UserConfirmation};
 use crate::primitives::{NotifyNewlyInserted, User};
 use crate::webhook::InsertAlerts;
 use crate::{unix_time, Result};
@@ -108,10 +108,10 @@ impl Database {
     ) -> Result<UserConfirmation> {
         unimplemented!()
     }
-    pub async fn get_pending(&self, interval: Option<Duration>) -> Result<NotifyAlert> {
+    pub async fn get_pending(&self, interval: Option<Duration>) -> Result<PendingAlerts> {
         unimplemented!()
     }
-    pub async fn update_pending(&self, alert: NotifyAlert) -> Result<NotifyAlert> {
+    pub async fn update_pending(&self, alert: PendingAlerts) -> Result<()> {
         unimplemented!()
     }
 }

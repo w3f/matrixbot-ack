@@ -30,7 +30,7 @@ pub struct EscalationService<T: Actor> {
     adapter: Addr<T>,
     is_locked: Arc<RwLock<bool>>,
     permission: Arc<PermissionType>,
-    levels: Vec<ChannelId>,
+    levels: Arc<Vec<ChannelId>>,
 }
 
 impl<T: Actor> EscalationService<T> {
@@ -47,7 +47,7 @@ impl<T: Actor> EscalationService<T> {
             is_locked: Arc::new(RwLock::new(false)),
             permission: Arc::new(permission),
             // TODO
-            levels: vec![],
+            levels: Default::default(),
         }
     }
 }
@@ -66,6 +66,7 @@ where
             let db = actor.db.clone();
             let addr = actor.adapter.clone();
 
+            let levels = Arc::clone(&actor.levels);
             let is_locked = Arc::clone(&actor.is_locked);
             let window = actor.window;
 
@@ -78,12 +79,13 @@ where
                 // TODO: Handle unwrap
                 // TODO!!: Increment levels.
                 let mut pending = db.get_pending(Some(window)).await.unwrap();
-                pending.stage_next_level();
-                match addr.send(pending.clone()).await {
+                let (updated, notify) = pending.into_notifications(&levels);
+
+                match addr.send(notify).await {
                     Ok(resp) => {
                         match resp {
                             Ok(_) => {
-                                let _ = db.update_pending(pending).await.map_err(|err| {
+                                let _ = db.update_pending(updated).await.map_err(|err| {
                                     // TODO: Log
                                 });
                             }
