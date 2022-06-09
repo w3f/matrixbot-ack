@@ -154,30 +154,8 @@ pub async fn run() -> Result<()> {
     });
 
     let adapters = config.adapters;
-    if let Some(conf) = adapters.matrix {
-        let levels = conf
-            .escation
-            .levels
-            .iter()
-            .map(|level| {
-                RoomId::from_str(level)
-                    .map(ChannelId::Matrix)
-                    .map_err(|err| err.into())
-            })
-            .collect::<Result<Vec<ChannelId>>>()?;
-
-        start_tasks(
-            db.clone(),
-            MatrixClient::new(
-                conf.config
-                    .ok_or_else(|| anyhow!("no matrix configuration provided"))?,
-            )
-            .await?
-            .start(),
-            conf.escation,
-            &role_index,
-            levels,
-        )?;
+    if let Some(matrix) = adapters.matrix {
+        start_matrix_tasks(matrix, db.clone(), &role_index).await?;
     }
 
     // Starting webhook.
@@ -207,6 +185,34 @@ where
     user_request::RequestHandler::<T>::new().start();
 
     Ok(())
+}
+
+// Convenience function for processing the matrix configuration and starting all
+// necessary tasks.
+async fn start_matrix_tasks(adapter: AdapterConfig<MatrixConfig, String>, db: Database, role_index: &RoleIndex) -> Result<()> {
+        let levels = adapter 
+            .escation
+            .levels
+            .iter()
+            .map(|level| {
+                RoomId::from_str(level)
+                    .map(ChannelId::Matrix)
+                    .map_err(|err| err.into())
+            })
+            .collect::<Result<Vec<ChannelId>>>()?;
+
+        start_tasks(
+            db.clone(),
+            MatrixClient::new(
+                adapter.config
+                    .ok_or_else(|| anyhow!("no matrix configuration provided"))?,
+            )
+            .await?
+            .start(),
+            adapter.escation,
+            &role_index,
+            levels,
+        )
 }
 
 struct RoleIndex {
