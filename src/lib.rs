@@ -10,12 +10,12 @@ extern crate async_trait;
 extern crate actix;
 
 use actix::clock::sleep;
-use actix::{prelude::*, SystemRegistry};
+use actix::prelude::*;
 use adapter::matrix::{MatrixClient, MatrixConfig};
 use adapter::pagerduty::{PagerDutyClient, PagerDutyConfig};
 use database::{Database, DatabaseConfig};
 use escalation::PermissionType;
-use primitives::{ChannelId, NotifyAlert, Role, User};
+use primitives::{NotifyAlert, Role, User};
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use structopt::StructOpt;
@@ -29,8 +29,6 @@ mod user_request;
 mod webhook;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;
-
-const MIN_ESCALATION_WINDOW: u64 = 60; // 60 seconds
 
 fn unix_time() -> u64 {
     use std::time::{SystemTime, UNIX_EPOCH};
