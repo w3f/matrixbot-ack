@@ -1,4 +1,4 @@
-use crate::primitives::{AlertId, NotifyAlert, NotifyNewlyInserted};
+use crate::primitives::{AlertDelivery, AlertId, NotifyAlert, NotifyNewlyInserted};
 use crate::Result;
 use actix::prelude::*;
 use actix::SystemService;
@@ -26,13 +26,14 @@ impl Actor for PagerDutyClient {
     type Context = Context<Self>;
 }
 
-impl Handler<NotifyAlert> for PagerDutyClient {
+impl Handler<AlertDelivery> for PagerDutyClient {
     type Result = ResponseActFuture<Self, Result<()>>;
 
-    fn handle(&mut self, notify: NotifyAlert, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, notify: AlertDelivery, _ctx: &mut Self::Context) -> Self::Result {
         let config = self.config.clone();
 
         let f = async move {
+            /*
             let client = reqwest::Client::new();
 
             // TODO
@@ -69,6 +70,7 @@ impl Handler<NotifyAlert> for PagerDutyClient {
                 }
             }
 
+            */
             Ok(())
         };
 

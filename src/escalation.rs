@@ -1,7 +1,8 @@
 use crate::adapter::{MatrixClient, PagerDutyClient};
 use crate::database::Database;
 use crate::primitives::{
-    Acknowledgement, ChannelId, NotifyAlert, NotifyNewlyInserted, Role, User, UserConfirmation,
+    Acknowledgement, AlertDelivery, ChannelId, NotifyAlert, NotifyNewlyInserted, Role, User,
+    UserConfirmation,
 };
 use crate::{AckType, Result, RoleInfo, UserInfo};
 use actix::prelude::*;
@@ -54,8 +55,8 @@ impl<T: Actor> EscalationService<T> {
 
 impl<T> Actor for EscalationService<T>
 where
-    T: Actor + Handler<NotifyAlert>,
-    <T as Actor>::Context: actix::dev::ToEnvelope<T, NotifyAlert>,
+    T: Actor + Handler<AlertDelivery>,
+    <T as Actor>::Context: actix::dev::ToEnvelope<T, AlertDelivery>,
 {
     type Context = Context<Self>;
 
@@ -79,24 +80,28 @@ where
                 // TODO: Handle unwrap
                 // TODO!!: Increment levels.
                 let pending = db.get_pending(Some(window)).await.unwrap();
-                let (updated, notify) = pending.into_notifications(&levels);
+                for alert in pending.alerts {
+                    let delivery = alert.into_delivery(&levels);
 
-                match addr.send(notify).await {
-                    Ok(resp) => {
-                        match resp {
-                            Ok(_) => {
-                                // TODO: This should be done on an per-message basis.
-                                let _ = db.update_pending(updated).await.map_err(|err| {
+                    match addr.send(delivery).await {
+                        Ok(resp) => {
+                            match resp {
+                                Ok(_) => {
+                                    //TODO:
+                                    /*
+                                    let _ = db.update_pending(updated).await.map_err(|err| {
+                                        // TODO: Log
+                                    });
+                                     */
+                                }
+                                Err(_err) => {
                                     // TODO: Log
-                                });
-                            }
-                            Err(_err) => {
-                                // TODO: Log
+                                }
                             }
                         }
+                        // TODO: Log
+                        Err(_err) => {}
                     }
-                    // TODO: Log
-                    Err(_err) => {}
                 }
 
                 // Unlock escalation process, ready to be picked up on the next
@@ -108,27 +113,35 @@ where
     }
 }
 
-// TODO: Rename
-async fn send_alert_delivery() -> Result<()> {
-    unimplemented!()
-}
-
 impl<T: Actor> Handler<NotifyNewlyInserted> for EscalationService<T>
 where
-    T: Actor + Handler<NotifyAlert>,
-    <T as Actor>::Context: actix::dev::ToEnvelope<T, NotifyAlert>,
+    T: Actor + Handler<AlertDelivery>,
+    <T as Actor>::Context: actix::dev::ToEnvelope<T, AlertDelivery>,
 {
     type Result = ResponseActFuture<Self, ()>;
 
-    fn handle(&mut self, ack: NotifyNewlyInserted, ctx: &mut Self::Context) -> Self::Result {
-        unimplemented!()
+    fn handle(&mut self, inserted: NotifyNewlyInserted, ctx: &mut Self::Context) -> Self::Result {
+        let levels = Arc::clone(&self.levels);
+        let addr = self.adapter.clone();
+
+        let f = async move {
+            for alert in inserted.alerts {
+                let delivery = alert.into_delivery(&levels);
+                match addr.send(delivery).await {
+                    // TODO
+                    _ => {}
+                }
+            }
+        };
+
+        Box::pin(f.into_actor(self))
     }
 }
 
 impl<T: Actor> Handler<Acknowledgement> for EscalationService<T>
 where
-    T: Actor + Handler<NotifyAlert>,
-    <T as Actor>::Context: actix::dev::ToEnvelope<T, NotifyAlert>,
+    T: Actor + Handler<AlertDelivery>,
+    <T as Actor>::Context: actix::dev::ToEnvelope<T, AlertDelivery>,
 {
     type Result = ResponseActFuture<Self, Result<UserConfirmation>>;
 

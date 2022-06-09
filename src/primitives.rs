@@ -34,8 +34,32 @@ pub struct AlertContext {
     pub last_notified_tmsp: Option<u64>,
 }
 
+impl AlertContext {
+    pub fn into_delivery(self, levels: &[ChannelId]) -> AlertDelivery {
+        AlertDelivery {
+            id: self.id,
+            alert: self.alert,
+            prev_room: {
+                if self.level_idx == 0 && self.last_notified_tmsp.is_none() {
+                    None
+                } else {
+                    levels.get(self.level_idx).cloned()
+                }
+            },
+            channel_id: levels
+                .get(self.level_idx + 1)
+                .or_else(|| levels.last())
+                .cloned()
+                // This will only panic if `levels` is empty, which is
+                // checked for on application startup.
+                .unwrap(),
+        }
+    }
+}
+
 // TODO: Rename
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Message)]
+#[rtype(result = "Result<()>")]
 pub struct AlertDelivery {
     pub id: AlertId,
     pub alert: Alert,
@@ -78,52 +102,12 @@ impl AlertContext {
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "()")]
 pub struct NotifyNewlyInserted {
-    alerts: Vec<AlertContext>,
+    pub alerts: Vec<AlertContext>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PendingAlerts {
-    alerts: Vec<AlertContext>,
-}
-
-impl PendingAlerts {
-    // TODO: Document
-    pub fn into_notifications(mut self, levels: &[ChannelId]) -> (PendingAlerts, NotifyAlert) {
-        let alerts = self
-            .alerts
-            .iter()
-            .map(|alert| {
-                AlertDelivery {
-                    id: alert.id,
-                    alert: alert.alert.clone(),
-                    prev_room: {
-                        if alert.level_idx == 0 && alert.last_notified_tmsp.is_none() {
-                            None
-                        } else {
-                            levels
-                                .get(alert.level_idx)
-                                .cloned()
-                        }
-                    },
-                    channel_id: levels
-                        .get(alert.level_idx + 1)
-                        .or_else(|| levels.last())
-                        .cloned()
-                        // This will only panic if `levels` is empty, which is
-                        // checked for on application startup.
-                        .unwrap(),
-                }
-            })
-            .collect();
-
-        let now = unix_time();
-        self.alerts.iter_mut().for_each(|alert| {
-            alert.level_idx += 1;
-            alert.last_notified_tmsp = Some(now);
-        });
-
-        (self, NotifyAlert { alerts })
-    }
+    pub alerts: Vec<AlertContext>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]

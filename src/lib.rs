@@ -15,7 +15,7 @@ use adapter::matrix::{MatrixClient, MatrixConfig};
 use adapter::pagerduty::{PagerDutyClient, PagerDutyConfig};
 use database::{Database, DatabaseConfig};
 use escalation::PermissionType;
-use primitives::{NotifyAlert, Role, User};
+use primitives::{AlertDelivery, NotifyAlert, Role, User};
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use structopt::StructOpt;
@@ -221,8 +221,8 @@ async fn start_clients(
         role_index: &RoleIndex,
     ) -> Result<()>
     where
-        T: Actor + Handler<NotifyAlert>,
-        <T as Actor>::Context: actix::dev::ToEnvelope<T, NotifyAlert>,
+        T: Actor + Handler<AlertDelivery>,
+        <T as Actor>::Context: actix::dev::ToEnvelope<T, AlertDelivery>,
     {
         if escalation_config.enabled {
             let window = Duration::from_secs(
