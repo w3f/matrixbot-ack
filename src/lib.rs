@@ -14,7 +14,7 @@ use actix::prelude::*;
 use adapter::matrix::{MatrixClient, MatrixConfig};
 use adapter::pagerduty::{PagerDutyClient, PagerDutyConfig};
 use database::{Database, DatabaseConfig};
-use escalation::PermissionType;
+use escalation::{EscalationService, PermissionType};
 use primitives::{AlertDelivery, ChannelId, Role, User};
 use ruma::RoomId;
 use std::collections::{HashMap, HashSet};
@@ -181,38 +181,45 @@ where
     let window = Duration::from_secs(escalation_config.window);
     let permissions = role_index.as_permission_type(escalation_config.acks)?;
 
-    escalation::EscalationService::<T>::new(db, window, client, permissions).start();
-    user_request::RequestHandler::<T>::new().start();
+    let service =
+        escalation::EscalationService::<T>::new(db.clone(), window, client, permissions, levels)
+            .start();
+    user_request::RequestHandler::<EscalationService<T>>::new(service, db).start();
 
     Ok(())
 }
 
 // Convenience function for processing the matrix configuration and starting all
 // necessary tasks.
-async fn start_matrix_tasks(adapter: AdapterConfig<MatrixConfig, String>, db: Database, role_index: &RoleIndex) -> Result<()> {
-        let levels = adapter 
-            .escation
-            .levels
-            .iter()
-            .map(|level| {
-                RoomId::from_str(level)
-                    .map(ChannelId::Matrix)
-                    .map_err(|err| err.into())
-            })
-            .collect::<Result<Vec<ChannelId>>>()?;
+async fn start_matrix_tasks(
+    adapter: AdapterConfig<MatrixConfig, String>,
+    db: Database,
+    role_index: &RoleIndex,
+) -> Result<()> {
+    let levels = adapter
+        .escation
+        .levels
+        .iter()
+        .map(|level| {
+            RoomId::from_str(level)
+                .map(ChannelId::Matrix)
+                .map_err(|err| err.into())
+        })
+        .collect::<Result<Vec<ChannelId>>>()?;
 
-        start_tasks(
-            db.clone(),
-            MatrixClient::new(
-                adapter.config
-                    .ok_or_else(|| anyhow!("no matrix configuration provided"))?,
-            )
-            .await?
-            .start(),
-            adapter.escation,
-            &role_index,
-            levels,
+    start_tasks(
+        db.clone(),
+        MatrixClient::new(
+            adapter
+                .config
+                .ok_or_else(|| anyhow!("no matrix configuration provided"))?,
         )
+        .await?
+        .start(),
+        adapter.escation,
+        &role_index,
+        levels,
+    )
 }
 
 struct RoleIndex {

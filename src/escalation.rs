@@ -40,6 +40,7 @@ impl<T: Actor> EscalationService<T> {
         window: Duration,
         adapter: Addr<T>,
         permission: PermissionType,
+        levels: Vec<ChannelId>,
     ) -> Self {
         EscalationService {
             db,
@@ -47,8 +48,7 @@ impl<T: Actor> EscalationService<T> {
             adapter,
             is_locked: Arc::new(RwLock::new(false)),
             permission: Arc::new(permission),
-            // TODO
-            levels: Default::default(),
+            levels: Arc::new(levels),
         }
     }
 }

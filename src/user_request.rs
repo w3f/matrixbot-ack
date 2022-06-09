@@ -10,8 +10,11 @@ pub struct RequestHandler<T: Actor> {
 }
 
 impl<T: Actor> RequestHandler<T> {
-    pub fn new() -> Self {
-        unimplemented!()
+    pub fn new(escalation_service: Addr<T>, db: Database) -> Self {
+        RequestHandler {
+            escalation_service,
+            db,
+        }
     }
 }
 
