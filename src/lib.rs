@@ -12,7 +12,7 @@ extern crate actix;
 use actix::clock::sleep;
 use actix::prelude::*;
 use adapter::matrix::{MatrixClient, MatrixConfig};
-use adapter::pagerduty::{PagerDutyClient, PagerDutyConfig};
+use adapter::pagerduty::{PagerDutyClient, PagerDutyConfig, PayloadSeverity};
 use database::{Database, DatabaseConfig};
 use escalation::{EscalationService, PermissionType};
 use primitives::{AlertDelivery, ChannelId, Role, User};
@@ -79,8 +79,13 @@ struct RoleInfo {
 struct AdapterOptions {
     matrix: Option<AdapterConfig<MatrixConfig, String>>,
     #[serde(alias = "pager_duty")]
-    // TODO
-    pagerduty: Option<AdapterConfig<PagerDutyConfig, ()>>,
+    pagerduty: Option<AdapterConfig<PagerDutyConfig, PagerDutyLevel>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PagerDutyLevel {
+    integration_key: String,
+    payload_severity: PayloadSeverity,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -153,9 +158,14 @@ pub async fn run() -> Result<()> {
         info!("Starting clients and background tasks");
     });
 
+    // Start adapters with their appropriate tasks.
     let adapters = config.adapters;
     if let Some(matrix) = adapters.matrix {
         start_matrix_tasks(matrix, db.clone(), &role_index).await?;
+    }
+
+    if let Some(pagerduty) = adapters.pagerduty {
+        start_pager_duty_tasks(pagerduty, db.clone(), &role_index).await?;
     }
 
     // Starting webhook.
@@ -208,13 +218,46 @@ async fn start_matrix_tasks(
         .collect::<Result<Vec<ChannelId>>>()?;
 
     start_tasks(
-        db.clone(),
+        db,
         MatrixClient::new(
             adapter
                 .config
                 .ok_or_else(|| anyhow!("no matrix configuration provided"))?,
         )
         .await?
+        .start(),
+        adapter.escation,
+        &role_index,
+        levels,
+    )
+}
+
+// Convenience function for processing the PagerDuty configuration and starting all
+// necessary tasks.
+async fn start_pager_duty_tasks(
+    adapter: AdapterConfig<PagerDutyConfig, PagerDutyLevel>,
+    db: Database,
+    role_index: &RoleIndex,
+) -> Result<()> {
+    // TODO: Consider struct destructuring to avoid clones.
+
+    let levels = adapter
+        .escation
+        .levels
+        .iter()
+        .map(|level| ChannelId::PagerDuty {
+            integration_key: level.integration_key.clone(),
+            payload_severity: level.payload_severity,
+        })
+        .collect();
+
+    start_tasks(
+        db,
+        PagerDutyClient::new(
+            adapter
+                .config
+                .ok_or_else(|| anyhow!("no PagerDuty configuration provided"))?,
+        )
         .start(),
         adapter.escation,
         &role_index,

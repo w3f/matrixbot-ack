@@ -1,8 +1,7 @@
-use std::{fmt::Display, str::FromStr};
-
-use ruma::RoomId;
-
+use crate::adapter::pagerduty::PayloadSeverity;
 use crate::{unix_time, Result};
+use ruma::RoomId;
+use std::{fmt::Display, str::FromStr};
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct AlertId(u64);
@@ -162,6 +161,10 @@ pub enum UserConfirmation {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ChannelId {
     Matrix(RoomId),
+    PagerDuty {
+        integration_key: String,
+        payload_severity: PayloadSeverity,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
