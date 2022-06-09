@@ -29,7 +29,9 @@ impl std::fmt::Display for AlertId {
 pub struct AlertContext {
     pub id: AlertId,
     pub alert: Alert,
-    pub timestamp: u64,
+    pub first_notified: Option<u64>,
+    pub level_idx: usize,
+    pub last_notified: Option<u64>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -60,11 +62,7 @@ enum NotificationLevel {
 
 impl AlertContext {
     pub fn new(alert: Alert, id: AlertId) -> Self {
-        AlertContext {
-            id,
-            alert,
-            timestamp: unix_time(),
-        }
+        unimplemented!()
     }
 }
 
@@ -98,7 +96,7 @@ impl NotifyAlert {
 
         self.alerts
             .iter_mut()
-            .for_each(|alert| alert.timestamp = now);
+            .for_each(|alert| alert.last_notified = Some(now));
     }
 }
 
