@@ -15,8 +15,10 @@ use adapter::matrix::{MatrixClient, MatrixConfig};
 use adapter::pagerduty::{PagerDutyClient, PagerDutyConfig};
 use database::{Database, DatabaseConfig};
 use escalation::PermissionType;
-use primitives::{AlertDelivery, Role, User};
+use primitives::{AlertDelivery, ChannelId, Role, User};
+use ruma::RoomId;
 use std::collections::{HashMap, HashSet};
+use std::str::FromStr;
 use std::time::Duration;
 use structopt::StructOpt;
 use tracing::Instrument;
@@ -92,7 +94,7 @@ struct AdapterConfig<T, L> {
 struct EscalationConfig<T> {
     window: u64,
     acks: AckType,
-    levels: T,
+    levels: Vec<T>,
 }
 
 // TODO: Rename
@@ -153,6 +155,17 @@ pub async fn run() -> Result<()> {
 
     let adapters = config.adapters;
     if let Some(conf) = adapters.matrix {
+        let levels = conf
+            .escation
+            .levels
+            .iter()
+            .map(|level| {
+                RoomId::from_str(level)
+                    .map(ChannelId::Matrix)
+                    .map_err(|err| err.into())
+            })
+            .collect::<Result<Vec<ChannelId>>>()?;
+
         start_tasks(
             db.clone(),
             MatrixClient::new(
@@ -163,6 +176,7 @@ pub async fn run() -> Result<()> {
             .start(),
             conf.escation,
             &role_index,
+            levels,
         )?;
     }
 
@@ -180,6 +194,7 @@ fn start_tasks<T, L>(
     client: Addr<T>,
     escalation_config: EscalationConfig<L>,
     role_index: &RoleIndex,
+    levels: Vec<ChannelId>,
 ) -> Result<()>
 where
     T: Actor + Handler<AlertDelivery>,
