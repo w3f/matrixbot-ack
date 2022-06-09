@@ -22,30 +22,6 @@ pub enum PermissionType {
     EscalationLevel(Option<ChannelId>),
 }
 
-/*
-impl Permissions {
-    pub fn user_is_permitted(&self, user: &User) -> bool {
-        self.users.iter().any(|info| info.matches(user))
-    }
-    pub fn user_is_in_role(&self, user: &User, expected: &[Role]) -> bool {
-        self.roles
-            .iter()
-            .filter(|(_, users)| users.iter().any(|info| info.matches(&user)))
-            .any(|(role, _)| expected.contains(role))
-    }
-    pub fn is_above_minimum(&self, min: &Role, user: &User) -> bool {
-        let min_idx = self.roles.iter().position(|(role, _)| role == min).unwrap();
-
-        self.roles
-            .iter()
-            .enumerate()
-            .filter(|(_, (_, users))| users.iter().any(|info| info.matches(&user)))
-            .find(|(idx, _)| idx >= &min_idx)
-            .is_some()
-    }
-}
-*/
-
 pub struct EscalationService<T: Actor> {
     db: Database,
     window: Duration,
@@ -66,25 +42,6 @@ impl<T: Actor> EscalationService<T> {
             levels: Arc::new(),
         }
          */
-    }
-}
-
-struct LevelHandler {
-    levels: Vec<ChannelId>,
-}
-
-impl LevelHandler {
-    pub fn is_above_level(&self, min: &ChannelId, check: &ChannelId) -> Option<bool> {
-        let min_idx = self.levels.iter().position(|level| level == min)?;
-
-        let is_above = self
-            .levels
-            .iter()
-            .enumerate()
-            .filter(|(_, level)| *level == check)
-            .any(|(idx, _)| idx <= min_idx);
-
-        Some(is_above)
     }
 }
 

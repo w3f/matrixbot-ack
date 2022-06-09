@@ -54,7 +54,7 @@ struct Config {
 
 // TODO: Move to primitives.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub struct UserInfo {
+struct UserInfo {
     name: String,
     email: Option<String>,
     matrix: Option<String>,
@@ -62,7 +62,7 @@ pub struct UserInfo {
 }
 
 impl UserInfo {
-    pub fn matches(&self, user: &User) -> bool {
+    fn matches(&self, user: &User) -> bool {
         match user {
             User::Matrix(name) => self.matrix.as_ref().map(|s| s == name).unwrap_or(false),
         }
@@ -70,7 +70,7 @@ impl UserInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RoleInfo {
+struct RoleInfo {
     name: Role,
     members: Vec<String>,
 }
@@ -136,7 +136,7 @@ enum AckType {
     Users(Vec<String>),
     MinRole(Role),
     Roles(Vec<Role>),
-    EscalationLevel(String),
+    EscalationLevel,
 }
 
 impl<T> EscalationConfig<T> {
@@ -270,13 +270,13 @@ pub async fn run() -> Result<()> {
     }
 }
 
-pub struct RoleIndex {
+struct RoleIndex {
     users: HashMap<String, UserInfo>,
     roles: Vec<(Role, Vec<UserInfo>)>,
 }
 
 impl RoleIndex {
-    pub fn create_index(users: Vec<UserInfo>, roles: Vec<RoleInfo>) -> Result<Self> {
+    fn create_index(users: Vec<UserInfo>, roles: Vec<RoleInfo>) -> Result<Self> {
         // Create a lookup table for all user entries, searchable by name.
         let mut lookup = HashMap::new();
         for user in users {
@@ -306,30 +306,36 @@ impl RoleIndex {
             roles: index,
         })
     }
-    /*
-    pub fn into_permissions(&self, ack_type: AckType) -> Result<(Permissions, PermissionType)> {
+    fn into_permission_type(&self, ack_type: AckType) -> Result<PermissionType> {
         // TODO: Adjust error text?
 
-        match ack_type {
+        let ty = match ack_type {
             AckType::Users(users) => {
                 let mut infos = HashSet::new();
                 for raw in &users {
-                    let info = self.users.get(raw).ok_or_else(|| anyhow!("user {} is not configured", raw))?;
-                    infos.insert(info);
+                    let info = self
+                        .users
+                        .get(raw)
+                        .ok_or_else(|| anyhow!("user {} is not configured", raw))?;
+                    infos.insert(info.clone());
                 }
 
-                (Permissions::from_users(infos), PermissionType::Users)
+                PermissionType::Users(infos)
             }
-            AckType::MinRole(role) => {
-                (Permissions::from_roles(self.roles.clone()), PermissionType::MinRole(role))
-            }
-            AckType::Roles(roles) => {
-                (Permissions::from_roles(self.roles.clone()), PermissionType::Roles(roles))
-            }
-            AckType::EscalationLevel(level) => {
-                ()
-            }
-        }
+            AckType::MinRole(role) => PermissionType::MinRole {
+                min: role,
+                roles: self.roles.clone(),
+            },
+            AckType::Roles(roles) => PermissionType::Roles(
+                self.roles
+                    .iter()
+                    .cloned()
+                    .filter(|(role, _)| roles.contains(role))
+                    .collect(),
+            ),
+            AckType::EscalationLevel => PermissionType::EscalationLevel(None),
+        };
+
+        Ok(ty)
     }
-    */
 }
