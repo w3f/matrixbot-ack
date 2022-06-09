@@ -1,8 +1,9 @@
 use crate::primitives::{AlertContext, AlertId, PendingAlerts};
 use crate::primitives::{NotifyNewlyInserted, User};
 use crate::webhook::InsertAlerts;
-use crate::Result;
+use crate::{unix_time, Result};
 use bson::{doc, to_bson};
+use futures::StreamExt;
 use mongodb::options::{FindOneAndUpdateOptions, ReturnDocument};
 use mongodb::{Client, Database as MongoDb};
 use std::time::Duration;
@@ -106,8 +107,46 @@ impl Database {
             Ok(true)
         }
     }
-    pub async fn get_pending(&self, _interval: Option<Duration>) -> Result<PendingAlerts> {
-        unimplemented!()
+    pub async fn get_pending(&self, interval: Option<Duration>) -> Result<PendingAlerts> {
+        const INSERTED_OFFSET: u64 = 10;
+
+        let pending = self.db.collection::<AlertContext>(PENDING);
+        let now = unix_time();
+
+        let last_notified_query = match interval {
+            Some(i) => {
+                doc! {
+                    "last_notified_tmsp": {
+                        "$lt": to_bson(&(now - i.as_secs()))?
+                    }
+                }
+            }
+            None => doc! {},
+        };
+
+        pending
+            .find(
+                doc! {
+                    "inserted_tmsp": {
+                        "$lt": to_bson(&(now-INSERTED_OFFSET))?
+                    },
+                    "$or": [
+                        {
+                            "last_notified_tmsp": null
+                        },
+                        last_notified_query,
+                    ],
+                    "acked_by": null
+                },
+                None,
+            )
+            .await?
+            .map(|res| res.map_err(|err| err.into()))
+            .collect::<Vec<Result<AlertContext>>>()
+            .await
+            .into_iter()
+            .collect::<Result<Vec<AlertContext>>>()
+            .map(|alerts| PendingAlerts { alerts })
     }
     pub async fn mark_delivered(&self, _alert: AlertId) -> Result<()> {
         unimplemented!()
