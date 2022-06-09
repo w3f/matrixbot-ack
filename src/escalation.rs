@@ -1,6 +1,8 @@
 use crate::adapter::{MatrixClient, PagerDutyClient};
 use crate::database::Database;
-use crate::primitives::{Acknowledgement, ChannelId, NotifyAlert, Role, User, UserConfirmation};
+use crate::primitives::{
+    Acknowledgement, ChannelId, NotifyAlert, NotifyNewlyInserted, Role, User, UserConfirmation,
+};
 use crate::{AckType, Result, RoleInfo, UserInfo};
 use actix::prelude::*;
 use actix_broker::BrokerSubscribe;
@@ -28,6 +30,7 @@ pub struct EscalationService<T: Actor> {
     adapter: Addr<T>,
     is_locked: Arc<RwLock<bool>>,
     permission: Arc<PermissionType>,
+    levels: Vec<ChannelId>,
 }
 
 impl<T: Actor> EscalationService<T> {
@@ -43,6 +46,8 @@ impl<T: Actor> EscalationService<T> {
             adapter,
             is_locked: Arc::new(RwLock::new(false)),
             permission: Arc::new(permission),
+            // TODO
+            levels: vec![],
         }
     }
 }
@@ -55,6 +60,8 @@ where
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
+        self.subscribe_system_async::<NotifyNewlyInserted>(ctx);
+
         ctx.run_interval(Duration::from_secs(INTERVAL), |actor, ctx| {
             let db = actor.db.clone();
             let addr = actor.adapter.clone();
@@ -71,11 +78,11 @@ where
                 // TODO: Handle unwrap
                 // TODO!!: Increment levels.
                 let mut pending = db.get_pending(Some(window)).await.unwrap();
+                pending.stage_next_level();
                 match addr.send(pending.clone()).await {
                     Ok(resp) => {
                         match resp {
                             Ok(_) => {
-                                pending.update_timestamp_now();
                                 let _ = db.update_pending(pending).await.map_err(|err| {
                                     // TODO: Log
                                 });
@@ -95,6 +102,18 @@ where
                 *l = false;
             });
         });
+    }
+}
+
+impl<T: Actor> Handler<NotifyNewlyInserted> for EscalationService<T>
+where
+    T: Actor + Handler<NotifyAlert>,
+    <T as Actor>::Context: actix::dev::ToEnvelope<T, NotifyAlert>,
+{
+    type Result = ResponseActFuture<Self, ()>;
+
+    fn handle(&mut self, ack: NotifyNewlyInserted, ctx: &mut Self::Context) -> Self::Result {
+        unimplemented!()
     }
 }
 

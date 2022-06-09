@@ -29,9 +29,17 @@ impl std::fmt::Display for AlertId {
 pub struct AlertContext {
     pub id: AlertId,
     pub alert: Alert,
-    pub first_notified: Option<u64>,
+    pub inserted_tmsp: u64,
     pub level_idx: usize,
-    pub last_notified: Option<u64>,
+    pub last_notified_tmsp: Option<u64>,
+}
+
+// TODO: Rename
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AlertDelivery {
+    pub id: AlertId,
+    pub alert: Alert,
+    pub channel_id: ChannelId,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -69,13 +77,13 @@ impl AlertContext {
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "()")]
 pub struct NotifyNewlyInserted {
-    alerts: Vec<AlertContext>,
+    alerts: Vec<AlertDelivery>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "Result<()>")]
 pub struct NotifyAlert {
-    alerts: Vec<AlertContext>,
+    alerts: Vec<AlertDelivery>,
 }
 
 impl From<NotifyNewlyInserted> for NotifyAlert {
@@ -85,18 +93,20 @@ impl From<NotifyNewlyInserted> for NotifyAlert {
 }
 
 impl NotifyAlert {
-    pub fn contexts(&self) -> &[AlertContext] {
+    pub fn contexts(&self) -> &[AlertDelivery] {
         self.alerts.as_ref()
     }
-    pub fn contexts_owned(self) -> Vec<AlertContext> {
+    pub fn contexts_owned(self) -> Vec<AlertDelivery> {
         self.alerts
     }
-    pub fn update_timestamp_now(&mut self) {
+    // TODO: Rename?
+    pub fn stage_next_level(&mut self) {
         let now = unix_time();
 
-        self.alerts
-            .iter_mut()
-            .for_each(|alert| alert.last_notified = Some(now));
+        self.alerts.iter_mut().for_each(|alert| {
+            //alert.level_idx += 1;
+            //alert.last_notified_tmsp = Some(now);
+        });
     }
 }
 
@@ -123,7 +133,7 @@ impl Display for Role {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum UserConfirmation {
-    PendingAlerts(Vec<AlertContext>),
+    PendingAlerts(Vec<AlertDelivery>),
     NoPermission,
     AlertOutOfScope,
     AlertAcknowledged(AlertId),

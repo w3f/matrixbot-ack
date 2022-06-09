@@ -230,8 +230,11 @@ async fn start_clients(
                     .window
                     .ok_or_else(|| anyhow!("escalation window not defined"))?,
             );
-            let permissions = role_index
-                .as_permission_type(escalation_config.acks.ok_or_else(|| anyhow!("no acknowledgement type set"))?)?;
+            let permissions = role_index.as_permission_type(
+                escalation_config
+                    .acks
+                    .ok_or_else(|| anyhow!("no acknowledgement type set"))?,
+            )?;
 
             escalation::EscalationService::<T>::new(db, window, client, permissions).start();
         }
