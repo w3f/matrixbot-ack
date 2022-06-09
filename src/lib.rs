@@ -90,9 +90,9 @@ struct AdapterConfig<T, L> {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct EscalationConfig<T> {
-    window: Option<u64>,
-    acks: Option<AckType>,
-    levels: Option<T>,
+    window: u64,
+    acks: AckType,
+    levels: T,
 }
 
 // TODO: Rename
@@ -185,16 +185,8 @@ where
     T: Actor + Handler<AlertDelivery>,
     <T as Actor>::Context: actix::dev::ToEnvelope<T, AlertDelivery>,
 {
-    let window = Duration::from_secs(
-        escalation_config
-            .window
-            .ok_or_else(|| anyhow!("escalation window not defined"))?,
-    );
-    let permissions = role_index.as_permission_type(
-        escalation_config
-            .acks
-            .ok_or_else(|| anyhow!("no acknowledgement type set"))?,
-    )?;
+    let window = Duration::from_secs(escalation_config.window);
+    let permissions = role_index.as_permission_type(escalation_config.acks)?;
 
     escalation::EscalationService::<T>::new(db, window, client, permissions).start();
     user_request::RequestHandler::<T>::new().start();
