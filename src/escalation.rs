@@ -77,9 +77,20 @@ where
                 *l = true;
                 std::mem::drop(l);
 
-                // TODO: Handle unwrap
-                // TODO!!: Increment levels.
-                let pending = db.get_pending(Some(window)).await.unwrap();
+                // Retrieve pending alerts.
+                let pending = match db.get_pending(Some(window)).await {
+                    Ok(pending) => pending,
+                    Err(err) => {
+                        error!("failed to retrieve pending alerts: {:?}", err);
+
+                        // Unlock escalation process, ready to be picked up on the next interval.
+                        let mut l = is_locked.write().await;
+                        *l = false;
+
+                        return;
+                    }
+                };
+
                 for alert in pending.alerts {
                     let delivery = alert.into_delivery(&levels);
                     let id = delivery.id;
@@ -88,8 +99,8 @@ where
                     match addr.send(delivery).await {
                         Ok(resp) => match resp {
                             Ok(_) => {
-                                let _ = db.mark_delivered(id).await.map_err(|err| {
-                                    error!("failed to mark alert {} as delivered: {:?}", id, err)
+                                let _ = db.increment_alert_state(id).await.map_err(|err| {
+                                    error!("failed to increment alert state of {}, error: {:?}", id, err)
                                 });
                             }
                             Err(err) => {
@@ -105,8 +116,7 @@ where
                     }
                 }
 
-                // Unlock escalation process, ready to be picked up on the next
-                // window.
+                // Unlock escalation process, ready to be picked up on the next interval.
                 let mut l = is_locked.write().await;
                 *l = false;
             });

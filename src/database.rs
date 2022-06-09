@@ -114,4 +114,8 @@ impl Database {
     pub async fn mark_delivered(&self, alert: AlertId) -> Result<()> {
         unimplemented!()
     }
+    // TODO: This should also mark as delivered.
+    pub async fn increment_alert_state(&self, alert: AlertId) -> Result<()> {
+        unimplemented!()
+    }
 }
