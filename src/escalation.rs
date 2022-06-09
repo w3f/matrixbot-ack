@@ -1,7 +1,7 @@
 use crate::adapter::{MatrixClient, PagerDutyClient};
 use crate::database::Database;
 use crate::primitives::{Acknowledgement, ChannelId, NotifyAlert, Role, User, UserConfirmation};
-use crate::{Result, UserInfo, RoleInfo};
+use crate::{AckType, Result, RoleInfo, UserInfo};
 use actix::prelude::*;
 use actix_broker::BrokerSubscribe;
 use matrix_sdk::instant::SystemTime;
@@ -12,49 +12,18 @@ use tokio::sync::RwLock;
 
 const INTERVAL: u64 = 10;
 
-enum AckPermission {
-    Users(Vec<User>),
-    MinRole(Role),
-    Roles(Vec<Role>),
-    EscalationLevel(ChannelId),
+pub enum PermissionType {
+    Users(HashSet<UserInfo>),
+    MinRole {
+        min: Role,
+        roles: Vec<(Role, Vec<UserInfo>)>,
+    },
+    Roles(Vec<(Role, Vec<UserInfo>)>),
+    EscalationLevel(Option<ChannelId>),
 }
 
-pub struct RoleIndex {
-    users: HashSet<UserInfo>,
-    roles: Vec<(Role, Vec<UserInfo>)>,
-}
-
-impl RoleIndex {
-    pub fn create_index(users: Vec<UserInfo>, roles: Vec<RoleInfo>) -> Result<Self> {
-        // Create a lookup table for all user entries, searchable by name.
-        let mut lookup = HashMap::new();
-        for user in users {
-            lookup.insert(user.name.clone(), user);
-        }
-
-        // Create a role index by grouping users based on roles. Users can appear in
-        // multiple roles or in none.
-        let mut index = vec![];
-        for role in roles {
-            let mut user_infos = vec![];
-            for member in role.members {
-                let info = lookup.get(&member).ok_or_else(|| {
-                    anyhow!(
-                        "user {} specified in role {} does not exit",
-                        member,
-                        role.name
-                    )
-                })?;
-                user_infos.push(info.clone());
-            }
-            index.push((role.name, user_infos));
-        }
-
-        Ok(RoleIndex {
-            users: lookup.into_iter().map(|(_, info)| info).collect(),
-            roles: index,
-        })
-    }
+/*
+impl Permissions {
     pub fn user_is_permitted(&self, user: &User) -> bool {
         self.users.iter().any(|info| info.matches(user))
     }
@@ -75,15 +44,14 @@ impl RoleIndex {
             .is_some()
     }
 }
+*/
 
 pub struct EscalationService<T: Actor> {
     db: Database,
     window: Duration,
     adapter: Addr<T>,
     is_locked: Arc<RwLock<bool>>,
-    levels: Arc<LevelHandler>,
-    acks: Arc<AckPermission>,
-    roles: Arc<RoleIndex>,
+    permission: Arc<PermissionType>,
 }
 
 impl<T: Actor> EscalationService<T> {
@@ -180,14 +148,12 @@ where
     fn handle(&mut self, ack: Acknowledgement, ctx: &mut Self::Context) -> Self::Result {
         let db = self.db.clone();
 
-        let roles = Arc::clone(&self.roles);
-        let levels = Arc::clone(&self.levels);
-        let acks = Arc::clone(&self.acks);
+        let acks = Arc::clone(&self.permission);
 
         let f = async move {
             let res = match &*acks {
-                AckPermission::Users(users) => {
-                    if users.contains(&ack.user) {
+                PermissionType::Users(users) => {
+                    if users.iter().any(|info| info.matches(&ack.user)) {
                         // Acknowledge alert.
                         db.ack(&ack.alert_id, &ack.user).await?;
                         UserConfirmation::AlertAcknowledged(ack.alert_id)
@@ -195,35 +161,47 @@ where
                         UserConfirmation::NoPermission
                     }
                 }
-                AckPermission::MinRole(min) => {
-                    if roles.is_above_minimum(&min, &ack.user) {
-                        // Acknowledge alert.
-                        db.ack(&ack.alert_id, &ack.user).await?;
-                        UserConfirmation::AlertAcknowledged(ack.alert_id)
-                    } else {
-                        UserConfirmation::NoPermission
-                    }
-                }
-                AckPermission::Roles(allowed) => {
-                    if roles.user_is_in_role(&ack.user, &allowed) {
-                        // Acknowledge alert.
-                        db.ack(&ack.alert_id, &ack.user).await?;
-                        UserConfirmation::AlertAcknowledged(ack.alert_id)
-                    } else {
-                        UserConfirmation::NoPermission
-                    }
-                }
-                AckPermission::EscalationLevel(level) => {
-                    if levels
-                        .is_above_level(&level, &level)
-                        .ok_or_else(|| anyhow!("TODO"))?
+                PermissionType::MinRole { min, roles } => {
+                    let min_idx = roles.iter().position(|(role, _)| role == min).unwrap();
+
+                    if roles
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, (_, users))| users.iter().any(|info| info.matches(&ack.user)))
+                        .find(|(idx, _)| idx >= &min_idx)
+                        .is_some()
                     {
+                        // Acknowledge alert.
+                        db.ack(&ack.alert_id, &ack.user).await?;
+                        UserConfirmation::AlertAcknowledged(ack.alert_id)
+                    } else {
+                        UserConfirmation::NoPermission
+                    }
+                }
+                PermissionType::Roles(roles) => {
+                    if roles
+                        .iter()
+                        .find(|(_, users)| users.iter().any(|info| info.matches(&ack.user)))
+                        .is_some()
+                    {
+                        // Acknowledge alert.
+                        db.ack(&ack.alert_id, &ack.user).await?;
+                        UserConfirmation::AlertAcknowledged(ack.alert_id)
+                    } else {
+                        UserConfirmation::NoPermission
+                    }
+                }
+                PermissionType::EscalationLevel(level) => {
+                    unimplemented!()
+                    /*
+                    if false {
                         // Acknowledge alert.
                         db.ack(&ack.alert_id, &ack.user).await?;
                         UserConfirmation::AlertAcknowledged(ack.alert_id)
                     } else {
                         UserConfirmation::AlertOutOfScope
                     }
+                     */
                 }
             };
 

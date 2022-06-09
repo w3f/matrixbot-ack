@@ -14,8 +14,9 @@ use actix::{prelude::*, SystemRegistry};
 use adapter::matrix::{MatrixClient, MatrixConfig};
 use adapter::pagerduty::{PagerDutyClient, PagerDutyConfig};
 use database::{Database, DatabaseConfig};
-use escalation::RoleIndex;
-use std::collections::HashMap;
+use escalation::PermissionType;
+use primitives::{ChannelId, NotifyAlert, Role, User};
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use structopt::StructOpt;
 use tracing::Instrument;
@@ -138,8 +139,8 @@ struct EscalationConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 enum AckType {
     Users(Vec<String>),
-    MinRole(String),
-    Roles(Vec<String>),
+    MinRole(Role),
+    Roles(Vec<Role>),
     EscalationLevel(String),
 }
 
@@ -160,9 +161,6 @@ struct Cli {
     config: String,
 }
 
-// TODO: Move to top.
-use primitives::{ChannelId, NotifyAlert, Role, User};
-
 enum AdapterMapping {
     Matrix {
         client_config: MatrixConfig,
@@ -174,7 +172,11 @@ enum AdapterMapping {
     },
 }
 
-async fn start_clients(db: Database, adapters: Vec<AdapterMapping>) -> Result<()> {
+async fn start_clients(
+    db: Database,
+    adapters: Vec<AdapterMapping>,
+    role_index: RoleIndex,
+) -> Result<()> {
     fn start_tasks<T>(
         db: Database,
         client: Addr<T>,
@@ -259,7 +261,9 @@ pub async fn run() -> Result<()> {
         info!("Starting clients and background tasks");
     });
 
-    start_clients(db.clone(), mappings).instrument(span).await?;
+    start_clients(db.clone(), mappings, role_index)
+        .instrument(span)
+        .await?;
 
     // Starting webhook.
     info!("Starting API server");
@@ -268,4 +272,68 @@ pub async fn run() -> Result<()> {
     loop {
         sleep(Duration::from_secs(u64::MAX)).await;
     }
+}
+
+pub struct RoleIndex {
+    users: HashMap<String, UserInfo>,
+    roles: Vec<(Role, Vec<UserInfo>)>,
+}
+
+impl RoleIndex {
+    pub fn create_index(users: Vec<UserInfo>, roles: Vec<RoleInfo>) -> Result<Self> {
+        // Create a lookup table for all user entries, searchable by name.
+        let mut lookup = HashMap::new();
+        for user in users {
+            lookup.insert(user.name.clone(), user);
+        }
+
+        // Create a role index by grouping users based on roles. Users can appear in
+        // multiple roles or in none.
+        let mut index = vec![];
+        for role in roles {
+            let mut user_infos = vec![];
+            for member in role.members {
+                let info = lookup.get(&member).ok_or_else(|| {
+                    anyhow!(
+                        "user {} specified in role {} does not exit",
+                        member,
+                        role.name
+                    )
+                })?;
+                user_infos.push(info.clone());
+            }
+            index.push((role.name, user_infos));
+        }
+
+        Ok(RoleIndex {
+            users: lookup,
+            roles: index,
+        })
+    }
+    /*
+    pub fn into_permissions(&self, ack_type: AckType) -> Result<(Permissions, PermissionType)> {
+        // TODO: Adjust error text?
+
+        match ack_type {
+            AckType::Users(users) => {
+                let mut infos = HashSet::new();
+                for raw in &users {
+                    let info = self.users.get(raw).ok_or_else(|| anyhow!("user {} is not configured", raw))?;
+                    infos.insert(info);
+                }
+
+                (Permissions::from_users(infos), PermissionType::Users)
+            }
+            AckType::MinRole(role) => {
+                (Permissions::from_roles(self.roles.clone()), PermissionType::MinRole(role))
+            }
+            AckType::Roles(roles) => {
+                (Permissions::from_roles(self.roles.clone()), PermissionType::Roles(roles))
+            }
+            AckType::EscalationLevel(level) => {
+                ()
+            }
+        }
+    }
+    */
 }
