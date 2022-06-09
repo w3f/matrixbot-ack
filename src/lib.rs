@@ -81,48 +81,15 @@ struct AdapterOptions {
     pagerduty: Option<AdapterConfig<PagerDutyConfig, ()>>,
 }
 
-impl AdapterOptions {
-    fn into_mappings(self) -> Result<Vec<AdapterMapping>> {
-        let mut mappings = vec![];
-
-        if let Some(matrix) = self.matrix {
-            if matrix.enabled {
-                mappings.push(AdapterMapping::Matrix {
-                    client_config: matrix
-                        .config
-                        .ok_or_else(|| anyhow!("Matrix config not provided"))?,
-                    escalation_config: matrix.escation.unwrap_or_else(EscalationConfig::disabled),
-                });
-            }
-        }
-
-        if let Some(pagerduty) = self.pagerduty {
-            if pagerduty.enabled {
-                mappings.push(AdapterMapping::PagerDuty {
-                    client_config: pagerduty
-                        .config
-                        .ok_or_else(|| anyhow!("PagerDuty config not provided"))?,
-                    escalation_config: pagerduty
-                        .escation
-                        .unwrap_or_else(EscalationConfig::disabled),
-                });
-            }
-        }
-
-        Ok(mappings)
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct AdapterConfig<T, L> {
     enabled: bool,
-    escation: Option<EscalationConfig<L>>,
+    escation: EscalationConfig<L>,
     config: Option<T>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct EscalationConfig<T> {
-    enabled: bool,
     window: Option<u64>,
     acks: Option<AckType>,
     levels: Option<T>,
@@ -135,17 +102,6 @@ enum AckType {
     MinRole(Role),
     Roles(Vec<Role>),
     EscalationLevel,
-}
-
-impl<T> EscalationConfig<T> {
-    fn disabled() -> Self {
-        EscalationConfig {
-            enabled: false,
-            window: None,
-            acks: None,
-            levels: None,
-        }
-    }
 }
 
 #[derive(StructOpt, Debug)]
@@ -182,7 +138,6 @@ pub async fn run() -> Result<()> {
     let config: Config = serde_yaml::from_str(&content)?;
 
     info!("Preparing adapter config data");
-    let mappings = config.adapters.into_mappings()?;
 
     info!("Creating role index");
     let role_index = RoleIndex::create_index(config.users, config.roles)?;
@@ -196,9 +151,20 @@ pub async fn run() -> Result<()> {
         info!("Starting clients and background tasks");
     });
 
-    start_clients(db.clone(), mappings, &role_index)
-        .instrument(span)
-        .await?;
+    let adapters = config.adapters;
+    if let Some(conf) = adapters.matrix {
+        start_tasks(
+            db.clone(),
+            MatrixClient::new(
+                conf.config
+                    .ok_or_else(|| anyhow!("no matrix configuration provided"))?,
+            )
+            .await?
+            .start(),
+            conf.escation,
+            &role_index,
+        )?;
+    }
 
     // Starting webhook.
     info!("Starting API server");
@@ -209,67 +175,29 @@ pub async fn run() -> Result<()> {
     }
 }
 
-async fn start_clients(
+fn start_tasks<T, L>(
     db: Database,
-    adapters: Vec<AdapterMapping>,
+    client: Addr<T>,
+    escalation_config: EscalationConfig<L>,
     role_index: &RoleIndex,
-) -> Result<()> {
-    fn start_tasks<T, L>(
-        db: Database,
-        client: Addr<T>,
-        escalation_config: EscalationConfig<L>,
-        role_index: &RoleIndex,
-    ) -> Result<()>
-    where
-        T: Actor + Handler<AlertDelivery>,
-        <T as Actor>::Context: actix::dev::ToEnvelope<T, AlertDelivery>,
-    {
-        if escalation_config.enabled {
-            let window = Duration::from_secs(
-                escalation_config
-                    .window
-                    .ok_or_else(|| anyhow!("escalation window not defined"))?,
-            );
-            let permissions = role_index.as_permission_type(
-                escalation_config
-                    .acks
-                    .ok_or_else(|| anyhow!("no acknowledgement type set"))?,
-            )?;
+) -> Result<()>
+where
+    T: Actor + Handler<AlertDelivery>,
+    <T as Actor>::Context: actix::dev::ToEnvelope<T, AlertDelivery>,
+{
+    let window = Duration::from_secs(
+        escalation_config
+            .window
+            .ok_or_else(|| anyhow!("escalation window not defined"))?,
+    );
+    let permissions = role_index.as_permission_type(
+        escalation_config
+            .acks
+            .ok_or_else(|| anyhow!("no acknowledgement type set"))?,
+    )?;
 
-            // TODO: This must always be executed.
-            escalation::EscalationService::<T>::new(db, window, client, permissions).start();
-        }
-        user_request::RequestHandler::<T>::new().start();
-
-        Ok(())
-    }
-
-    for adapter in adapters {
-        match adapter {
-            AdapterMapping::Matrix {
-                client_config,
-                escalation_config,
-            } => {
-                start_tasks(
-                    db.clone(),
-                    MatrixClient::new(client_config).await?.start(),
-                    escalation_config,
-                    role_index,
-                )?;
-            }
-            AdapterMapping::PagerDuty {
-                client_config,
-                escalation_config,
-            } => {
-                start_tasks(
-                    db.clone(),
-                    PagerDutyClient::new(client_config).start(),
-                    escalation_config,
-                    role_index,
-                )?;
-            }
-        }
-    }
+    escalation::EscalationService::<T>::new(db, window, client, permissions).start();
+    user_request::RequestHandler::<T>::new().start();
 
     Ok(())
 }
