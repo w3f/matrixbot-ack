@@ -31,6 +31,7 @@ pub struct AlertContext {
     inserted_tmsp: u64,
     level_idx: usize,
     last_notified_tmsp: Option<u64>,
+    acked_by: Option<User>,
 }
 
 impl AlertContext {
@@ -41,6 +42,7 @@ impl AlertContext {
             inserted_tmsp: unix_time(),
             level_idx: 0,
             last_notified_tmsp: None,
+            acked_by: None,
         }
     }
     pub fn into_delivery(self, levels: &[ChannelId]) -> (AlertDelivery, usize) {
@@ -130,7 +132,8 @@ pub struct Acknowledgement {
     pub alert_id: AlertId,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "adapter", content = "user")]
 pub enum User {
     Matrix(String),
 }
@@ -149,7 +152,7 @@ pub enum UserConfirmation {
     NoPermission,
     _AlertOutOfScope,
     AlertAcknowledged(AlertId),
-    _AlertNotFound,
+    AlertNotFound,
     Help,
     InternalError,
 }

@@ -184,8 +184,11 @@ where
                 PermissionType::Users(users) => {
                     if users.iter().any(|info| info.matches(&ack.user)) {
                         // Acknowledge alert.
-                        db.ack(&ack.alert_id, &ack.user).await?;
-                        UserConfirmation::AlertAcknowledged(ack.alert_id)
+                        if db.acknowledge_alert(&ack.alert_id, &ack.user).await? {
+                            UserConfirmation::AlertAcknowledged(ack.alert_id)
+                        } else {
+                            UserConfirmation::AlertNotFound
+                        }
                     } else {
                         UserConfirmation::NoPermission
                     }
@@ -200,8 +203,11 @@ where
                         .any(|(idx, _)| idx >= min_idx)
                     {
                         // Acknowledge alert.
-                        db.ack(&ack.alert_id, &ack.user).await?;
-                        UserConfirmation::AlertAcknowledged(ack.alert_id)
+                        if db.acknowledge_alert(&ack.alert_id, &ack.user).await? {
+                            UserConfirmation::AlertAcknowledged(ack.alert_id)
+                        } else {
+                            UserConfirmation::AlertNotFound
+                        }
                     } else {
                         UserConfirmation::NoPermission
                     }
@@ -212,8 +218,11 @@ where
                         .any(|(_, users)| users.iter().any(|info| info.matches(&ack.user)))
                     {
                         // Acknowledge alert.
-                        db.ack(&ack.alert_id, &ack.user).await?;
-                        UserConfirmation::AlertAcknowledged(ack.alert_id)
+                        if db.acknowledge_alert(&ack.alert_id, &ack.user).await? {
+                            UserConfirmation::AlertAcknowledged(ack.alert_id)
+                        } else {
+                            UserConfirmation::AlertNotFound
+                        }
                     } else {
                         UserConfirmation::NoPermission
                     }
@@ -223,7 +232,7 @@ where
                     /*
                     if false {
                         // Acknowledge alert.
-                        db.ack(&ack.alert_id, &ack.user).await?;
+                        db.acknowledge_alert(&ack.alert_id, &ack.user).await?;
                         UserConfirmation::AlertAcknowledged(ack.alert_id)
                     } else {
                         UserConfirmation::AlertOutOfScope

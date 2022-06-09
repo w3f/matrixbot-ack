@@ -1,4 +1,4 @@
-use crate::primitives::{AlertContext, AlertId, PendingAlerts, UserConfirmation};
+use crate::primitives::{AlertContext, AlertId, PendingAlerts};
 use crate::primitives::{NotifyNewlyInserted, User};
 use crate::webhook::InsertAlerts;
 use crate::Result;
@@ -83,9 +83,28 @@ impl Database {
 
         Ok(id)
     }
-    // TODO
-    pub async fn ack(&self, _alert_id: &AlertId, _acked_by: &User) -> Result<UserConfirmation> {
-        unimplemented!()
+    pub async fn acknowledge_alert(&self, alert_id: &AlertId, acked_by: &User) -> Result<bool> {
+        let pending = self.db.collection::<AlertContext>(PENDING);
+
+        let res = pending
+            .update_one(
+                doc! {
+                    "id": to_bson(&alert_id)?,
+                },
+                doc! {
+                    "$set": {
+                        "acked_by": to_bson(&acked_by)?,
+                    }
+                },
+                None,
+            )
+            .await?;
+
+        if res.modified_count == 0 {
+            Ok(false)
+        } else {
+            Ok(true)
+        }
     }
     pub async fn get_pending(&self, _interval: Option<Duration>) -> Result<PendingAlerts> {
         unimplemented!()
