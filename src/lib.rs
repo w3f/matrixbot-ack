@@ -168,70 +168,6 @@ enum AdapterMapping {
     },
 }
 
-async fn start_clients(
-    db: Database,
-    adapters: Vec<AdapterMapping>,
-    role_index: &RoleIndex,
-) -> Result<()> {
-    fn start_tasks<T, L>(
-        db: Database,
-        client: Addr<T>,
-        escalation_config: EscalationConfig<L>,
-        role_index: &RoleIndex,
-    ) -> Result<()>
-    where
-        T: Actor + Handler<NotifyAlert>,
-        <T as Actor>::Context: actix::dev::ToEnvelope<T, NotifyAlert>,
-    {
-        if escalation_config.enabled {
-            escalation::EscalationService::<T>::new(
-                db,
-                Duration::from_secs(
-                    escalation_config
-                        .window
-                        .ok_or_else(|| anyhow!("escalation window not defined"))?,
-                ),
-                client,
-                role_index
-                    .into_permission_type(escalation_config.acks.ok_or_else(|| anyhow!(""))?)?,
-            )
-            .start();
-        }
-        user_request::RequestHandler::<T>::new().start();
-
-        Ok(())
-    }
-
-    for adapter in adapters {
-        match adapter {
-            AdapterMapping::Matrix {
-                client_config,
-                escalation_config,
-            } => {
-                start_tasks(
-                    db.clone(),
-                    MatrixClient::new(client_config).await?.start(),
-                    escalation_config,
-                    role_index,
-                )?;
-            }
-            AdapterMapping::PagerDuty {
-                client_config,
-                escalation_config,
-            } => {
-                start_tasks(
-                    db.clone(),
-                    PagerDutyClient::new(client_config).start(),
-                    escalation_config,
-                    role_index,
-                )?;
-            }
-        }
-    }
-
-    Ok(())
-}
-
 pub async fn run() -> Result<()> {
     let cli = Cli::from_args();
 
@@ -275,6 +211,70 @@ pub async fn run() -> Result<()> {
     }
 }
 
+async fn start_clients(
+    db: Database,
+    adapters: Vec<AdapterMapping>,
+    role_index: &RoleIndex,
+) -> Result<()> {
+    fn start_tasks<T, L>(
+        db: Database,
+        client: Addr<T>,
+        escalation_config: EscalationConfig<L>,
+        role_index: &RoleIndex,
+    ) -> Result<()>
+    where
+        T: Actor + Handler<NotifyAlert>,
+        <T as Actor>::Context: actix::dev::ToEnvelope<T, NotifyAlert>,
+    {
+        if escalation_config.enabled {
+            escalation::EscalationService::<T>::new(
+                db,
+                Duration::from_secs(
+                    escalation_config
+                        .window
+                        .ok_or_else(|| anyhow!("escalation window not defined"))?,
+                ),
+                client,
+                role_index
+                    .as_permission_type(escalation_config.acks.ok_or_else(|| anyhow!(""))?)?,
+            )
+            .start();
+        }
+        user_request::RequestHandler::<T>::new().start();
+
+        Ok(())
+    }
+
+    for adapter in adapters {
+        match adapter {
+            AdapterMapping::Matrix {
+                client_config,
+                escalation_config,
+            } => {
+                start_tasks(
+                    db.clone(),
+                    MatrixClient::new(client_config).await?.start(),
+                    escalation_config,
+                    role_index,
+                )?;
+            }
+            AdapterMapping::PagerDuty {
+                client_config,
+                escalation_config,
+            } => {
+                start_tasks(
+                    db.clone(),
+                    PagerDutyClient::new(client_config).start(),
+                    escalation_config,
+                    role_index,
+                )?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 struct RoleIndex {
     users: HashMap<String, UserInfo>,
     roles: Vec<(Role, Vec<UserInfo>)>,
@@ -311,9 +311,7 @@ impl RoleIndex {
             roles: index,
         })
     }
-    fn into_permission_type(&self, ack_type: AckType) -> Result<PermissionType> {
-        // TODO: Adjust error text?
-
+    fn as_permission_type(&self, ack_type: AckType) -> Result<PermissionType> {
         let ty = match ack_type {
             AckType::Users(users) => {
                 let mut infos = HashSet::new();
