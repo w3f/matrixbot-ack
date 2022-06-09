@@ -172,7 +172,25 @@ impl Database {
         Ok(())
     }
     // TODO: This should also mark as delivered.
-    pub async fn increment_alert_state(&self, _alert: AlertId, _new_idx: usize) -> Result<()> {
-        unimplemented!()
+    pub async fn increment_alert_state(&self, id: AlertId, new_idx: usize) -> Result<()> {
+        let pending = self.db.collection::<AlertContext>(PENDING);
+        let now = unix_time();
+
+        pending
+            .update_one(
+                doc! {
+                    "id": to_bson(&id)?
+                },
+                doc! {
+                    "$set": {
+                        "level_idx": to_bson(&new_idx)?,
+                        "last_notified_tmsp": to_bson(&now)?
+                    }
+                },
+                None,
+            )
+            .await?;
+
+        Ok(())
     }
 }
