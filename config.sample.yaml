@@ -10,7 +10,6 @@ adapter:
   matrix:
     enabled: false
     escalation:
-      enabled: false
       acks:
         min_role: mods
       ecalation_levels:
@@ -26,7 +25,6 @@ adapter:
   pager_duty:
     enabled: false
     escalation:
-      enabled: true
       acks:
         users:
         - bob

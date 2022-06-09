@@ -1,19 +1,14 @@
-use crate::primitives::{AlertContext, AlertId, NotifyAlert, PendingAlerts, UserConfirmation};
+use crate::primitives::{AlertContext, AlertId, PendingAlerts, UserConfirmation};
 use crate::primitives::{NotifyNewlyInserted, User};
 use crate::webhook::InsertAlerts;
-use crate::{unix_time, Result};
-use bson::{doc, to_bson};
-use futures::stream::StreamExt;
-use mongodb::{
-    options::{FindOneAndUpdateOptions, ReplaceOptions, ReturnDocument},
-    Client, Database as MongoDb,
-};
-use std::collections::HashMap;
+use crate::Result;
+use bson::doc;
+use mongodb::{Client, Database as MongoDb};
 use std::time::Duration;
 
 const PENDING: &str = "pending";
-const HISTORY: &str = "history";
-const ID_CURSOR: &str = "id_cursor";
+const _HISTORY: &str = "history";
+const _ID_CURSOR: &str = "id_cursor";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseConfig {
@@ -46,31 +41,14 @@ impl Database {
                 .database(&config.name),
         })
     }
-    pub async fn insert_alerts(&self, inserts: InsertAlerts) -> Result<NotifyNewlyInserted> {
-        let pending = self.db.collection::<AlertContext>(PENDING);
-
-        // Insert the alerts themselves.
-        for alert in inserts.alerts() {
-            /*
-            let _ = pending
-                .replace_one(
-                    doc! {
-                        "id": to_bson(&alert.id)?,
-                    },
-                    alert,
-                    {
-                        let mut ops = ReplaceOptions::default();
-                        ops.upsert = Some(true);
-                        ops
-                    },
-                )
-                .await?;
-            */
-        }
+    pub async fn insert_alerts(&self, _inserts: InsertAlerts) -> Result<NotifyNewlyInserted> {
+        let _pending = self.db.collection::<AlertContext>(PENDING);
 
         unimplemented!()
     }
-    async fn get_next_id(&self) -> Result<AlertId> {
+    async fn _get_next_id(&self) -> Result<AlertId> {
+        unimplemented!()
+        /*
         let id_cursor = self.db.collection::<IdCursor>(ID_CURSOR);
 
         let id = id_cursor
@@ -95,23 +73,20 @@ impl Database {
             .unwrap();
 
         Ok(id)
+         */
     }
     // TODO
-    pub async fn ack(&self, alert_id: &AlertId, acked_by: &User) -> Result<UserConfirmation> {
+    pub async fn ack(&self, _alert_id: &AlertId, _acked_by: &User) -> Result<UserConfirmation> {
         unimplemented!()
     }
-    pub async fn acknowledge_alert(
-        &self,
-        escalation_idx: usize,
-        alert_id: AlertId,
-        acked_by: String,
-    ) -> Result<UserConfirmation> {
+    pub async fn get_pending(&self, _interval: Option<Duration>) -> Result<PendingAlerts> {
         unimplemented!()
     }
-    pub async fn get_pending(&self, interval: Option<Duration>) -> Result<PendingAlerts> {
+    pub async fn mark_delivered(&self, _alert: AlertId) -> Result<()> {
         unimplemented!()
     }
-    pub async fn update_pending(&self, alert: PendingAlerts) -> Result<()> {
+    // TODO: This should also mark as delivered.
+    pub async fn increment_alert_state(&self, _alert: AlertId, _new_idx: usize) -> Result<()> {
         unimplemented!()
     }
 }

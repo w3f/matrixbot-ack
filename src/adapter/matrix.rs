@@ -1,18 +1,13 @@
 use crate::escalation::EscalationService;
-use crate::primitives::{
-    AlertId, ChannelId, Command, NotifyAlert, NotifyNewlyInserted, User, UserAction,
-};
+use crate::primitives::{AlertDelivery, ChannelId, Command, User, UserAction};
 use crate::user_request::RequestHandler;
 use crate::Result;
 use actix::prelude::*;
-use actix::SystemService;
-use actix_broker::BrokerSubscribe;
 use matrix_sdk::events::room::message::MessageEventContent;
 use matrix_sdk::events::SyncMessageEvent;
-use matrix_sdk::room::{Joined, Room};
+use matrix_sdk::room::Room;
 use matrix_sdk::{Client, ClientConfig, EventHandler, SyncSettings};
-use ruma::events::room::message::{MessageType, TextMessageEventContent};
-use ruma::events::AnyMessageEventContent;
+use ruma::events::room::message::MessageType;
 use ruma::RoomId;
 use std::convert::TryFrom;
 use std::sync::Arc;
@@ -31,8 +26,8 @@ pub struct MatrixConfig {
 
 #[derive(Clone)]
 pub struct MatrixClient {
-    rooms: Arc<Vec<RoomId>>,
-    client: Arc<Client>,
+    _rooms: Arc<Vec<RoomId>>,
+    _client: Arc<Client>,
 }
 
 impl MatrixClient {
@@ -92,8 +87,8 @@ impl MatrixClient {
         });
 
         Ok(MatrixClient {
-            rooms: Arc::new(rooms),
-            client: Arc::new(client),
+            _rooms: Arc::new(rooms),
+            _client: Arc::new(client),
         })
     }
 }
@@ -102,10 +97,10 @@ impl Actor for MatrixClient {
     type Context = Context<Self>;
 }
 
-impl Handler<NotifyAlert> for MatrixClient {
+impl Handler<AlertDelivery> for MatrixClient {
     type Result = ResponseActFuture<Self, Result<()>>;
 
-    fn handle(&mut self, notify: NotifyAlert, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, _alert: AlertDelivery, _ctx: &mut Self::Context) -> Self::Result {
         let f = async move { unimplemented!() };
 
         Box::pin(f.into_actor(self))
@@ -146,10 +141,10 @@ impl EventHandler for Listener {
                         };
 
                         // TODO: Handle
-                        let x = self.request_handler.send(action).await;
+                        let _x = self.request_handler.send(action).await;
                     }
                 }
-                Err(err) => {
+                Err(_err) => {
                     // TODO: Resp error
                 }
             }

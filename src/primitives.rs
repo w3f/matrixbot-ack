@@ -1,8 +1,7 @@
-use std::{fmt::Display, str::FromStr};
-
+use crate::adapter::pagerduty::PayloadSeverity;
+use crate::Result;
 use ruma::RoomId;
-
-use crate::{unix_time, Result};
+use std::fmt::Display;
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct AlertId(u64);
@@ -34,8 +33,49 @@ pub struct AlertContext {
     pub last_notified_tmsp: Option<u64>,
 }
 
+impl AlertContext {
+    pub fn into_delivery(self, levels: &[ChannelId]) -> (AlertDelivery, usize) {
+        // Unwraps in this method will only panic if `levels` is
+        // empty, which is checked for on application startup. I.e. panicing
+        // indicates a bug.
+
+        // TODO: Document
+        let (prev_room, channel_id) = {
+            if self.level_idx == 0 && self.last_notified_tmsp.is_none() {
+                (None, levels.get(self.level_idx).cloned().unwrap())
+            } else {
+                (
+                    levels.get(self.level_idx).cloned(),
+                    levels
+                        .get(self.level_idx + 1)
+                        .or_else(|| levels.last())
+                        .cloned()
+                        .unwrap(),
+                )
+            }
+        };
+
+        (
+            AlertDelivery {
+                id: self.id,
+                alert: self.alert,
+                prev_room,
+                channel_id,
+            },
+            {
+                if self.level_idx == levels.len() - 1 {
+                    self.level_idx
+                } else {
+                    self.level_idx + 1
+                }
+            },
+        )
+    }
+}
+
 // TODO: Rename
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Message)]
+#[rtype(result = "Result<()>")]
 pub struct AlertDelivery {
     pub id: AlertId,
     pub alert: Alert,
@@ -62,83 +102,15 @@ pub struct Labels {
     pub alert_name: String,
 }
 
-// TODO: Rename
-enum NotificationLevel {
-    Matrix(String),
-    // TODO
-    PagerDuty(()),
-}
-
-impl AlertContext {
-    pub fn new(alert: Alert, id: AlertId) -> Self {
-        unimplemented!()
-    }
-}
-
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "()")]
 pub struct NotifyNewlyInserted {
-    alerts: Vec<AlertContext>,
+    pub alerts: Vec<AlertContext>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PendingAlerts {
-    alerts: Vec<AlertContext>,
-}
-
-impl PendingAlerts {
-    // TODO: Document
-    pub fn into_notifications(mut self, levels: &[ChannelId]) -> (PendingAlerts, NotifyAlert) {
-        let alerts = self
-            .alerts
-            .iter()
-            .map(|alert| {
-                AlertDelivery {
-                    id: alert.id,
-                    alert: alert.alert.clone(),
-                    prev_room: {
-                        if alert.level_idx == 0 && alert.last_notified_tmsp.is_none() {
-                            None
-                        } else {
-                            levels
-                                .get(alert.level_idx)
-                                .cloned()
-                        }
-                    },
-                    channel_id: levels
-                        .get(alert.level_idx + 1)
-                        .or_else(|| levels.last())
-                        .cloned()
-                        // This will only panic if `levels` is empty, which is
-                        // checked for on application startup.
-                        .unwrap(),
-                }
-            })
-            .collect();
-
-        let now = unix_time();
-        self.alerts.iter_mut().for_each(|alert| {
-            alert.level_idx += 1;
-            alert.last_notified_tmsp = Some(now);
-        });
-
-        (self, NotifyAlert { alerts })
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Message)]
-#[rtype(result = "Result<()>")]
-pub struct NotifyAlert {
-    alerts: Vec<AlertDelivery>,
-}
-
-impl NotifyAlert {
-    pub fn contexts(&self) -> &[AlertDelivery] {
-        self.alerts.as_ref()
-    }
-    pub fn contexts_owned(self) -> Vec<AlertDelivery> {
-        self.alerts
-    }
+    pub alerts: Vec<AlertContext>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
@@ -166,9 +138,9 @@ impl Display for Role {
 pub enum UserConfirmation {
     PendingAlerts(PendingAlerts),
     NoPermission,
-    AlertOutOfScope,
+    _AlertOutOfScope,
     AlertAcknowledged(AlertId),
-    AlertNotFound,
+    _AlertNotFound,
     Help,
     InternalError,
 }
@@ -176,6 +148,10 @@ pub enum UserConfirmation {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ChannelId {
     Matrix(RoomId),
+    PagerDuty {
+        integration_key: String,
+        payload_severity: PayloadSeverity,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
@@ -205,7 +181,7 @@ impl Command {
             "help" => Command::Help,
             txt => {
                 if txt.starts_with("ack") || txt.starts_with("acknowledge") {
-                    let parts: Vec<&str> = txt.split(" ").collect();
+                    let parts: Vec<&str> = txt.split(' ').collect();
                     if parts.len() == 2 {
                         if let Ok(id) = AlertId::from_str(parts[1]) {
                             Command::Ack(id)

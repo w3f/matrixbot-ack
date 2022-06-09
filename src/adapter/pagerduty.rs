@@ -1,8 +1,6 @@
-use crate::primitives::{AlertId, NotifyAlert, NotifyNewlyInserted};
+use crate::primitives::{AlertDelivery, AlertId};
 use crate::Result;
 use actix::prelude::*;
-use actix::SystemService;
-use actix_broker::BrokerSubscribe;
 use reqwest::header::AUTHORIZATION;
 use reqwest::StatusCode;
 use tokio::time::{sleep, Duration};
@@ -26,47 +24,46 @@ impl Actor for PagerDutyClient {
     type Context = Context<Self>;
 }
 
-impl Handler<NotifyAlert> for PagerDutyClient {
+impl Handler<AlertDelivery> for PagerDutyClient {
     type Result = ResponseActFuture<Self, Result<()>>;
 
-    fn handle(&mut self, notify: NotifyAlert, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, alert: AlertDelivery, _ctx: &mut Self::Context) -> Self::Result {
         let config = self.config.clone();
 
         let f = async move {
             let client = reqwest::Client::new();
 
-            // TODO
-            for alert in new_alert_events(
+            // Create an alert type native to the PagerDuty API.
+            let alert = new_alert_event(
                 "".to_string(),
                 "".to_string(),
                 config.payload_severity,
-                notify,
-            ) {
-                loop {
-                    // TODO: Avoid clone?
-                    let resp = post_alerts(&client, config.api_key.as_str(), alert.clone())
-                        .await
-                        .unwrap();
+                &alert,
+            );
 
-                    match resp.status() {
-                        StatusCode::ACCEPTED => {
-                            //info!("Submitted alert {} to PagerDuty", alert.id);
-                            break;
-                        }
-                        StatusCode::BAD_REQUEST => {
-                            //error!("BAD REQUEST when submitting alert {}", alert.id);
-                            // Do not retry on this error type.
-                            break;
-                        }
-                        err => error!(
-                            "Failed to send alert to PagerDuty: {:?}, response: {:?}",
-                            err, resp
-                        ),
+            loop {
+                let resp = post_alert(&client, config.api_key.as_str(), &alert)
+                    .await
+                    .unwrap();
+
+                match resp.status() {
+                    StatusCode::ACCEPTED => {
+                        info!("Submitted alert {} to PagerDuty", alert.id);
+                        break;
                     }
-
-                    warn!("Retrying...");
-                    sleep(Duration::from_secs(RETRY_TIMEOUT)).await;
+                    StatusCode::BAD_REQUEST => {
+                        error!("BAD REQUEST when submitting alert {}", alert.id);
+                        // Do not retry on this error type.
+                        break;
+                    }
+                    err => error!(
+                        "Failed to send alert to PagerDuty: {:?}, response: {:?}",
+                        err, resp
+                    ),
                 }
+
+                warn!("Retrying...");
+                sleep(Duration::from_secs(RETRY_TIMEOUT)).await;
             }
 
             Ok(())
@@ -103,7 +100,7 @@ pub enum EventAction {
     Resolve,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PayloadSeverity {
     Critical,
@@ -120,38 +117,33 @@ pub struct PagerDutyConfig {
     payload_severity: PayloadSeverity,
 }
 
-fn new_alert_events(
+fn new_alert_event(
     key: String,
     source: String,
     severity: PayloadSeverity,
-    notify: NotifyAlert,
-) -> Vec<AlertEvent> {
-    notify
-        .contexts_owned()
-        .into_iter()
-        .map(|alert| AlertEvent {
-            id: alert.id,
-            routing_key: key.clone(),
-            event_action: EventAction::Trigger,
-            payload: Payload {
-                //summary: alert.to_string(),
-                summary: "TODO".to_string(),
-                source: source.clone(),
-                severity,
-            },
-        })
-        .collect()
+    alert: &AlertDelivery,
+) -> AlertEvent {
+    AlertEvent {
+        id: alert.id,
+        routing_key: key,
+        event_action: EventAction::Trigger,
+        payload: Payload {
+            summary: "TODO".to_string(),
+            source,
+            severity,
+        },
+    }
 }
 
-async fn post_alerts(
+async fn post_alert(
     client: &reqwest::Client,
     api_key: &str,
-    alert: AlertEvent,
+    alert: &AlertEvent,
 ) -> Result<reqwest::Response> {
     client
         .post(SEND_ALERT_ENDPOINT)
         .header(AUTHORIZATION, api_key)
-        .json(&alert)
+        .json(alert)
         .send()
         .await
         .map_err(|err| err.into())
@@ -160,14 +152,11 @@ async fn post_alerts(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::primitives::AlertContext;
-    use actix::SystemRegistry;
     use std::env;
 
     #[ignore]
     #[actix_web::test]
     async fn submit_alert_event() {
-        /*
         // Keep those entries a SECRET!
         let integration_key = env::var("PD_SERVICE_KEY").unwrap();
         let api_key = env::var("PD_API_KEY").unwrap();
@@ -179,19 +168,8 @@ mod tests {
             payload_severity: PayloadSeverity::Warning,
         };
 
-        let client = PagerDutyClient::new(config);
-        SystemRegistry::set(client.start());
+        let _client = PagerDutyClient::new(config);
 
-        let alerts = vec![
-            AlertContext::new_test(0, "First alert"),
-            AlertContext::new_test(0, "Second alert"),
-        ];
-
-        let _ = PagerDutyClient::from_registry()
-            .send(NotifyAlert { alerts })
-            .await
-            .unwrap()
-            .unwrap();
-        */
+        // TODO
     }
 }

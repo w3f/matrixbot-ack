@@ -12,14 +12,15 @@ extern crate actix;
 use actix::clock::sleep;
 use actix::prelude::*;
 use adapter::matrix::{MatrixClient, MatrixConfig};
-use adapter::pagerduty::{PagerDutyClient, PagerDutyConfig};
+use adapter::pagerduty::{PagerDutyClient, PagerDutyConfig, PayloadSeverity};
 use database::{Database, DatabaseConfig};
-use escalation::PermissionType;
-use primitives::{NotifyAlert, Role, User};
+use escalation::{EscalationService, PermissionType};
+use primitives::{AlertDelivery, ChannelId, Role, User};
+use ruma::RoomId;
 use std::collections::{HashMap, HashSet};
+use std::str::FromStr;
 use std::time::Duration;
 use structopt::StructOpt;
-use tracing::Instrument;
 
 mod adapter;
 mod database;
@@ -30,7 +31,7 @@ mod webhook;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;
 
-fn unix_time() -> u64 {
+fn _unix_time() -> u64 {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     let start = SystemTime::now();
@@ -52,7 +53,7 @@ struct Config {
 
 // TODO: Move to primitives.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
-struct UserInfo {
+pub struct UserInfo {
     name: String,
     email: Option<String>,
     matrix: Option<String>,
@@ -77,58 +78,29 @@ struct RoleInfo {
 struct AdapterOptions {
     matrix: Option<AdapterConfig<MatrixConfig, String>>,
     #[serde(alias = "pager_duty")]
-    // TODO
-    pagerduty: Option<AdapterConfig<PagerDutyConfig, ()>>,
+    pagerduty: Option<AdapterConfig<PagerDutyConfig, PagerDutyLevel>>,
 }
 
-impl AdapterOptions {
-    fn into_mappings(self) -> Result<Vec<AdapterMapping>> {
-        let mut mappings = vec![];
-
-        if let Some(matrix) = self.matrix {
-            if matrix.enabled {
-                mappings.push(AdapterMapping::Matrix {
-                    client_config: matrix
-                        .config
-                        .ok_or_else(|| anyhow!("Matrix config not provided"))?,
-                    escalation_config: matrix.escation.unwrap_or_else(EscalationConfig::disabled),
-                });
-            }
-        }
-
-        if let Some(pagerduty) = self.pagerduty {
-            if pagerduty.enabled {
-                mappings.push(AdapterMapping::PagerDuty {
-                    client_config: pagerduty
-                        .config
-                        .ok_or_else(|| anyhow!("PagerDuty config not provided"))?,
-                    escalation_config: pagerduty
-                        .escation
-                        .unwrap_or_else(EscalationConfig::disabled),
-                });
-            }
-        }
-
-        Ok(mappings)
-    }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PagerDutyLevel {
+    integration_key: String,
+    payload_severity: PayloadSeverity,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct AdapterConfig<T, L> {
     enabled: bool,
-    escation: Option<EscalationConfig<L>>,
+    escation: EscalationConfig<L>,
     config: Option<T>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct EscalationConfig<T> {
-    enabled: bool,
-    window: Option<u64>,
-    acks: Option<AckType>,
-    levels: Option<T>,
+    window: u64,
+    acks: AckType,
+    levels: Vec<T>,
 }
 
-// TODO: Rename
 #[derive(Debug, Clone, Serialize, Deserialize)]
 enum AckType {
     Users(Vec<String>),
@@ -137,33 +109,11 @@ enum AckType {
     EscalationLevel,
 }
 
-impl<T> EscalationConfig<T> {
-    fn disabled() -> Self {
-        EscalationConfig {
-            enabled: false,
-            window: None,
-            acks: None,
-            levels: None,
-        }
-    }
-}
-
 #[derive(StructOpt, Debug)]
 #[structopt(name = "matrixbot")]
 struct Cli {
     #[structopt(short, long)]
     config: String,
-}
-
-enum AdapterMapping {
-    Matrix {
-        client_config: MatrixConfig,
-        escalation_config: EscalationConfig<String>,
-    },
-    PagerDuty {
-        client_config: PagerDutyConfig,
-        escalation_config: EscalationConfig<()>,
-    },
 }
 
 pub async fn run() -> Result<()> {
@@ -182,7 +132,6 @@ pub async fn run() -> Result<()> {
     let config: Config = serde_yaml::from_str(&content)?;
 
     info!("Preparing adapter config data");
-    let mappings = config.adapters.into_mappings()?;
 
     info!("Creating role index");
     let role_index = RoleIndex::create_index(config.users, config.roles)?;
@@ -196,9 +145,15 @@ pub async fn run() -> Result<()> {
         info!("Starting clients and background tasks");
     });
 
-    start_clients(db.clone(), mappings, &role_index)
-        .instrument(span)
-        .await?;
+    // Start adapters with their appropriate tasks.
+    let adapters = config.adapters;
+    if let Some(matrix) = adapters.matrix {
+        start_matrix_tasks(matrix, db.clone(), &role_index).await?;
+    }
+
+    if let Some(pagerduty) = adapters.pagerduty {
+        start_pager_duty_tasks(pagerduty, db.clone(), &role_index).await?;
+    }
 
     // Starting webhook.
     info!("Starting API server");
@@ -209,69 +164,102 @@ pub async fn run() -> Result<()> {
     }
 }
 
-async fn start_clients(
+fn start_tasks<T, L>(
     db: Database,
-    adapters: Vec<AdapterMapping>,
+    client: Addr<T>,
+    escalation_config: EscalationConfig<L>,
     role_index: &RoleIndex,
-) -> Result<()> {
-    fn start_tasks<T, L>(
-        db: Database,
-        client: Addr<T>,
-        escalation_config: EscalationConfig<L>,
-        role_index: &RoleIndex,
-    ) -> Result<()>
-    where
-        T: Actor + Handler<NotifyAlert>,
-        <T as Actor>::Context: actix::dev::ToEnvelope<T, NotifyAlert>,
-    {
-        if escalation_config.enabled {
-            let window = Duration::from_secs(
-                escalation_config
-                    .window
-                    .ok_or_else(|| anyhow!("escalation window not defined"))?,
-            );
-            let permissions = role_index.as_permission_type(
-                escalation_config
-                    .acks
-                    .ok_or_else(|| anyhow!("no acknowledgement type set"))?,
-            )?;
+    levels: Vec<ChannelId>,
+) -> Result<()>
+where
+    T: Actor + Handler<AlertDelivery>,
+    <T as Actor>::Context: actix::dev::ToEnvelope<T, AlertDelivery>,
+{
+    let window = Duration::from_secs(escalation_config.window);
+    let permissions = role_index.as_permission_type(escalation_config.acks)?;
 
-            // TODO: This must always be executed.
-            escalation::EscalationService::<T>::new(db, window, client, permissions).start();
-        }
-        user_request::RequestHandler::<T>::new().start();
+    #[rustfmt::skip]
+    let service = escalation::EscalationService::<T>::new(
+        db.clone(),
+        window,
+        client,
+        permissions,
+        levels
+    ).start();
 
-        Ok(())
-    }
-
-    for adapter in adapters {
-        match adapter {
-            AdapterMapping::Matrix {
-                client_config,
-                escalation_config,
-            } => {
-                start_tasks(
-                    db.clone(),
-                    MatrixClient::new(client_config).await?.start(),
-                    escalation_config,
-                    role_index,
-                )?;
-            }
-            AdapterMapping::PagerDuty {
-                client_config,
-                escalation_config,
-            } => {
-                start_tasks(
-                    db.clone(),
-                    PagerDutyClient::new(client_config).start(),
-                    escalation_config,
-                    role_index,
-                )?;
-            }
-        }
-    }
+    #[rustfmt::skip]
+    user_request::RequestHandler::<EscalationService<T>>::new(
+        service,
+        db
+    ).start();
 
     Ok(())
+}
+
+// Convenience function for processing the matrix configuration and starting all
+// necessary tasks.
+async fn start_matrix_tasks(
+    adapter: AdapterConfig<MatrixConfig, String>,
+    db: Database,
+    role_index: &RoleIndex,
+) -> Result<()> {
+    let levels = adapter
+        .escation
+        .levels
+        .iter()
+        .map(|level| {
+            RoomId::from_str(level)
+                .map(ChannelId::Matrix)
+                .map_err(|err| err.into())
+        })
+        .collect::<Result<Vec<ChannelId>>>()?;
+
+    start_tasks(
+        db,
+        MatrixClient::new(
+            adapter
+                .config
+                .ok_or_else(|| anyhow!("no matrix configuration provided"))?,
+        )
+        .await?
+        .start(),
+        adapter.escation,
+        role_index,
+        levels,
+    )
+}
+
+// Convenience function for processing the PagerDuty configuration and starting all
+// necessary tasks.
+async fn start_pager_duty_tasks(
+    adapter: AdapterConfig<PagerDutyConfig, PagerDutyLevel>,
+    db: Database,
+    role_index: &RoleIndex,
+) -> Result<()> {
+    // TODO: Consider struct destructuring to avoid clones.
+
+    let levels = adapter
+        .escation
+        .levels
+        .iter()
+        .map(|level| ChannelId::PagerDuty {
+            integration_key: level.integration_key.clone(),
+            payload_severity: level.payload_severity,
+        })
+        .collect();
+
+    start_tasks(
+        db,
+        PagerDutyClient::new(
+            adapter
+                .config
+                .ok_or_else(|| anyhow!("no PagerDuty configuration provided"))?,
+        )
+        .start(),
+        adapter.escation,
+        role_index,
+        levels,
+    )
 }
 
 struct RoleIndex {

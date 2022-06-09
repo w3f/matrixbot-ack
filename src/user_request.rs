@@ -1,5 +1,4 @@
 use crate::database::Database;
-use crate::escalation::EscalationService;
 use crate::primitives::{Acknowledgement, Command, UserAction, UserConfirmation};
 use crate::Result;
 use actix::prelude::*;
@@ -10,8 +9,11 @@ pub struct RequestHandler<T: Actor> {
 }
 
 impl<T: Actor> RequestHandler<T> {
-    pub fn new() -> Self {
-        unimplemented!()
+    pub fn new(escalation_service: Addr<T>, db: Database) -> Self {
+        RequestHandler {
+            escalation_service,
+            db,
+        }
     }
 }
 
@@ -26,16 +28,14 @@ where
 {
     type Result = ResponseActFuture<Self, Result<UserConfirmation>>;
 
-    fn handle(&mut self, msg: UserAction, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: UserAction, _ctx: &mut Self::Context) -> Self::Result {
         let escalation_service = self.escalation_service.clone();
         let db = self.db.clone();
 
         let f = async move {
             let res = match msg.command {
                 Command::Ack(alert_id) => {
-                    // TODO: Handle unwrap
-                    // TODO: Consider the case of disabled escalation (it will go into the void).
-                    let x = escalation_service
+                    let res = escalation_service
                         .send(Acknowledgement {
                             user: msg.user,
                             channel_id: msg.channel_id,
@@ -43,14 +43,33 @@ where
                         })
                         .await;
 
-                    UserConfirmation::AlertAcknowledged(alert_id)
+                    match res {
+                        Ok(resp) => match resp {
+                            Ok(confirmation) => confirmation,
+                            Err(err) => {
+                                error!(
+                                    "failed to acknowledge alert {}, error: {:?}",
+                                    alert_id, err
+                                );
+                                UserConfirmation::InternalError
+                            }
+                        },
+                        Err(err) => {
+                            error!(
+                                "actor mailbox error when attempting to notify about new alert: {:?}",
+                                err
+                            );
+                            UserConfirmation::InternalError
+                        }
+                    }
                 }
-                Command::Pending => {
-                    // TODO: Handle unwrap.
-                    let pending = db.get_pending(None).await.unwrap();
-
-                    UserConfirmation::PendingAlerts(pending)
-                }
+                Command::Pending => match db.get_pending(None).await {
+                    Ok(pending) => UserConfirmation::PendingAlerts(pending),
+                    Err(err) => {
+                        error!("failed to retrieve pending alerts: {:?}", err);
+                        UserConfirmation::InternalError
+                    }
+                },
                 Command::Help => UserConfirmation::Help,
             };
 
