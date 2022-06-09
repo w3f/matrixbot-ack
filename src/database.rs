@@ -86,6 +86,7 @@ impl Database {
     }
     pub async fn acknowledge_alert(&self, alert_id: &AlertId, acked_by: &User) -> Result<bool> {
         let pending = self.db.collection::<AlertContext>(PENDING);
+        let now = unix_time();
 
         let res = pending
             .update_one(
@@ -95,6 +96,7 @@ impl Database {
                 doc! {
                     "$set": {
                         "acked_by": to_bson(&acked_by)?,
+                        "acked_at_tmsp": to_bson(&now)?,
                     }
                 },
                 None,
@@ -148,8 +150,26 @@ impl Database {
             .collect::<Result<Vec<AlertContext>>>()
             .map(|alerts| PendingAlerts { alerts })
     }
-    pub async fn mark_delivered(&self, _alert: AlertId) -> Result<()> {
-        unimplemented!()
+    // TODO: Check for modified entries?
+    pub async fn mark_delivered(&self, id: AlertId) -> Result<()> {
+        let pending = self.db.collection::<AlertContext>(PENDING);
+        let now = unix_time();
+
+        pending
+            .update_one(
+                doc! {
+                    "id": to_bson(&id)?
+                },
+                doc! {
+                    "$set": {
+                        "last_notified_tmsp": to_bson(&now)?,
+                    }
+                },
+                None,
+            )
+            .await?;
+
+        Ok(())
     }
     // TODO: This should also mark as delivered.
     pub async fn increment_alert_state(&self, _alert: AlertId, _new_idx: usize) -> Result<()> {

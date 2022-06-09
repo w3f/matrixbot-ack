@@ -32,6 +32,7 @@ pub struct AlertContext {
     level_idx: usize,
     last_notified_tmsp: Option<u64>,
     acked_by: Option<User>,
+    acked_at_tmsp: Option<u64>,
 }
 
 impl AlertContext {
@@ -43,6 +44,7 @@ impl AlertContext {
             level_idx: 0,
             last_notified_tmsp: None,
             acked_by: None,
+            acked_at_tmsp: None,
         }
     }
     pub fn into_delivery(self, levels: &[ChannelId]) -> (AlertDelivery, usize) {
