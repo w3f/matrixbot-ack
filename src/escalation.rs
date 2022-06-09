@@ -1,8 +1,7 @@
 use crate::adapter::{MatrixClient, PagerDutyClient};
 use crate::database::Database;
 use crate::primitives::{
-    Acknowledgement, AlertDelivery, ChannelId, NotifyAlert, NotifyNewlyInserted, Role, User,
-    UserConfirmation,
+    Acknowledgement, AlertDelivery, ChannelId, NotifyNewlyInserted, Role, User, UserConfirmation,
 };
 use crate::{AckType, Result, RoleInfo, UserInfo};
 use actix::prelude::*;

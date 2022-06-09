@@ -111,21 +111,6 @@ pub struct PendingAlerts {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
-#[rtype(result = "Result<()>")]
-pub struct NotifyAlert {
-    alerts: Vec<AlertDelivery>,
-}
-
-impl NotifyAlert {
-    pub fn contexts(&self) -> &[AlertDelivery] {
-        self.alerts.as_ref()
-    }
-    pub fn contexts_owned(self) -> Vec<AlertDelivery> {
-        self.alerts
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "Result<UserConfirmation>")]
 pub struct Acknowledgement {
     pub user: User,

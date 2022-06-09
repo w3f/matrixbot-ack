@@ -1,4 +1,4 @@
-use crate::primitives::{AlertContext, AlertId, NotifyAlert, PendingAlerts, UserConfirmation};
+use crate::primitives::{AlertContext, AlertId, PendingAlerts, UserConfirmation};
 use crate::primitives::{NotifyNewlyInserted, User};
 use crate::webhook::InsertAlerts;
 use crate::{unix_time, Result};

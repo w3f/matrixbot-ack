@@ -1,4 +1,4 @@
-use crate::primitives::{AlertDelivery, AlertId, NotifyAlert, NotifyNewlyInserted};
+use crate::primitives::{AlertDelivery, AlertId, NotifyNewlyInserted};
 use crate::Result;
 use actix::prelude::*;
 use actix::SystemService;
@@ -122,6 +122,7 @@ pub struct PagerDutyConfig {
     payload_severity: PayloadSeverity,
 }
 
+/*
 fn new_alert_events(
     key: String,
     source: String,
@@ -144,6 +145,7 @@ fn new_alert_events(
         })
         .collect()
 }
+ */
 
 async fn post_alerts(
     client: &reqwest::Client,

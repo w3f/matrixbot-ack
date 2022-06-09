@@ -1,6 +1,6 @@
 use crate::escalation::EscalationService;
 use crate::primitives::{
-    AlertDelivery, AlertId, ChannelId, Command, NotifyAlert, NotifyNewlyInserted, User, UserAction,
+    AlertDelivery, AlertId, ChannelId, Command, NotifyNewlyInserted, User, UserAction,
 };
 use crate::user_request::RequestHandler;
 use crate::Result;

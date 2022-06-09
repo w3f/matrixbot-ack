@@ -15,7 +15,7 @@ use adapter::matrix::{MatrixClient, MatrixConfig};
 use adapter::pagerduty::{PagerDutyClient, PagerDutyConfig};
 use database::{Database, DatabaseConfig};
 use escalation::PermissionType;
-use primitives::{AlertDelivery, NotifyAlert, Role, User};
+use primitives::{AlertDelivery, Role, User};
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use structopt::StructOpt;
