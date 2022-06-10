@@ -1,4 +1,6 @@
-use crate::primitives::AlertDelivery;
+use crate::escalation::EscalationService;
+use crate::primitives::{AlertDelivery, ChannelId, Command, User, UserAction, UserConfirmation};
+use crate::user_request::RequestHandler;
 use crate::Result;
 use actix::prelude::*;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
@@ -6,15 +8,39 @@ use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 mod escalation;
 mod user_request;
 
+type RequestHandlerAddr = Addr<RequestHandler<EscalationService<MockAdapter>>>;
+
 struct MockAdapter {
     queue: UnboundedSender<AlertDelivery>,
+    request_handler: RequestHandlerAddr,
 }
 
 impl MockAdapter {
-    fn new() -> (Self, UnboundedReceiver<AlertDelivery>) {
-        let (tx, recv) = unbounded_channel();
+    fn new(request_handler: RequestHandlerAddr) -> (Self, UnboundedReceiver<AlertDelivery>) {
+        let (queue, recv) = unbounded_channel();
 
-        (MockAdapter { queue: tx }, recv)
+        (
+            MockAdapter {
+                queue,
+                request_handler,
+            },
+            recv,
+        )
+    }
+    async fn inject_command(
+        &self,
+        user: User,
+        channel_name: String,
+        command: Command,
+    ) -> Result<UserConfirmation> {
+        self.request_handler
+            .send(UserAction {
+                user,
+                channel_id: ChannelId::Mocker(channel_name),
+                command,
+            })
+            .await
+            .unwrap()
     }
 }
 

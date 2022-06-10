@@ -60,12 +60,16 @@ pub struct UserInfo {
     email: Option<String>,
     matrix: Option<String>,
     pagerduty: Option<String>,
+    #[cfg(test)]
+    mocker: Option<String>,
 }
 
 impl UserInfo {
     fn matches(&self, user: &User) -> bool {
         match user {
             User::Matrix(name) => self.matrix.as_ref().map(|s| s == name).unwrap_or(false),
+            #[cfg(test)]
+            User::Mocker(name) => self.mocker.as_ref().map(|s| s == name).unwrap_or(false),
         }
     }
 }

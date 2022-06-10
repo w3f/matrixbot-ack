@@ -138,6 +138,8 @@ pub struct Acknowledgement {
 #[serde(tag = "adapter", content = "user")]
 pub enum User {
     Matrix(String),
+    #[cfg(test)]
+    Mocker(String),
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Role(String);
@@ -166,6 +168,8 @@ pub enum ChannelId {
         integration_key: String,
         payload_severity: PayloadSeverity,
     },
+    #[cfg(test)]
+    Mocker(String),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
