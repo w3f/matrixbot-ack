@@ -1,14 +1,39 @@
+use crate::database::{Database, DatabaseConfig};
 use crate::escalation::EscalationService;
 use crate::primitives::{AlertDelivery, ChannelId, Command, User, UserAction, UserConfirmation};
 use crate::user_request::RequestHandler;
-use crate::Result;
+use crate::{start_tasks, Result};
 use actix::prelude::*;
+use rand::{thread_rng, Rng};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 mod escalation;
 mod user_request;
 
 type RequestHandlerAddr = Addr<RequestHandler<EscalationService<MockAdapter>>>;
+
+/*
+Todo: fix this:
+
+RequestHandler -> EscalationService
+EscalationService -> Adapter
+Adapter -> RequestHandler
+*/
+
+async fn init_mocker() -> Vec<MockAdapter> {
+    // Setup MongoDb database.
+    let random: u32 = thread_rng().gen_range(u32::MIN..u32::MAX);
+    let db = Database::new(DatabaseConfig {
+        uri: "mongodb://localhost:27017/".to_string(),
+        name: format!("registrar_test_{}", random),
+    })
+    .await
+    .unwrap();
+
+    //let x = start_tasks(db, client, escalation_config, role_index, levels)
+
+    unimplemented!()
+}
 
 struct MockAdapter {
     queue: UnboundedSender<AlertDelivery>,

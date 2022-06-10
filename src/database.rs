@@ -14,8 +14,8 @@ const ID_CURSOR: &str = "id_cursor";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseConfig {
-    uri: String,
-    name: String,
+    pub uri: String,
+    pub name: String,
 }
 
 #[derive(Debug, Clone)]

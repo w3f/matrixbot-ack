@@ -3,6 +3,7 @@ use crate::primitives::{Acknowledgement, Command, UserAction, UserConfirmation};
 use crate::Result;
 use actix::prelude::*;
 
+// TODO: This should listen to a broker.
 pub struct RequestHandler<T: Actor> {
     escalation_service: Addr<T>,
     db: Database,

@@ -33,3 +33,8 @@ mongodb = { version = "2.0.0-beta", features = ["bson-u2i"] }
 bson = "2.0.0-beta"
 tokio = "1.14.0"
 reqwest = "0.11.10"
+
+[dev-dependencies]
+rand = "0.8.5"
+# Temporarily required until `actix::test` gets fixed.
+actix-rt = "2.7.0"
