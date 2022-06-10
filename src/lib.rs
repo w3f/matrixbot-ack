@@ -26,6 +26,8 @@ mod adapter;
 mod database;
 mod escalation;
 mod primitives;
+#[cfg(test)]
+mod tests;
 mod user_request;
 mod webhook;
 
