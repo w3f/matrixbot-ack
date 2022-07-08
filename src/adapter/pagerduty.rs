@@ -70,7 +70,7 @@ impl PagerDutyClient {
 
             match resp.status() {
                 StatusCode::ACCEPTED => {
-                    info!("Submitted alert {} to PagerDuty", alert.id);
+                    debug!("Received ACCEPTED from PagerDuty API");
                 }
                 StatusCode::BAD_REQUEST => {
                     return Err(anyhow!("BAD_REQUEST from server"))
