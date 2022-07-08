@@ -60,7 +60,7 @@ impl EscalationService {
                 // Notify adapter
                 for adapter in &self.adaps {
                     match adapter
-                        .notify(UserConfirmation::Escalation {
+                        .notify(Notification::Escalation {
                             id: alert.id,
                             alert: alert.alert.clone(),
                             current_room_idx: alert.level_idx,
@@ -83,6 +83,13 @@ impl EscalationService {
             let adapter = Arc::clone(adapter);
             let db = self.db.clone();
 
+            let others: Vec<Arc<Box<dyn Adapter>>> = self
+                .adaps
+                .iter()
+                .filter(|other| other.name() != adapter.name())
+                .map(|other| Arc::clone(other))
+                .collect();
+
             tokio::spawn(async move {
                 while let Some(action) = adapter.endpoint_request().await {
                     let message = match action.command {
@@ -100,17 +107,24 @@ impl EscalationService {
                         Command::Help => UserConfirmation::Help,
                     };
 
-                    adapter.notify(message).await;
+                    // If an alert was acknowledged, notify the other adapters about it.
+                    match message {
+                        UserConfirmation::AlertAcknowledged(alert_id) => {
+                            for other in &others {
+                                let x = other
+                                    .notify(Notification::Acknowledged {
+                                        id: alert_id,
+                                        acked_by: action.user.clone(),
+                                    })
+                                    .await;
+                            }
+                        }
+                        _ => {}
+                    }
+
+                    adapter.respond(message).await;
                 }
             });
         }
     }
 }
-
-/*
-impl<T> AdapterContext<T>
-where
-    T: 'static + Send + Sync + std::fmt::Debug + Clone,
-{
-}
-*/

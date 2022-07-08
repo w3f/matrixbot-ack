@@ -60,13 +60,10 @@ pub enum Notification {
     Escalation {
         id: AlertId,
         alert: Alert,
-        prev_room_idx: Option<usize>,
         current_room_idx: usize,
     },
     Acknowledged {
         id: AlertId,
-        alert: Alert,
-        current_room_idx: usize,
         acked_by: User,
     },
 }

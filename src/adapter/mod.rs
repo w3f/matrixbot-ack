@@ -8,8 +8,15 @@ pub use matrix::MatrixClient;
 pub use pagerduty::PagerDutyClient;
 use tokio::sync::mpsc::UnboundedReceiver;
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum AdapterName {
+    Matrix,
+}
+
 #[async_trait]
 pub trait Adapter: 'static + Send + Sync {
-    async fn notify(&self, _: UserConfirmation) -> Result<()>;
+    fn name(&self) -> AdapterName;
+    async fn notify(&self, _: Notification) -> Result<()>;
+    async fn respond(&self, _: UserConfirmation) -> Result<()>;
     async fn endpoint_request(&self) -> Option<UserAction>;
 }
