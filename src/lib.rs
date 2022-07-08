@@ -28,7 +28,6 @@ mod escalation;
 mod primitives;
 #[cfg(test)]
 mod tests;
-mod user_request;
 mod webhook;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;

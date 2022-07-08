@@ -1,6 +1,5 @@
 use crate::escalation::EscalationService;
 use crate::primitives::{ChannelId, Command, User, UserAction};
-use crate::user_request::RequestHandler;
 use crate::Result;
 use actix::prelude::*;
 use matrix_sdk::events::room::message::MessageEventContent;
