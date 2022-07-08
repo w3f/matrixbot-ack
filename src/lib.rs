@@ -184,6 +184,7 @@ where
     let window = Duration::from_secs(escalation_config.window);
     let permissions = role_index.as_permission_type(escalation_config.acks)?;
 
+    /*
     #[rustfmt::skip]
     let service = escalation::EscalationService::<T>::new(
         db.clone(),
@@ -198,6 +199,7 @@ where
         service,
         db
     ).start();
+     */
 
     Ok(())
 }

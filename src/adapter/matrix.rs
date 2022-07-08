@@ -13,6 +13,8 @@ use std::convert::TryFrom;
 use std::sync::Arc;
 use url::Url;
 
+use super::Adapter;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MatrixConfig {
     homeserver: String,
@@ -97,6 +99,10 @@ impl Actor for MatrixClient {
     type Context = Context<Self>;
 }
 
+impl Adapter for MatrixClient {
+    type Channel = ();
+}
+
 impl Handler<AlertDelivery> for MatrixClient {
     type Result = ResponseActFuture<Self, Result<()>>;
 
@@ -109,7 +115,6 @@ impl Handler<AlertDelivery> for MatrixClient {
 
 pub struct Listener {
     rooms: Vec<RoomId>,
-    request_handler: Addr<RequestHandler<EscalationService<MatrixClient>>>,
 }
 
 #[async_trait]
@@ -141,7 +146,7 @@ impl EventHandler for Listener {
                         };
 
                         // TODO: Handle
-                        let _x = self.request_handler.send(action).await;
+                        //let _x = self.request_handler.send(action).await;
                     }
                 }
                 Err(_err) => {

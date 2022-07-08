@@ -1,8 +1,8 @@
-use crate::adapter::Adapter;
+use crate::adapter::{Adapter, MatrixClient};
 use crate::database::Database;
 use crate::primitives::{
-    Acknowledgement, AlertDelivery, ChannelId, Escalation, IncrementedPendingAlerts,
-    NotifyNewlyInserted, PendingAlerts, Role, UserConfirmation, AlertContext
+    Acknowledgement, AlertContext, AlertDelivery, ChannelId, Escalation, IncrementedPendingAlerts,
+    NotifyNewlyInserted, PendingAlerts, Role, UserConfirmation,
 };
 use crate::{Result, UserInfo};
 use actix::prelude::*;
@@ -29,11 +29,11 @@ where
         let (escalation, new_level_idx) = alert.into_escalation::<T>(&self.levels);
 
         (
-        escalation,
-        IncrementedPendingAlerts {
-            id: alert_id,
-            new_level_idx
-        }
+            escalation,
+            IncrementedPendingAlerts {
+                id: alert_id,
+                new_level_idx,
+            },
         )
     }
 }
@@ -48,39 +48,32 @@ pub enum PermissionType {
     EscalationLevel(Option<ChannelId>),
 }
 
-pub struct EscalationService<T: Actor> {
+pub struct EscalationService {
     db: Database,
     window: Duration,
-    adapter: Addr<T>,
     is_locked: Arc<RwLock<bool>>,
     permission: Arc<PermissionType>,
-    levels: Arc<Vec<ChannelId>>,
+    matrix_adapter: Arc<AdapterContext<MatrixClient>>,
 }
 
-impl<T: Actor> EscalationService<T> {
+impl EscalationService {
     pub fn new(
         db: Database,
         window: Duration,
-        adapter: Addr<T>,
         permission: PermissionType,
-        levels: Vec<ChannelId>,
+        matrix_adapter: AdapterContext<MatrixClient>,
     ) -> Self {
         EscalationService {
             db,
             window,
-            adapter,
             is_locked: Arc::new(RwLock::new(false)),
             permission: Arc::new(permission),
-            levels: Arc::new(levels),
+            matrix_adapter: Arc::new(matrix_adapter),
         }
     }
 }
 
-impl<T> Actor for EscalationService<T>
-where
-    T: Actor + Handler<AlertDelivery>,
-    <T as Actor>::Context: actix::dev::ToEnvelope<T, AlertDelivery>,
-{
+impl Actor for EscalationService {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
@@ -88,9 +81,7 @@ where
 
         ctx.run_interval(Duration::from_secs(INTERVAL), |actor, _ctx| {
             let db = actor.db.clone();
-            let addr = actor.adapter.clone();
 
-            let levels = Arc::clone(&actor.levels);
             let is_locked = Arc::clone(&actor.is_locked);
             let window = actor.window;
 
@@ -151,16 +142,10 @@ where
     }
 }
 
-impl<T: Actor> Handler<NotifyNewlyInserted> for EscalationService<T>
-where
-    T: Actor + Handler<AlertDelivery>,
-    <T as Actor>::Context: actix::dev::ToEnvelope<T, AlertDelivery>,
-{
+impl Handler<NotifyNewlyInserted> for EscalationService {
     type Result = ResponseActFuture<Self, ()>;
 
     fn handle(&mut self, inserted: NotifyNewlyInserted, _ctx: &mut Self::Context) -> Self::Result {
-        let levels = Arc::clone(&self.levels);
-        let addr = self.adapter.clone();
         let db = self.db.clone();
 
         let f = async move {
@@ -197,11 +182,7 @@ where
     }
 }
 
-impl<T: Actor> Handler<Acknowledgement> for EscalationService<T>
-where
-    T: Actor + Handler<AlertDelivery>,
-    <T as Actor>::Context: actix::dev::ToEnvelope<T, AlertDelivery>,
-{
+impl Handler<Acknowledgement> for EscalationService {
     type Result = ResponseActFuture<Self, Result<UserConfirmation>>;
 
     fn handle(&mut self, ack: Acknowledgement, _ctx: &mut Self::Context) -> Self::Result {
