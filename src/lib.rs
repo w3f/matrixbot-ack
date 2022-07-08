@@ -15,7 +15,7 @@ use adapter::matrix::{MatrixClient, MatrixConfig};
 use adapter::pagerduty::{PagerDutyClient, PagerDutyConfig, PayloadSeverity};
 use database::{Database, DatabaseConfig};
 use escalation::{EscalationService, PermissionType};
-use primitives::{ChannelId, Role, User};
+use primitives::{Role, User};
 use ruma::RoomId;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
@@ -180,12 +180,8 @@ async fn start_matrix_tasks(
         .escation
         .levels
         .iter()
-        .map(|level| {
-            RoomId::from_str(level)
-                .map(ChannelId::Matrix)
-                .map_err(|err| err.into())
-        })
-        .collect::<Result<Vec<ChannelId>>>()?;
+        .map(|level| RoomId::from_str(level).map_err(|err| err.into()))
+        .collect::<Result<Vec<RoomId>>>()?;
 
     /*
     start_tasks(

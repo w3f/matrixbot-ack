@@ -1,7 +1,7 @@
 use crate::adapter::{Adapter, MatrixClient};
 use crate::database::Database;
 use crate::primitives::{
-    Acknowledgement, AlertContext, ChannelId, Command, Escalation, IncrementedPendingAlerts,
+    Acknowledgement, AlertContext, Command, Escalation, IncrementedPendingAlerts,
     NotifyNewlyInserted, PendingAlerts, Role, UserAction, UserConfirmation,
 };
 use crate::{Result, UserInfo};
@@ -112,7 +112,7 @@ where
 
         Ok(())
     }
-    async fn handle_ack(&self, ack: Acknowledgement) -> Result<UserConfirmation> {
+    async fn handle_ack(&self, ack: Acknowledgement<T>) -> Result<UserConfirmation> {
         let res = match &self.permission {
             PermissionType::Users(users) => {
                 if users.iter().any(|info| info.matches(&ack.user)) {

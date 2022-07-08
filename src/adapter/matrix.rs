@@ -1,5 +1,5 @@
 use crate::escalation::EscalationService;
-use crate::primitives::{ChannelId, Command, User, UserAction};
+use crate::primitives::{Command, User, UserAction};
 use crate::Result;
 use actix::prelude::*;
 use matrix_sdk::events::room::message::MessageEventContent;
@@ -130,7 +130,7 @@ impl EventHandler for Listener {
                     if let Some(cmd) = try_cmd {
                         let action = UserAction {
                             user: User::Matrix(event.sender.to_string()),
-                            channel_id: ChannelId::Matrix(room.room_id().clone()),
+                            channel_id: room.room_id().clone(),
                             command: cmd,
                         };
 

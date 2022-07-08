@@ -125,9 +125,9 @@ pub struct IncrementedPendingAlerts {
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "Result<UserConfirmation>")]
-pub struct Acknowledgement {
+pub struct Acknowledgement<T> {
     pub user: User,
-    pub channel_id: ChannelId,
+    pub channel_id: T,
     pub alert_id: AlertId,
 }
 
@@ -156,17 +156,6 @@ pub enum UserConfirmation {
     AlertNotFound,
     Help,
     InternalError,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ChannelId {
-    Matrix(RoomId),
-    PagerDuty {
-        integration_key: String,
-        payload_severity: PayloadSeverity,
-    },
-    #[cfg(test)]
-    Mocker(String),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
