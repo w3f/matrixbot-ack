@@ -6,11 +6,24 @@ use crate::Result;
 use actix::Actor;
 pub use matrix::MatrixClient;
 pub use pagerduty::PagerDutyClient;
+use std::fmt;
 use tokio::sync::mpsc::UnboundedReceiver;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum AdapterName {
     Matrix,
+}
+
+impl fmt::Display for AdapterName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                AdapterName::Matrix => "Matrix",
+            }
+        )
+    }
 }
 
 #[async_trait]

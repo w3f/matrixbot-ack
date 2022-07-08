@@ -1,3 +1,4 @@
+use crate::adapter::AdapterName;
 use crate::primitives::{AlertContext, AlertId, PendingAlerts};
 use crate::primitives::{NotifyNewlyInserted, User};
 use crate::webhook::InsertAlerts;
@@ -109,7 +110,12 @@ impl Database {
             Ok(true)
         }
     }
-    pub async fn get_pending(&self, interval: Option<Duration>) -> Result<PendingAlerts> {
+    // TODO: handle adapter
+    pub async fn get_pending(
+        &self,
+        interval: Option<Duration>,
+        _adapter: Option<AdapterName>,
+    ) -> Result<PendingAlerts> {
         const INSERTED_OFFSET: u64 = 10;
 
         let pending = self.db.collection::<AlertContext>(PENDING);
@@ -151,7 +157,7 @@ impl Database {
             .map(|alerts| PendingAlerts { alerts })
     }
     // TODO: Check for modified entries?
-    pub async fn mark_delivered(&self, id: AlertId) -> Result<()> {
+    pub async fn mark_delivered(&self, id: AlertId, adapter: AdapterName) -> Result<()> {
         let pending = self.db.collection::<AlertContext>(PENDING);
         let now = unix_time();
 

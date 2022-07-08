@@ -31,11 +31,14 @@ impl EscalationService {
         self.run_request_handler();
 
         loop {
-            // TODO: Handle unwrap
-            let pending = self.db.get_pending(Some(self.window)).await.unwrap();
-
-            // TODO: Repeated attempts.
             for adapter in &self.adaps {
+                // TODO: Handle unwrap
+                let pending = self
+                    .db
+                    .get_pending(Some(self.window), Some(adapter.name()))
+                    .await
+                    .unwrap();
+
                 // Notify adapter about escalation
                 for alert in &pending.alerts {
                     match adapter
@@ -46,8 +49,25 @@ impl EscalationService {
                         })
                         .await
                     {
-                        Ok(_) => {}
-                        Err(_) => {}
+                        Ok(_) => {
+                            info!(
+                                "Notified {} adapter about escalation ID {}",
+                                adapter.name(),
+                                alert.id
+                            );
+
+                            // TODO: Handle unwrap
+                            self.db
+                                .mark_delivered(alert.id, adapter.name())
+                                .await
+                                .unwrap();
+                        }
+                        Err(err) => error!(
+                            "failed to notify {} adapter about escalation ID {}: {:?}",
+                            adapter.name(),
+                            alert.id,
+                            err
+                        ),
                     }
                 }
 
@@ -76,7 +96,7 @@ impl EscalationService {
                             // TODO
                             unimplemented!()
                         }
-                        Command::Pending => match db.get_pending(None).await {
+                        Command::Pending => match db.get_pending(None, None).await {
                             Ok(pending) => UserConfirmation::PendingAlerts(pending),
                             Err(err) => {
                                 error!("failed to retrieve pending alerts: {:?}", err);
