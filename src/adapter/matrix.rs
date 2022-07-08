@@ -1,4 +1,4 @@
-use crate::primitives::Command;
+use crate::primitives::{Command, Notification, UserAction, UserConfirmation};
 use crate::Result;
 use matrix_sdk::events::room::message::MessageEventContent;
 use matrix_sdk::events::SyncMessageEvent;
@@ -9,6 +9,8 @@ use ruma::RoomId;
 use std::convert::TryFrom;
 use std::sync::Arc;
 use url::Url;
+
+use super::{Adapter, AdapterName};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MatrixConfig {
@@ -87,6 +89,22 @@ impl MatrixClient {
             _rooms: Arc::new(rooms),
             _client: Arc::new(client),
         })
+    }
+}
+
+#[async_trait]
+impl Adapter for MatrixClient {
+    fn name(&self) -> AdapterName {
+        AdapterName::Matrix
+    }
+    async fn notify(&self, _: Notification) -> Result<()> {
+        unimplemented!()
+    }
+    async fn respond(&self, _: UserConfirmation) -> Result<()> {
+        unimplemented!()
+    }
+    async fn endpoint_request(&self) -> Option<UserAction> {
+        unimplemented!()
     }
 }
 
