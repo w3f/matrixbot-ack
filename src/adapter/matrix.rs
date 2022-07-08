@@ -1,4 +1,4 @@
-use crate::primitives::{Command, Notification, UserAction, UserConfirmation};
+use crate::primitives::{Command, Notification, User, UserAction, UserConfirmation};
 use crate::Result;
 use matrix_sdk::events::room::message::MessageEventContent;
 use matrix_sdk::events::SyncMessageEvent;
@@ -8,6 +8,8 @@ use ruma::events::room::message::MessageType;
 use ruma::RoomId;
 use std::convert::TryFrom;
 use std::sync::Arc;
+use tokio::sync::mpsc::{self, unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::sync::Mutex;
 use url::Url;
 
 use super::{Adapter, AdapterName};
@@ -23,10 +25,11 @@ pub struct MatrixConfig {
     pub rooms: Vec<String>,
 }
 
-#[derive(Clone)]
 pub struct MatrixClient {
-    _rooms: Arc<Vec<RoomId>>,
-    _client: Arc<Client>,
+    rooms: Vec<RoomId>,
+    client: Client,
+    // An "ugly" workaround mutation rules.
+    listener: Arc<Mutex<UnboundedReceiver<UserAction>>>,
 }
 
 impl MatrixClient {
@@ -60,15 +63,13 @@ impl MatrixClient {
             .collect::<Result<Vec<RoomId>>>()?;
 
         // Add event handler
-        /* TODO
-        if handle_user_command {
-            client
-                .set_event_handler(Box::new(Listener {
-                    rooms: rooms.clone(),
-                }))
-                .await;
-        }
-         */
+        let (tx, listener) = unbounded_channel();
+        client
+            .set_event_handler(Box::new(Listener {
+                rooms: rooms.clone(),
+                queue: tx,
+            }))
+            .await;
 
         // Start backend syncing service
         info!("Executing background sync");
@@ -86,8 +87,9 @@ impl MatrixClient {
         });
 
         Ok(MatrixClient {
-            _rooms: Arc::new(rooms),
-            _client: Arc::new(client),
+            rooms,
+            client,
+            listener: Arc::new(Mutex::new(listener)),
         })
     }
 }
@@ -104,12 +106,14 @@ impl Adapter for MatrixClient {
         unimplemented!()
     }
     async fn endpoint_request(&self) -> Option<UserAction> {
-        unimplemented!()
+        let mut l = self.listener.lock().await;
+        l.recv().await
     }
 }
 
 pub struct Listener {
     rooms: Vec<RoomId>,
+    queue: UnboundedSender<UserAction>,
 }
 
 #[async_trait]
@@ -133,17 +137,16 @@ impl EventHandler for Listener {
             // recognized.
             match Command::from_string(msg) {
                 Ok(try_cmd) => {
-                    if let Some(_cmd) = try_cmd {
-                        /*
+                    if let Some(cmd) = try_cmd {
                         let action = UserAction {
                             user: User::Matrix(event.sender.to_string()),
-                            channel_id: room.room_id().clone(),
+                            // TODO:
+                            //channel_id: room.room_id().clone(),
+                            channel_id: 0,
                             command: cmd,
                         };
-                        */
 
-                        // TODO: Handle
-                        //let _x = self.request_handler.send(action).await;
+                        self.queue.send(action).unwrap();
                     }
                 }
                 Err(_err) => {
