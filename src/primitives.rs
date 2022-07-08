@@ -85,8 +85,7 @@ pub struct Labels {
     pub alert_name: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Message)]
-#[rtype(result = "()")]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NotifyNewlyInserted {
     pub alerts: Vec<AlertContext>,
 }
@@ -103,8 +102,7 @@ pub struct IncrementedPendingAlerts {
     pub new_level_idx: usize,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Message)]
-#[rtype(result = "Result<UserConfirmation>")]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Acknowledgement<T> {
     pub user: User,
     pub channel_id: T,
@@ -148,8 +146,7 @@ pub enum UserConfirmation {
     InternalError,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Message)]
-#[rtype(result = "Result<UserConfirmation>")]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UserAction {
     pub user: User,
     pub channel_id: usize,

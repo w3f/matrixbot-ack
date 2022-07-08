@@ -1,6 +1,5 @@
 use crate::primitives::Command;
 use crate::Result;
-use actix::prelude::*;
 use matrix_sdk::events::room::message::MessageEventContent;
 use matrix_sdk::events::SyncMessageEvent;
 use matrix_sdk::room::Room;
@@ -80,7 +79,7 @@ impl MatrixClient {
 
         // Sync in background.
         let t_client = client.clone();
-        actix::spawn(async move {
+        tokio::spawn(async move {
             t_client.clone().sync(settings).await;
         });
 
@@ -89,10 +88,6 @@ impl MatrixClient {
             _client: Arc::new(client),
         })
     }
-}
-
-impl Actor for MatrixClient {
-    type Context = Context<Self>;
 }
 
 pub struct Listener {

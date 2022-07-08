@@ -6,19 +6,15 @@ extern crate anyhow;
 extern crate serde;
 #[macro_use]
 extern crate async_trait;
-#[macro_use]
-extern crate actix;
 
-use actix::clock::sleep;
-use actix::prelude::*;
 use adapter::matrix::MatrixConfig;
 use adapter::pagerduty::{PagerDutyConfig, PayloadSeverity};
 use database::DatabaseConfig;
 
 use primitives::{Role, User};
 
-use std::time::Duration;
 use structopt::StructOpt;
+use tokio::time::{sleep, Duration};
 
 mod adapter;
 mod database;

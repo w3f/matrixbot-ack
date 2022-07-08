@@ -1,6 +1,5 @@
 use crate::primitives::{AlertContext, AlertId, NotifyNewlyInserted};
 use crate::Result;
-use actix::prelude::*;
 use reqwest::header::AUTHORIZATION;
 use reqwest::StatusCode;
 use tokio::time::{sleep, Duration};
@@ -18,60 +17,47 @@ impl PagerDutyClient {
 
         PagerDutyClient { config }
     }
-}
-
-impl Actor for PagerDutyClient {
-    type Context = Context<Self>;
-}
-
-impl Handler<NotifyNewlyInserted> for PagerDutyClient {
-    type Result = ResponseActFuture<Self, ()>;
-
-    fn handle(&mut self, inserted: NotifyNewlyInserted, _ctx: &mut Self::Context) -> Self::Result {
+    async fn handle(&self, inserted: NotifyNewlyInserted) -> Result<()> {
         let config = self.config.clone();
 
-        let f = async move {
-            let client = reqwest::Client::new();
+        let client = reqwest::Client::new();
 
-            // Create an alert type native to the PagerDuty API.
-            for alert in inserted.alerts {
-                let alert = new_alert_event(
-                    "".to_string(),
-                    "".to_string(),
-                    config.payload_severity,
-                    &alert,
-                );
+        // Create an alert type native to the PagerDuty API.
+        for alert in inserted.alerts {
+            let alert = new_alert_event(
+                "".to_string(),
+                "".to_string(),
+                config.payload_severity,
+                &alert,
+            );
 
-                loop {
-                    let resp = post_alert(&client, config.api_key.as_str(), &alert)
-                        .await
-                        .unwrap();
+            loop {
+                let resp = post_alert(&client, config.api_key.as_str(), &alert)
+                    .await
+                    .unwrap();
 
-                    match resp.status() {
-                        StatusCode::ACCEPTED => {
-                            info!("Submitted alert {} to PagerDuty", alert.id);
-                            break;
-                        }
-                        StatusCode::BAD_REQUEST => {
-                            error!("BAD REQUEST when submitting alert {}", alert.id);
-                            // Do not retry on this error type.
-                            break;
-                        }
-                        err => error!(
-                            "Failed to send alert to PagerDuty: {:?}, response: {:?}",
-                            err, resp
-                        ),
+                match resp.status() {
+                    StatusCode::ACCEPTED => {
+                        info!("Submitted alert {} to PagerDuty", alert.id);
+                        break;
                     }
-
-                    warn!("Retrying...");
-                    sleep(Duration::from_secs(RETRY_TIMEOUT)).await;
+                    StatusCode::BAD_REQUEST => {
+                        error!("BAD REQUEST when submitting alert {}", alert.id);
+                        // Do not retry on this error type.
+                        break;
+                    }
+                    err => error!(
+                        "Failed to send alert to PagerDuty: {:?}, response: {:?}",
+                        err, resp
+                    ),
                 }
+
+                warn!("Retrying...");
+                sleep(Duration::from_secs(RETRY_TIMEOUT)).await;
             }
+        }
 
-            ()
-        };
-
-        Box::pin(f.into_actor(self))
+        unimplemented!()
     }
 }
 
