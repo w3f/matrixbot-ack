@@ -48,17 +48,25 @@ impl EscalationService {
         self.adaps.push(Arc::new(Box::new(adapter)));
         self
     }
-    async fn run(mut self) {
+    async fn run(self) {
+        self.run_request_handler();
+
         loop {
             // TODO: Handle unwrap
             let pending = self.db.get_pending(Some(self.window)).await.unwrap();
-            for alert in pending.alerts {
-                // Don't exit on error if an adapter failed, continue with the rest.
-                let dbg_id = alert.id;
 
-                // TODO: Notify
+            // TODO: Repeated attempts.
+            for alert in pending.alerts {
+                // Notify adapter
                 for adapter in &self.adaps {
-                    match adapter.notify().await {
+                    match adapter
+                        .notify(UserConfirmation::Escalation {
+                            id: alert.id,
+                            alert: alert.alert.clone(),
+                            current_room_idx: alert.level_idx,
+                        })
+                        .await
+                    {
                         Ok(_) => {}
                         Err(_) => {}
                     }
@@ -70,14 +78,14 @@ impl EscalationService {
             sleep(Duration::from_secs(INTERVAL)).await;
         }
     }
-    async fn run_request_handler(&self) {
+    fn run_request_handler(&self) {
         for adapter in &self.adaps {
-            let adapter = Arc::clone(&adapter);
-
+            let adapter = Arc::clone(adapter);
             let db = self.db.clone();
+
             tokio::spawn(async move {
                 while let Some(action) = adapter.endpoint_request().await {
-                    let res = match action.command {
+                    let message = match action.command {
                         Command::Ack(alert_id) => {
                             // TODO
                             unimplemented!()
@@ -92,7 +100,7 @@ impl EscalationService {
                         Command::Help => UserConfirmation::Help,
                     };
 
-                    // TODO
+                    adapter.notify(message).await;
                 }
             });
         }
@@ -104,69 +112,5 @@ impl<T> AdapterContext<T>
 where
     T: 'static + Send + Sync + std::fmt::Debug + Clone,
 {
-    async fn handle_ack(&self, ack: Acknowledgement<T>) -> Result<UserConfirmation> {
-        let res = match &self.permission {
-            PermissionType::Users(users) => {
-                if users.iter().any(|info| info.matches(&ack.user)) {
-                    // Acknowledge alert.
-                    if self.db.acknowledge_alert(&ack.alert_id, &ack.user).await? {
-                        UserConfirmation::AlertAcknowledged(ack.alert_id)
-                    } else {
-                        UserConfirmation::AlertNotFound
-                    }
-                } else {
-                    UserConfirmation::NoPermission
-                }
-            }
-            PermissionType::MinRole { min, roles } => {
-                let min_idx = roles.iter().position(|(role, _)| role == min).unwrap();
-
-                if roles
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, (_, users))| users.iter().any(|info| info.matches(&ack.user)))
-                    .any(|(idx, _)| idx >= min_idx)
-                {
-                    // Acknowledge alert.
-                    if self.db.acknowledge_alert(&ack.alert_id, &ack.user).await? {
-                        UserConfirmation::AlertAcknowledged(ack.alert_id)
-                    } else {
-                        UserConfirmation::AlertNotFound
-                    }
-                } else {
-                    UserConfirmation::NoPermission
-                }
-            }
-            PermissionType::Roles(roles) => {
-                if roles
-                    .iter()
-                    .any(|(_, users)| users.iter().any(|info| info.matches(&ack.user)))
-                {
-                    // Acknowledge alert.
-                    if self.db.acknowledge_alert(&ack.alert_id, &ack.user).await? {
-                        UserConfirmation::AlertAcknowledged(ack.alert_id)
-                    } else {
-                        UserConfirmation::AlertNotFound
-                    }
-                } else {
-                    UserConfirmation::NoPermission
-                }
-            }
-            PermissionType::EscalationLevel => {
-                unimplemented!()
-                /*
-                if false {
-                    // Acknowledge alert.
-                    db.acknowledge_alert(&ack.alert_id, &ack.user).await?;
-                    UserConfirmation::AlertAcknowledged(ack.alert_id)
-                } else {
-                    UserConfirmation::AlertOutOfScope
-                }
-                    */
-            }
-        };
-
-        Ok(res)
-    }
 }
 */

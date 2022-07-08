@@ -28,12 +28,12 @@ impl std::fmt::Display for AlertId {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AlertContext {
     pub id: AlertId,
-    alert: Alert,
-    inserted_tmsp: u64,
-    level_idx: usize,
-    last_notified_tmsp: Option<u64>,
-    acked_by: Option<User>,
-    acked_at_tmsp: Option<u64>,
+    pub alert: Alert,
+    pub inserted_tmsp: u64,
+    pub level_idx: usize,
+    pub last_notified_tmsp: Option<u64>,
+    pub acked_by: Option<User>,
+    pub acked_at_tmsp: Option<u64>,
 }
 
 impl AlertContext {
@@ -134,6 +134,16 @@ impl Display for Role {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum UserConfirmation {
+    Alert {
+        id: AlertId,
+        alert: Alert,
+        current_room_idx: usize,
+    },
+    Escalation {
+        id: AlertId,
+        alert: Alert,
+        current_room_idx: usize,
+    },
     PendingAlerts(PendingAlerts),
     NoPermission,
     _AlertOutOfScope,
