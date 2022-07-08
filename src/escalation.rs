@@ -54,16 +54,28 @@ impl EscalationService {
     async fn local(&self) -> Result<()> {
         let pending = self.db.get_pending(Some(self.window)).await?;
         for alert in pending.alerts {
-            //let escalation = alert.into_escalation();
-            //self.adapter_matrix.send(escalation)?;
-            // TODO: Update database.
+            match self.adapter_matrix.notify_escalation(alert).await {
+                Ok(_) => {}
+                Err(_) => {}
+            }
         }
 
         Ok(())
     }
 }
 
-impl<T> AdapterContext<T> {
+impl<T> AdapterContext<T>
+where
+    T: 'static + Send + Sync + std::fmt::Debug + Clone,
+{
+    async fn notify_escalation(&self, alert: AlertContext) -> Result<()> {
+        let (escalation, _new_level_idx) = alert.into_escalation(&self.levels);
+        self.adapter.send(escalation).await?;
+
+        // TODO: Update database with new idx
+
+        Ok(())
+    }
     async fn handle_ack(&self, db: &Database, ack: Acknowledgement) -> Result<UserConfirmation> {
         let res = match &self.per_type {
             PermissionType::Users(users) => {
