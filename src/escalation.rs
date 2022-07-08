@@ -19,14 +19,14 @@ const INTERVAL: u64 = 10;
 pub struct EscalationService {
     db: Database,
     window: Duration,
-    permission: Arc<PermissionType>,
     adapter_matrix: AdapterContext<RoomId>,
 }
 
 struct AdapterContext<T> {
+    db: Database,
     adapter: Sender<Escalation<T>>,
     levels: Vec<T>,
-    per_type: PermissionType,
+    permission: PermissionType,
     req_hander: Option<Receiver<UserAction<T>>>,
 }
 
@@ -43,13 +43,8 @@ pub enum PermissionType {
 
 impl EscalationService {
     async fn run(mut self) {
-        // Start Matrix request handler
-        let mut rh = std::mem::take(&mut self.adapter_matrix.req_hander);
-        let db = self.db.clone();
-        tokio::spawn(async move {
-            let rh = rh.as_mut().unwrap();
-            Self::run_request_handler(db, rh).await;
-        });
+        // Start request handlers
+        self.adapter_matrix.run_request_handler().await;
 
         loop {
             match self.local().await {
@@ -63,31 +58,16 @@ impl EscalationService {
     async fn local(&self) -> Result<()> {
         let pending = self.db.get_pending(Some(self.window)).await?;
         for alert in pending.alerts {
+            // Don't exit on error if an adapter failed, continue with the rest.
             match self.adapter_matrix.notify_escalation(alert).await {
                 Ok(_) => {}
                 Err(_) => {}
             }
+
+            // TODO: Update database with new idx
         }
 
         Ok(())
-    }
-    async fn run_request_handler<T>(db: Database, req_handler: &mut Receiver<UserAction<T>>) {
-        while let Some(action) = req_handler.recv().await {
-            let res = match action.command {
-                Command::Ack(alert_id) => {
-                    // TODO
-                    unimplemented!()
-                }
-                Command::Pending => match db.get_pending(None).await {
-                    Ok(pending) => UserConfirmation::PendingAlerts(pending),
-                    Err(err) => {
-                        error!("failed to retrieve pending alerts: {:?}", err);
-                        UserConfirmation::InternalError
-                    }
-                },
-                Command::Help => UserConfirmation::Help,
-            };
-        }
     }
 }
 
@@ -95,20 +75,44 @@ impl<T> AdapterContext<T>
 where
     T: 'static + Send + Sync + std::fmt::Debug + Clone,
 {
+    async fn run_request_handler(&mut self) {
+        let db = self.db.clone();
+
+        let mut req_handler = std::mem::take(&mut self.req_hander).unwrap();
+
+        tokio::spawn(async move {
+            while let Some(action) = req_handler.recv().await {
+                let res = match action.command {
+                    Command::Ack(alert_id) => {
+                        // TODO
+                        unimplemented!()
+                    }
+                    Command::Pending => match db.get_pending(None).await {
+                        Ok(pending) => UserConfirmation::PendingAlerts(pending),
+                        Err(err) => {
+                            error!("failed to retrieve pending alerts: {:?}", err);
+                            UserConfirmation::InternalError
+                        }
+                    },
+                    Command::Help => UserConfirmation::Help,
+                };
+
+                // TODO
+            }
+        });
+    }
     async fn notify_escalation(&self, alert: AlertContext) -> Result<()> {
         let (escalation, _new_level_idx) = alert.into_escalation(&self.levels);
         self.adapter.send(escalation).await?;
 
-        // TODO: Update database with new idx
-
         Ok(())
     }
-    async fn handle_ack(&self, db: &Database, ack: Acknowledgement) -> Result<UserConfirmation> {
-        let res = match &self.per_type {
+    async fn handle_ack(&self, ack: Acknowledgement) -> Result<UserConfirmation> {
+        let res = match &self.permission {
             PermissionType::Users(users) => {
                 if users.iter().any(|info| info.matches(&ack.user)) {
                     // Acknowledge alert.
-                    if db.acknowledge_alert(&ack.alert_id, &ack.user).await? {
+                    if self.db.acknowledge_alert(&ack.alert_id, &ack.user).await? {
                         UserConfirmation::AlertAcknowledged(ack.alert_id)
                     } else {
                         UserConfirmation::AlertNotFound
@@ -127,7 +131,7 @@ where
                     .any(|(idx, _)| idx >= min_idx)
                 {
                     // Acknowledge alert.
-                    if db.acknowledge_alert(&ack.alert_id, &ack.user).await? {
+                    if self.db.acknowledge_alert(&ack.alert_id, &ack.user).await? {
                         UserConfirmation::AlertAcknowledged(ack.alert_id)
                     } else {
                         UserConfirmation::AlertNotFound
@@ -142,7 +146,7 @@ where
                     .any(|(_, users)| users.iter().any(|info| info.matches(&ack.user)))
                 {
                     // Acknowledge alert.
-                    if db.acknowledge_alert(&ack.alert_id, &ack.user).await? {
+                    if self.db.acknowledge_alert(&ack.alert_id, &ack.user).await? {
                         UserConfirmation::AlertAcknowledged(ack.alert_id)
                     } else {
                         UserConfirmation::AlertNotFound
