@@ -22,27 +22,6 @@ pub struct EscalationService {
     adaps: Vec<Arc<Box<dyn Adapter>>>,
 }
 
-struct AdapterContext<T: Adapter> {
-    db: Database,
-    adapter: UnboundedSender<Notification>,
-    levels: Vec<T>,
-    permission: PermissionType,
-    // This turns into `None` after `run_request_handler` is therefore
-    // not reused anymore.
-    req_hander: Option<UnboundedReceiver<UserAction>>,
-}
-
-pub enum PermissionType {
-    Users(HashSet<UserInfo>),
-    MinRole {
-        min: Role,
-        roles: Vec<(Role, Vec<UserInfo>)>,
-    },
-    Roles(Vec<(Role, Vec<UserInfo>)>),
-    // TODO: Rename
-    EscalationLevel,
-}
-
 impl EscalationService {
     async fn register_adapter<T: Adapter>(mut self, adapter: T) -> Self {
         self.adaps.push(Arc::new(Box::new(adapter)));
@@ -56,9 +35,9 @@ impl EscalationService {
             let pending = self.db.get_pending(Some(self.window)).await.unwrap();
 
             // TODO: Repeated attempts.
-            for alert in pending.alerts {
-                // Notify adapter
-                for adapter in &self.adaps {
+            for adapter in &self.adaps {
+                // Notify adapter about escalation
+                for alert in &pending.alerts {
                     match adapter
                         .notify(Notification::Escalation {
                             id: alert.id,
@@ -111,6 +90,7 @@ impl EscalationService {
                     match message {
                         UserConfirmation::AlertAcknowledged(alert_id) => {
                             for other in &others {
+                                // TODO: Check response
                                 let x = other
                                     .notify(Notification::Acknowledged {
                                         id: alert_id,
