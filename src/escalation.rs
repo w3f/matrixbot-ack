@@ -1,18 +1,8 @@
-use crate::adapter::{Adapter, MatrixClient};
+use crate::adapter::Adapter;
 use crate::database::Database;
-use crate::primitives::{
-    Acknowledgement, AlertContext, Command, IncrementedPendingAlerts, Notification,
-    NotifyNewlyInserted, PendingAlerts, Role, UserAction, UserConfirmation,
-};
-use crate::{Result, UserInfo};
-use actix::prelude::*;
-use actix_broker::{BrokerIssue, BrokerSubscribe};
-use ruma::RoomId;
-use std::collections::HashSet;
-use std::sync::Arc;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
-use tokio::sync::RwLock;
+use crate::primitives::{Command, Notification, UserConfirmation};
 use tokio::time::{sleep, Duration};
+use std::sync::Arc;
 
 const INTERVAL: u64 = 10;
 

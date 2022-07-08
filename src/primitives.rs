@@ -1,7 +1,5 @@
-use crate::adapter::pagerduty::PayloadSeverity;
-use crate::adapter::Adapter;
 use crate::{unix_time, Result};
-use ruma::RoomId;
+
 use std::fmt::Display;
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]

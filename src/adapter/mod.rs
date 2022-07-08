@@ -3,11 +3,10 @@ pub mod pagerduty;
 
 use crate::primitives::{Notification, UserAction, UserConfirmation};
 use crate::Result;
-use actix::Actor;
+
 pub use matrix::MatrixClient;
 pub use pagerduty::PagerDutyClient;
 use std::fmt;
-use tokio::sync::mpsc::UnboundedReceiver;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum AdapterName {

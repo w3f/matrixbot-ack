@@ -157,7 +157,7 @@ impl Database {
             .map(|alerts| PendingAlerts { alerts })
     }
     // TODO: Check for modified entries?
-    pub async fn mark_delivered(&self, id: AlertId, adapter: AdapterName) -> Result<()> {
+    pub async fn mark_delivered(&self, id: AlertId, _adapter: AdapterName) -> Result<()> {
         let pending = self.db.collection::<AlertContext>(PENDING);
         let now = unix_time();
 

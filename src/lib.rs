@@ -11,14 +11,12 @@ extern crate actix;
 
 use actix::clock::sleep;
 use actix::prelude::*;
-use adapter::matrix::{MatrixClient, MatrixConfig};
-use adapter::pagerduty::{PagerDutyClient, PagerDutyConfig, PayloadSeverity};
-use database::{Database, DatabaseConfig};
-use escalation::EscalationService;
+use adapter::matrix::MatrixConfig;
+use adapter::pagerduty::{PagerDutyConfig, PayloadSeverity};
+use database::DatabaseConfig;
+
 use primitives::{Role, User};
-use ruma::RoomId;
-use std::collections::{HashMap, HashSet};
-use std::str::FromStr;
+
 use std::time::Duration;
 use structopt::StructOpt;
 
@@ -149,11 +147,11 @@ pub async fn run() -> Result<()> {
 
     // Start adapters with their appropriate tasks.
     let adapters = config.adapters;
-    if let Some(matrix) = adapters.matrix {
+    if let Some(_matrix) = adapters.matrix {
         //start_matrix_tasks(matrix, db.clone(), &role_index).await?;
     }
 
-    if let Some(pagerduty) = adapters.pagerduty {
+    if let Some(_pagerduty) = adapters.pagerduty {
         //start_pager_duty_tasks(pagerduty, db.clone(), &role_index).await?;
     }
 

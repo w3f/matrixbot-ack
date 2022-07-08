@@ -1,5 +1,4 @@
-use crate::escalation::EscalationService;
-use crate::primitives::{Command, User, UserAction};
+use crate::primitives::Command;
 use crate::Result;
 use actix::prelude::*;
 use matrix_sdk::events::room::message::MessageEventContent;
@@ -11,8 +10,6 @@ use ruma::RoomId;
 use std::convert::TryFrom;
 use std::sync::Arc;
 use url::Url;
-
-use super::Adapter;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MatrixConfig {
@@ -123,7 +120,7 @@ impl EventHandler for Listener {
             // recognized.
             match Command::from_string(msg) {
                 Ok(try_cmd) => {
-                    if let Some(cmd) = try_cmd {
+                    if let Some(_cmd) = try_cmd {
                         /*
                         let action = UserAction {
                             user: User::Matrix(event.sender.to_string()),
