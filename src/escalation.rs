@@ -20,6 +20,24 @@ pub struct EscalationService {
     db: Database,
     window: Duration,
     permission: Arc<PermissionType>,
+    adapter_matrix: AdapterContext<RoomId>,
+}
+
+struct AdapterContext<T> {
+    adapter: Sender<Escalation<T>>,
+    levels: Vec<T>,
+    per_type: PermissionType,
+}
+
+pub enum PermissionType {
+    Users(HashSet<UserInfo>),
+    MinRole {
+        min: Role,
+        roles: Vec<(Role, Vec<UserInfo>)>,
+    },
+    Roles(Vec<(Role, Vec<UserInfo>)>),
+    // TODO: Rename
+    EscalationLevel,
 }
 
 impl EscalationService {
@@ -45,31 +63,13 @@ impl EscalationService {
     }
 }
 
-pub struct PermissionHandler<T> {
-    adapter_matrix: Sender<Escalation<RoomId>>,
-    levels: Vec<T>,
-    per_type: PermissionType,
-    db: Database,
-}
-
-pub enum PermissionType {
-    Users(HashSet<UserInfo>),
-    MinRole {
-        min: Role,
-        roles: Vec<(Role, Vec<UserInfo>)>,
-    },
-    Roles(Vec<(Role, Vec<UserInfo>)>),
-    // TODO: Rename
-    EscalationLevel,
-}
-
-impl<T> PermissionHandler<T> {
-    async fn handle_ack(&self, ack: Acknowledgement) -> Result<UserConfirmation> {
+impl<T> AdapterContext<T> {
+    async fn handle_ack(&self, db: &Database, ack: Acknowledgement) -> Result<UserConfirmation> {
         let res = match &self.per_type {
             PermissionType::Users(users) => {
                 if users.iter().any(|info| info.matches(&ack.user)) {
                     // Acknowledge alert.
-                    if self.db.acknowledge_alert(&ack.alert_id, &ack.user).await? {
+                    if db.acknowledge_alert(&ack.alert_id, &ack.user).await? {
                         UserConfirmation::AlertAcknowledged(ack.alert_id)
                     } else {
                         UserConfirmation::AlertNotFound
@@ -88,7 +88,7 @@ impl<T> PermissionHandler<T> {
                     .any(|(idx, _)| idx >= min_idx)
                 {
                     // Acknowledge alert.
-                    if self.db.acknowledge_alert(&ack.alert_id, &ack.user).await? {
+                    if db.acknowledge_alert(&ack.alert_id, &ack.user).await? {
                         UserConfirmation::AlertAcknowledged(ack.alert_id)
                     } else {
                         UserConfirmation::AlertNotFound
@@ -103,7 +103,7 @@ impl<T> PermissionHandler<T> {
                     .any(|(_, users)| users.iter().any(|info| info.matches(&ack.user)))
                 {
                     // Acknowledge alert.
-                    if self.db.acknowledge_alert(&ack.alert_id, &ack.user).await? {
+                    if db.acknowledge_alert(&ack.alert_id, &ack.user).await? {
                         UserConfirmation::AlertAcknowledged(ack.alert_id)
                     } else {
                         UserConfirmation::AlertNotFound
