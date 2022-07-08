@@ -124,11 +124,13 @@ impl EventHandler for Listener {
             match Command::from_string(msg) {
                 Ok(try_cmd) => {
                     if let Some(cmd) = try_cmd {
+                        /*
                         let action = UserAction {
                             user: User::Matrix(event.sender.to_string()),
                             channel_id: room.room_id().clone(),
                             command: cmd,
                         };
+                        */
 
                         // TODO: Handle
                         //let _x = self.request_handler.send(action).await;

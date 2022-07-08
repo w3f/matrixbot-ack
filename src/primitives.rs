@@ -48,60 +48,25 @@ impl AlertContext {
             acked_at_tmsp: None,
         }
     }
-    pub fn into_acknowleged<T: Clone>(self, acked_by: User, levels: &[T]) -> Notification<T> {
-        Notification::Acknowledged {
-            id: self.id,
-            alert: self.alert,
-            current_room_idx: levels.get(self.level_idx).unwrap().clone(),
-            acked_by,
-        }
-    }
-    pub fn into_escalation<T: Clone>(self, levels: &[T]) -> (Notification<T>, usize) {
-        // FYI: `levels` is never empty, this is checked on application startup.
-        // Therefore unwrapping is fine.
-        let mut prev = None;
-        let current;
-        let mut new_idx = self.level_idx;
-
-        if self.level_idx < levels.len() {
-            prev = Some(levels.get(self.level_idx).unwrap().clone());
-            current = levels.get(self.level_idx + 1).unwrap().clone();
-            new_idx += 1;
-        }
-        // Only happens when equal...
-        else {
-            current = levels.last().unwrap().clone();
-        }
-
-        (
-            Notification::Escalation {
-                id: self.id,
-                alert: self.alert,
-                prev_room_idx: prev,
-                current_room_idx: current,
-            },
-            new_idx,
-        )
-    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Notification<T> {
+pub enum Notification {
     Alert {
         id: AlertId,
         alert: Alert,
-        current_room_idx: T,
+        current_room_idx: usize,
     },
     Escalation {
         id: AlertId,
         alert: Alert,
-        prev_room_idx: Option<T>,
-        current_room_idx: T,
+        prev_room_idx: Option<usize>,
+        current_room_idx: usize,
     },
     Acknowledged {
         id: AlertId,
         alert: Alert,
-        current_room_idx: T,
+        current_room_idx: usize,
         acked_by: User,
     },
 }
@@ -180,9 +145,9 @@ pub enum UserConfirmation {
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "Result<UserConfirmation>")]
-pub struct UserAction<T> {
+pub struct UserAction {
     pub user: User,
-    pub channel_id: T,
+    pub channel_id: usize,
     pub command: Command,
 }
 

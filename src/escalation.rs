@@ -19,17 +19,17 @@ const INTERVAL: u64 = 10;
 pub struct EscalationService {
     db: Database,
     window: Duration,
-    adapter_matrix: AdapterContext<RoomId>,
+    adaps: Vec<Arc<Box<dyn Adapter>>>,
 }
 
-struct AdapterContext<T> {
+struct AdapterContext<T: Adapter> {
     db: Database,
-    adapter: UnboundedSender<Notification<T>>,
+    adapter: UnboundedSender<Notification>,
     levels: Vec<T>,
     permission: PermissionType,
     // This turns into `None` after `run_request_handler` is therefore
     // not reused anymore.
-    req_hander: Option<UnboundedReceiver<UserAction<T>>>,
+    req_hander: Option<UnboundedReceiver<UserAction>>,
 }
 
 pub enum PermissionType {
@@ -44,81 +44,66 @@ pub enum PermissionType {
 }
 
 impl EscalationService {
+    async fn register_adapter<T: Adapter>(mut self, adapter: T) -> Self {
+        self.adaps.push(Arc::new(Box::new(adapter)));
+        self
+    }
     async fn run(mut self) {
-        let (tx, queue) = unbounded_channel();
-
-        // Start request handlers
-        self.adapter_matrix.run_request_handler(tx).await;
-
         loop {
-            if let Err(err) = self.local_escalations().await {
-                error!("escalation even loop: {:?}", err);
+            // TODO: Handle unwrap
+            let pending = self.db.get_pending(Some(self.window)).await.unwrap();
+            for alert in pending.alerts {
+                // Don't exit on error if an adapter failed, continue with the rest.
+                let dbg_id = alert.id;
+
+                // TODO: Notify
+                for adapter in &self.adaps {
+                    match adapter.notify().await {
+                        Ok(_) => {}
+                        Err(_) => {}
+                    }
+                }
+
+                // TODO: Update database with new idx, track which adapters failed
             }
 
             sleep(Duration::from_secs(INTERVAL)).await;
         }
     }
-    async fn local_escalations(&self) -> Result<()> {
-        let pending = self.db.get_pending(Some(self.window)).await?;
-        for alert in pending.alerts {
-            // Don't exit on error if an adapter failed, continue with the rest.
-            let dbg_id = alert.id;
+    async fn run_request_handler(&self) {
+        for adapter in &self.adaps {
+            let adapter = Arc::clone(&adapter);
 
-            match self.adapter_matrix.notify_escalation(alert).await {
-                Ok(_) => {
-                    info!("notified matrix adapter about alert: {:?}", dbg_id);
-                }
-                Err(err) => {
-                    error!("failed to notify matrix adapter: {:?}", err);
-                }
-            }
+            let db = self.db.clone();
+            tokio::spawn(async move {
+                while let Some(action) = adapter.endpoint_request().await {
+                    let res = match action.command {
+                        Command::Ack(alert_id) => {
+                            // TODO
+                            unimplemented!()
+                        }
+                        Command::Pending => match db.get_pending(None).await {
+                            Ok(pending) => UserConfirmation::PendingAlerts(pending),
+                            Err(err) => {
+                                error!("failed to retrieve pending alerts: {:?}", err);
+                                UserConfirmation::InternalError
+                            }
+                        },
+                        Command::Help => UserConfirmation::Help,
+                    };
 
-            // TODO: Update database with new idx, track which adapters failed
+                    // TODO
+                }
+            });
         }
-
-        Ok(())
-    }
-    async fn local_event_notifier(&self) -> Result<()> {
-        unimplemented!()
     }
 }
 
+/*
 impl<T> AdapterContext<T>
 where
     T: 'static + Send + Sync + std::fmt::Debug + Clone,
 {
-    async fn run_request_handler(&mut self, to_queue: UnboundedSender<UserConfirmation>) {
-        let db = self.db.clone();
-
-        let mut req_handler = std::mem::take(&mut self.req_hander).unwrap();
-
-        tokio::spawn(async move {
-            while let Some(action) = req_handler.recv().await {
-                let res = match action.command {
-                    Command::Ack(alert_id) => {
-                        // TODO
-                        unimplemented!()
-                    }
-                    Command::Pending => match db.get_pending(None).await {
-                        Ok(pending) => UserConfirmation::PendingAlerts(pending),
-                        Err(err) => {
-                            error!("failed to retrieve pending alerts: {:?}", err);
-                            UserConfirmation::InternalError
-                        }
-                    },
-                    Command::Help => UserConfirmation::Help,
-                };
-
-                // TODO
-            }
-        });
-    }
-    async fn notify_escalation(&self, alert: AlertContext) -> Result<()> {
-        let (escalation, _new_level_idx) = alert.into_escalation(&self.levels);
-        self.adapter.send(escalation)?;
-
-        Ok(())
-    }
     async fn handle_ack(&self, ack: Acknowledgement<T>) -> Result<UserConfirmation> {
         let res = match &self.permission {
             PermissionType::Users(users) => {
@@ -184,3 +169,4 @@ where
         Ok(res)
     }
 }
+*/
