@@ -131,6 +131,12 @@ pub enum UserConfirmation {
     InternalError,
 }
 
+impl std::fmt::Display for UserConfirmation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        unimplemented!()
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UserAction {
     pub user: User,

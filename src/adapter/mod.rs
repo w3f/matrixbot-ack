@@ -34,11 +34,15 @@ pub trait Adapter: 'static + Send + Sync {
 }
 
 // TODO: Note about empty levels and unwraps.
+#[derive(Debug, Clone)]
 struct LevelManager<T> {
     levels: Vec<T>,
 }
 
 impl<T: Eq + PartialEq> LevelManager<T> {
+    fn from(levels: Vec<T>) -> LevelManager<T> {
+        LevelManager { levels }
+    }
     fn contains(&self, level: &T) -> bool {
         self.levels.contains(level)
     }
@@ -49,11 +53,11 @@ impl<T: Eq + PartialEq> LevelManager<T> {
     fn level_with_prev(&self, level: usize) -> (Option<&T>, &T) {
         if self.levels.len() < level {
             (None, self.levels.last().unwrap())
-        } else if level == 0{
+        } else if level == 0 {
             (None, self.levels.first().unwrap())
         } else {
             (
-                Some(self.levels.get(level-1).unwrap()),
+                Some(self.levels.get(level - 1).unwrap()),
                 self.levels.get(level).unwrap(),
             )
         }

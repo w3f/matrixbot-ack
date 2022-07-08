@@ -1,7 +1,7 @@
 use crate::primitives::{Command, Notification, User, UserAction, UserConfirmation};
 use crate::Result;
 use matrix_sdk::events::room::message::MessageEventContent;
-use matrix_sdk::events::SyncMessageEvent;
+use matrix_sdk::events::{AnyMessageEventContent, SyncMessageEvent};
 use matrix_sdk::room::Room;
 use matrix_sdk::{Client, ClientConfig, EventHandler, SyncSettings};
 use ruma::events::room::message::MessageType;
@@ -12,7 +12,7 @@ use tokio::sync::mpsc::{self, unbounded_channel, UnboundedReceiver, UnboundedSen
 use tokio::sync::Mutex;
 use url::Url;
 
-use super::{Adapter, AdapterName};
+use super::{Adapter, AdapterName, LevelManager};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MatrixConfig {
@@ -26,7 +26,7 @@ pub struct MatrixConfig {
 }
 
 pub struct MatrixClient {
-    rooms: Vec<RoomId>,
+    rooms: LevelManager<RoomId>,
     client: Client,
     // An "ugly" workaround mutation rules.
     listener: Arc<Mutex<UnboundedReceiver<UserAction>>>,
@@ -61,6 +61,8 @@ impl MatrixClient {
             .into_iter()
             .map(|room| RoomId::try_from(room).map_err(|err| err.into()))
             .collect::<Result<Vec<RoomId>>>()?;
+
+        let rooms = LevelManager::from(rooms);
 
         // Add event handler
         let (tx, listener) = unbounded_channel();
@@ -102,8 +104,17 @@ impl Adapter for MatrixClient {
     async fn notify(&self, _: Notification) -> Result<()> {
         unimplemented!()
     }
-    async fn respond(&self, _: UserConfirmation, level_idx: usize) -> Result<()> {
-        unimplemented!()
+    async fn respond(&self, resp: UserConfirmation, level_idx: usize) -> Result<()> {
+        // TODO: note about unwrap
+        let room_id = self.rooms.single_level(level_idx).unwrap();
+        let room = self.client.get_joined_room(room_id).unwrap();
+
+        let content = AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(resp.to_string()));
+
+        room.send(content, None)
+            .await
+            .map(|_| ())
+            .map_err(|err| err.into())
     }
     async fn endpoint_request(&self) -> Option<UserAction> {
         let mut l = self.listener.lock().await;
@@ -112,7 +123,7 @@ impl Adapter for MatrixClient {
 }
 
 pub struct Listener {
-    rooms: Vec<RoomId>,
+    rooms: LevelManager<RoomId>,
     queue: UnboundedSender<UserAction>,
 }
 
