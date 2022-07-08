@@ -27,7 +27,7 @@ struct AdapterContext<T> {
     adapter: Sender<Escalation<T>>,
     levels: Vec<T>,
     per_type: PermissionType,
-    req_hander: Receiver<UserAction>,
+    req_hander: Option<Receiver<UserAction<T>>>,
 }
 
 pub enum PermissionType {
@@ -42,7 +42,15 @@ pub enum PermissionType {
 }
 
 impl EscalationService {
-    async fn run(self) {
+    async fn run(mut self) {
+        // Start Matrix request handler
+        let mut rh = std::mem::take(&mut self.adapter_matrix.req_hander);
+        let db = self.db.clone();
+        tokio::spawn(async move {
+            let rh = rh.as_mut().unwrap();
+            Self::run_request_handler(db, rh).await;
+        });
+
         loop {
             match self.local().await {
                 Ok(_) => {}
@@ -63,14 +71,14 @@ impl EscalationService {
 
         Ok(())
     }
-    async fn run_request_handler(&self, queue: &mut Receiver<UserAction>) {
-        while let Some(action) = queue.recv().await {
+    async fn run_request_handler<T>(db: Database, req_handler: &mut Receiver<UserAction<T>>) {
+        while let Some(action) = req_handler.recv().await {
             let res = match action.command {
                 Command::Ack(alert_id) => {
                     // TODO
                     unimplemented!()
                 }
-                Command::Pending => match self.db.get_pending(None).await {
+                Command::Pending => match db.get_pending(None).await {
                     Ok(pending) => UserConfirmation::PendingAlerts(pending),
                     Err(err) => {
                         error!("failed to retrieve pending alerts: {:?}", err);

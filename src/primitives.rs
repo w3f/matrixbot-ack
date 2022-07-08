@@ -171,9 +171,9 @@ pub enum ChannelId {
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "Result<UserConfirmation>")]
-pub struct UserAction {
+pub struct UserAction<T> {
     pub user: User,
-    pub channel_id: ChannelId,
+    pub channel_id: T,
     pub command: Command,
 }
 
