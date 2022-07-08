@@ -1,4 +1,5 @@
 use crate::adapter::pagerduty::PayloadSeverity;
+use crate::adapter::Adapter;
 use crate::{unix_time, Result};
 use ruma::RoomId;
 use std::fmt::Display;
@@ -47,7 +48,10 @@ impl AlertContext {
             acked_at_tmsp: None,
         }
     }
-    pub fn into_delivery(self, levels: &[ChannelId]) -> (AlertDelivery, usize) {
+    pub fn into_escalation<T: Adapter>(
+        self,
+        levels: &[<T as Adapter>::Channel],
+    ) -> (Escalation<T>, usize) {
         // Unwraps in this method will only panic if `levels` is
         // empty, which is checked for on application startup. I.e. panicing
         // indicates a bug.
@@ -69,7 +73,7 @@ impl AlertContext {
         };
 
         (
-            AlertDelivery {
+            Escalation {
                 id: self.id,
                 alert: self.alert,
                 prev_room,
@@ -88,7 +92,12 @@ impl AlertContext {
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "Result<()>")]
-pub struct Escalation {}
+pub struct Escalation<T: Adapter> {
+    pub id: AlertId,
+    pub alert: Alert,
+    pub prev_room: Option<<T as Adapter>::Channel>,
+    pub channel_id: <T as Adapter>::Channel,
+}
 
 // TODO: Rename
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
@@ -128,6 +137,13 @@ pub struct NotifyNewlyInserted {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PendingAlerts {
     pub alerts: Vec<AlertContext>,
+}
+
+// TODO: Rename
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IncrementedPendingAlerts {
+    pub id: AlertId,
+    pub new_level_idx: usize,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]

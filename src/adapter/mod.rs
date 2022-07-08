@@ -6,5 +6,5 @@ pub use matrix::MatrixClient;
 pub use pagerduty::PagerDutyClient;
 
 pub trait Adapter {
-    type Channel;
+    type Channel: Clone + std::fmt::Debug + Eq + PartialEq;
 }

@@ -1,8 +1,8 @@
 use crate::adapter::Adapter;
 use crate::database::Database;
 use crate::primitives::{
-    Acknowledgement, AlertDelivery, ChannelId, Escalation, NotifyNewlyInserted, Role,
-    UserConfirmation,
+    Acknowledgement, AlertDelivery, ChannelId, Escalation, IncrementedPendingAlerts,
+    NotifyNewlyInserted, PendingAlerts, Role, UserConfirmation, AlertContext
 };
 use crate::{Result, UserInfo};
 use actix::prelude::*;
@@ -14,13 +14,28 @@ use tokio::sync::RwLock;
 
 const INTERVAL: u64 = 10;
 
-struct AdapterContext<T>
-where
-    T: Adapter + Actor + Handler<Escalation>,
-    <T as Actor>::Context: actix::dev::ToEnvelope<T, Escalation>,
-{
+struct AdapterContext<T: Actor + Adapter> {
     adapter: Addr<T>,
-    levels: Arc<Vec<<T as Adapter>::Channel>>,
+    levels: Vec<<T as Adapter>::Channel>,
+}
+
+impl<T> AdapterContext<T>
+where
+    T: Adapter + Actor + Handler<Escalation<T>>,
+    <T as Actor>::Context: actix::dev::ToEnvelope<T, Escalation<T>>,
+{
+    async fn escalate(&self, mut alert: AlertContext) -> (Escalation<T>, IncrementedPendingAlerts) {
+        let alert_id = alert.id;
+        let (escalation, new_level_idx) = alert.into_escalation::<T>(&self.levels);
+
+        (
+        escalation,
+        IncrementedPendingAlerts {
+            id: alert_id,
+            new_level_idx
+        }
+        )
+    }
 }
 
 pub enum PermissionType {
@@ -102,6 +117,7 @@ where
                 // Notify adapter about each alert.
                 for alert in pending.alerts {
                     // Increment the escalation level, if necessary
+                    /*
                     let (delivery, new_idx) = alert.into_delivery(&levels);
                     let id = delivery.id;
 
@@ -124,6 +140,7 @@ where
                             );
                         }
                     }
+                    */
                 }
 
                 // Unlock escalation process, ready to be picked up on the next interval.
@@ -148,6 +165,7 @@ where
 
         let f = async move {
             for alert in inserted.alerts {
+                /*
                 let (delivery, _) = alert.into_delivery(&levels);
                 let id = delivery.id;
 
@@ -171,6 +189,7 @@ where
                         );
                     }
                 }
+                */
             }
         };
 
