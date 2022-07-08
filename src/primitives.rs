@@ -48,18 +48,42 @@ impl AlertContext {
             acked_at_tmsp: None,
         }
     }
-    pub fn into_escalation(self) -> Escalation {
-        Escalation { id: self.id, alert: self.alert, prev_room_idx: self.level_idx, current_room_idx: self.level_idx + 1}
+    pub fn into_escalation<T: Clone>(self, levels: &[T]) -> (Escalation<T>, usize) {
+        // FYI: `levels` is never empty, this is checked on application startup.
+        // Therefore unwrapping is fine.
+        let mut prev = None;
+        let current;
+        let mut new_idx = self.level_idx;
+
+        if self.level_idx < levels.len() {
+            prev = Some(levels.get(self.level_idx).unwrap().clone());
+            current = levels.get(self.level_idx + 1).unwrap().clone();
+            new_idx += 1;
+        }
+        // Only happens when equal...
+        else {
+            current = levels.last().unwrap().clone();
+        }
+
+        (
+            Escalation {
+                id: self.id,
+                alert: self.alert,
+                prev_room_idx: prev,
+                current_room_idx: current,
+            },
+            new_idx,
+        )
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "()")]
-pub struct Escalation {
+pub struct Escalation<T> {
     pub id: AlertId,
     pub alert: Alert,
-    pub prev_room_idx: usize,
-    pub current_room_idx: usize,
+    pub prev_room_idx: Option<T>,
+    pub current_room_idx: T,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]

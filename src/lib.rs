@@ -203,7 +203,7 @@ async fn start_matrix_tasks(
         levels,
     )
      */
-     unimplemented!()
+    unimplemented!()
 }
 
 // Convenience function for processing the PagerDuty configuration and starting all
@@ -240,7 +240,7 @@ async fn start_pager_duty_tasks(
     )
      */
 
-     unimplemented!()
+    unimplemented!()
 }
 
 struct RoleIndex {
@@ -307,7 +307,7 @@ impl RoleIndex {
                     .filter(|(role, _)| roles.contains(role))
                     .collect(),
             ),
-            AckType::EscalationLevel => PermissionType::EscalationLevel(None),
+            AckType::EscalationLevel => PermissionType::EscalationLevel,
         };
 
         Ok(ty)

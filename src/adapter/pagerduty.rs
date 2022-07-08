@@ -1,4 +1,4 @@
-use crate::primitives::{AlertId, NotifyNewlyInserted, AlertContext};
+use crate::primitives::{AlertContext, AlertId, NotifyNewlyInserted};
 use crate::Result;
 use actix::prelude::*;
 use reqwest::header::AUTHORIZATION;
