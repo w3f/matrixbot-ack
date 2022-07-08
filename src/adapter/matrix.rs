@@ -98,10 +98,6 @@ impl Actor for MatrixClient {
     type Context = Context<Self>;
 }
 
-impl Adapter for MatrixClient {
-    type Channel = ();
-}
-
 pub struct Listener {
     rooms: Vec<RoomId>,
 }

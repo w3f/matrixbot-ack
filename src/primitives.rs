@@ -49,12 +49,11 @@ impl AlertContext {
         }
     }
     pub fn into_acknowleged<T: Clone>(self, acked_by: User, levels: &[T]) -> Notification<T> {
-        Notification {
+        Notification::Acknowledged {
             id: self.id,
             alert: self.alert,
-            prev_room_idx: None,
             current_room_idx: levels.get(self.level_idx).unwrap().clone(),
-            ty: NotificationType::Escalation,
+            acked_by,
         }
     }
     pub fn into_escalation<T: Clone>(self, levels: &[T]) -> (Notification<T>, usize) {
@@ -75,12 +74,11 @@ impl AlertContext {
         }
 
         (
-            Notification {
+            Notification::Escalation {
                 id: self.id,
                 alert: self.alert,
                 prev_room_idx: prev,
                 current_room_idx: current,
-                ty: NotificationType::Escalation,
             },
             new_idx,
         )
@@ -88,19 +86,24 @@ impl AlertContext {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Notification<T> {
-    pub id: AlertId,
-    pub alert: Alert,
-    pub prev_room_idx: Option<T>,
-    pub current_room_idx: T,
-    pub ty: NotificationType,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum NotificationType {
-    Alert,
-    Escalation,
-    Acknowledged(User),
+pub enum Notification<T> {
+    Alert {
+        id: AlertId,
+        alert: Alert,
+        current_room_idx: T,
+    },
+    Escalation {
+        id: AlertId,
+        alert: Alert,
+        prev_room_idx: Option<T>,
+        current_room_idx: T,
+    },
+    Acknowledged {
+        id: AlertId,
+        alert: Alert,
+        current_room_idx: T,
+        acked_by: User,
+    },
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
