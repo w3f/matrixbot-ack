@@ -102,7 +102,7 @@ impl Adapter for MatrixClient {
     async fn notify(&self, _: Notification) -> Result<()> {
         unimplemented!()
     }
-    async fn respond(&self, _: UserConfirmation) -> Result<()> {
+    async fn respond(&self, _: UserConfirmation, level_idx: usize) -> Result<()> {
         unimplemented!()
     }
     async fn endpoint_request(&self) -> Option<UserAction> {

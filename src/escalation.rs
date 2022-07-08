@@ -32,7 +32,7 @@ impl EscalationService {
                 // Notify adapter about escalation
                 for alert in &pending.alerts {
                     match adapter
-                        .notify(Notification::Escalation {
+                        .notify(Notification::Alert {
                             id: alert.id,
                             alert: alert.alert.clone(),
                             current_room_idx: alert.level_idx,
@@ -145,7 +145,7 @@ impl EscalationService {
                     }
 
                     // TODO: Check response
-                    adapter.respond(message).await;
+                    adapter.respond(message, action.channel_id).await;
                 }
             });
         }

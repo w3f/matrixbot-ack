@@ -55,11 +55,6 @@ pub enum Notification {
         alert: Alert,
         current_room_idx: usize,
     },
-    Escalation {
-        id: AlertId,
-        alert: Alert,
-        current_room_idx: usize,
-    },
     Acknowledged {
         id: AlertId,
         acked_by: User,
@@ -127,16 +122,6 @@ impl Display for Role {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum UserConfirmation {
-    Alert {
-        id: AlertId,
-        alert: Alert,
-        current_room_idx: usize,
-    },
-    Escalation {
-        id: AlertId,
-        alert: Alert,
-        current_room_idx: usize,
-    },
     PendingAlerts(PendingAlerts),
     NoPermission,
     _AlertOutOfScope,
@@ -149,6 +134,7 @@ pub enum UserConfirmation {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UserAction {
     pub user: User,
+    // TODO: Rename, use custom type.
     pub channel_id: usize,
     pub command: Command,
 }

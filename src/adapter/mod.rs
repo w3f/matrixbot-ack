@@ -29,6 +29,33 @@ impl fmt::Display for AdapterName {
 pub trait Adapter: 'static + Send + Sync {
     fn name(&self) -> AdapterName;
     async fn notify(&self, _: Notification) -> Result<()>;
-    async fn respond(&self, _: UserConfirmation) -> Result<()>;
+    async fn respond(&self, _: UserConfirmation, level_idx: usize) -> Result<()>;
     async fn endpoint_request(&self) -> Option<UserAction>;
+}
+
+// TODO: Note about empty levels and unwraps.
+struct LevelManager<T> {
+    levels: Vec<T>,
+}
+
+impl<T: Eq + PartialEq> LevelManager<T> {
+    fn contains(&self, level: &T) -> bool {
+        self.levels.contains(level)
+    }
+    fn single_level(&self, level: usize) -> Option<&T> {
+        self.levels.get(level)
+    }
+    // TODO: Rename
+    fn level_with_prev(&self, level: usize) -> (Option<&T>, &T) {
+        if self.levels.len() < level {
+            (None, self.levels.last().unwrap())
+        } else if level == 0{
+            (None, self.levels.first().unwrap())
+        } else {
+            (
+                Some(self.levels.get(level-1).unwrap()),
+                self.levels.get(level).unwrap(),
+            )
+        }
+    }
 }
