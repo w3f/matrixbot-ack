@@ -11,6 +11,7 @@ use std::fmt;
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum AdapterName {
     Matrix,
+    PagerDuty,
 }
 
 impl fmt::Display for AdapterName {
@@ -20,6 +21,7 @@ impl fmt::Display for AdapterName {
             "{}",
             match self {
                 AdapterName::Matrix => "Matrix",
+                AdapterName::PagerDuty => "PagerDuty",
             }
         )
     }

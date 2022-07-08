@@ -109,7 +109,8 @@ impl Adapter for MatrixClient {
         let room_id = self.rooms.single_level(level_idx).unwrap();
         let room = self.client.get_joined_room(room_id).unwrap();
 
-        let content = AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(resp.to_string()));
+        let content =
+            AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(resp.to_string()));
 
         room.send(content, None)
             .await

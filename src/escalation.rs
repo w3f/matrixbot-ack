@@ -33,9 +33,7 @@ impl EscalationService {
                 for alert in &pending.alerts {
                     match adapter
                         .notify(Notification::Alert {
-                            id: alert.id,
-                            alert: alert.alert.clone(),
-                            current_room_idx: alert.level_idx,
+                            context: alert.clone(),
                         })
                         .await
                     {

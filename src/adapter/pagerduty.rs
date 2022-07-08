@@ -1,63 +1,93 @@
-use crate::primitives::{AlertContext, AlertId, NotifyNewlyInserted};
+use super::{Adapter, LevelManager};
+use crate::primitives::{
+    Acknowledgement, AlertContext, AlertId, Notification, NotifyNewlyInserted, UserAction,
+    UserConfirmation,
+};
 use crate::Result;
 use reqwest::header::AUTHORIZATION;
 use reqwest::StatusCode;
 use tokio::time::{sleep, Duration};
 
+use super::AdapterName;
+
 const SEND_ALERT_ENDPOINT: &str = "https://events.pagerduty.com/v2/enqueue";
 const RETRY_TIMEOUT: u64 = 10; // seconds
 
 pub struct PagerDutyClient {
+    // TODO: Make this a separate type
+    levels: LevelManager<PagerDutyConfig>,
     config: PagerDutyConfig,
+    client: reqwest::Client,
+}
+
+#[async_trait]
+impl Adapter for PagerDutyClient {
+    fn name(&self) -> AdapterName {
+        AdapterName::PagerDuty
+    }
+    async fn notify(&self, notification: Notification) -> Result<()> {
+        self.handle(notification).await
+    }
+    async fn respond(&self, _: UserConfirmation, _level_idx: usize) -> Result<()> {
+        // Ignored, no direct responses on PagerDuty.
+        Ok(())
+    }
+    async fn endpoint_request(&self) -> Option<UserAction> {
+        unimplemented!()
+    }
 }
 
 impl PagerDutyClient {
-    pub fn new(mut config: PagerDutyConfig) -> Self {
+    pub fn new(mut config: PagerDutyConfig, levels: Vec<PagerDutyConfig>) -> Self {
         config.api_key = format!("Token token={}", config.api_key);
 
-        PagerDutyClient { config }
+        PagerDutyClient {
+            levels: LevelManager::from(levels),
+            config,
+            client: reqwest::Client::new(),
+        }
     }
-    async fn handle(&self, inserted: NotifyNewlyInserted) -> Result<()> {
-        let config = self.config.clone();
-
-        let client = reqwest::Client::new();
-
+    #[rustfmt::skip]
+    async fn handle(&self, notification: Notification) -> Result<()> {
         // Create an alert type native to the PagerDuty API.
-        for alert in inserted.alerts {
+        if let Notification::Alert { context: alert } = notification {
+            let level = self.levels.single_level(alert.level_idx);
+            let level = if let Some(level) = level {
+                level
+            } else {
+                warn!("TODO");
+                return Ok(());
+            };
+
             let alert = new_alert_event(
-                "".to_string(),
-                "".to_string(),
-                config.payload_severity,
+                level.integration_key.to_string(),
+                self.config.payload_source.to_string(),
+                level.payload_severity,
                 &alert,
             );
 
-            loop {
-                let resp = post_alert(&client, config.api_key.as_str(), &alert)
-                    .await
-                    .unwrap();
+            let resp = post_alert(&self.client, self.config.api_key.as_str(), &alert).await?;
 
-                match resp.status() {
-                    StatusCode::ACCEPTED => {
-                        info!("Submitted alert {} to PagerDuty", alert.id);
-                        break;
-                    }
-                    StatusCode::BAD_REQUEST => {
-                        error!("BAD REQUEST when submitting alert {}", alert.id);
-                        // Do not retry on this error type.
-                        break;
-                    }
-                    err => error!(
-                        "Failed to send alert to PagerDuty: {:?}, response: {:?}",
-                        err, resp
-                    ),
+            match resp.status() {
+                StatusCode::ACCEPTED => {
+                    info!("Submitted alert {} to PagerDuty", alert.id);
                 }
-
-                warn!("Retrying...");
-                sleep(Duration::from_secs(RETRY_TIMEOUT)).await;
+                StatusCode::BAD_REQUEST => {
+                    return Err(anyhow!("BAD_REQUEST from server"))
+                },
+                err => {
+                    return Err(anyhow!(
+                        "unrecognized status code {:?} from server: {:?}",
+                        err,
+                        resp
+                    ))
+                }
             }
-        }
+        };
 
-        unimplemented!()
+        // Ignore any other type of Notification
+
+        Ok(())
     }
 }
 
@@ -97,7 +127,7 @@ pub enum PayloadSeverity {
     Info,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct PagerDutyConfig {
     api_key: String,
     integration_key: String,
