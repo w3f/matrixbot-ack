@@ -15,7 +15,7 @@ use adapter::matrix::{MatrixClient, MatrixConfig};
 use adapter::pagerduty::{PagerDutyClient, PagerDutyConfig, PayloadSeverity};
 use database::{Database, DatabaseConfig};
 use escalation::{EscalationService, PermissionType};
-use primitives::{AlertDelivery, ChannelId, Role, User};
+use primitives::{ChannelId, Role, User};
 use ruma::RoomId;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
@@ -170,40 +170,6 @@ pub async fn run() -> Result<()> {
     }
 }
 
-fn start_tasks<T, L>(
-    db: Database,
-    client: Addr<T>,
-    escalation_config: EscalationConfig<L>,
-    role_index: &RoleIndex,
-    levels: Vec<ChannelId>,
-) -> Result<()>
-where
-    T: Actor + Handler<AlertDelivery>,
-    <T as Actor>::Context: actix::dev::ToEnvelope<T, AlertDelivery>,
-{
-    let window = Duration::from_secs(escalation_config.window);
-    let permissions = role_index.as_permission_type(escalation_config.acks)?;
-
-    /*
-    #[rustfmt::skip]
-    let service = escalation::EscalationService::<T>::new(
-        db.clone(),
-        window,
-        client,
-        permissions,
-        levels
-    ).start();
-
-    #[rustfmt::skip]
-    user_request::RequestHandler::<EscalationService<T>>::new(
-        service,
-        db
-    ).start();
-     */
-
-    Ok(())
-}
-
 // Convenience function for processing the matrix configuration and starting all
 // necessary tasks.
 async fn start_matrix_tasks(
@@ -211,7 +177,7 @@ async fn start_matrix_tasks(
     db: Database,
     role_index: &RoleIndex,
 ) -> Result<()> {
-    let levels = adapter
+    let _levels = adapter
         .escation
         .levels
         .iter()
@@ -222,6 +188,7 @@ async fn start_matrix_tasks(
         })
         .collect::<Result<Vec<ChannelId>>>()?;
 
+    /*
     start_tasks(
         db,
         MatrixClient::new(
@@ -235,6 +202,8 @@ async fn start_matrix_tasks(
         role_index,
         levels,
     )
+     */
+     unimplemented!()
 }
 
 // Convenience function for processing the PagerDuty configuration and starting all
@@ -246,7 +215,8 @@ async fn start_pager_duty_tasks(
 ) -> Result<()> {
     // TODO: Consider struct destructuring to avoid clones.
 
-    let levels = adapter
+    /*
+    let _levels = adapter
         .escation
         .levels
         .iter()
@@ -268,6 +238,9 @@ async fn start_pager_duty_tasks(
         role_index,
         levels,
     )
+     */
+
+     unimplemented!()
 }
 
 struct RoleIndex {

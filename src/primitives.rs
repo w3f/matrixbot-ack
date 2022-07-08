@@ -48,65 +48,18 @@ impl AlertContext {
             acked_at_tmsp: None,
         }
     }
-    pub fn into_escalation<T: Adapter>(
-        self,
-        levels: &[<T as Adapter>::Channel],
-    ) -> (Escalation<T>, usize) {
-        // Unwraps in this method will only panic if `levels` is
-        // empty, which is checked for on application startup. I.e. panicing
-        // indicates a bug.
-
-        // TODO: Document
-        let (prev_room, channel_id) = {
-            if self.level_idx == 0 && self.last_notified_tmsp.is_none() {
-                (None, levels.get(self.level_idx).cloned().unwrap())
-            } else {
-                (
-                    levels.get(self.level_idx).cloned(),
-                    levels
-                        .get(self.level_idx + 1)
-                        .or_else(|| levels.last())
-                        .cloned()
-                        .unwrap(),
-                )
-            }
-        };
-
-        (
-            Escalation {
-                id: self.id,
-                alert: self.alert,
-                prev_room,
-                channel_id,
-            },
-            {
-                if self.level_idx == levels.len() - 1 {
-                    self.level_idx
-                } else {
-                    self.level_idx + 1
-                }
-            },
-        )
+    pub fn into_escalation(self) -> Escalation {
+        Escalation { id: self.id, alert: self.alert, prev_room_idx: self.level_idx, current_room_idx: self.level_idx + 1}
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
-#[rtype(result = "Result<()>")]
-pub struct Escalation<T: Adapter> {
+#[rtype(result = "()")]
+pub struct Escalation {
     pub id: AlertId,
     pub alert: Alert,
-    pub prev_room: Option<<T as Adapter>::Channel>,
-    pub channel_id: <T as Adapter>::Channel,
-}
-
-// TODO: Rename
-#[derive(Clone, Debug, Eq, PartialEq, Message)]
-#[rtype(result = "Result<()>")]
-pub struct AlertDelivery {
-    pub id: AlertId,
-    pub alert: Alert,
-    pub prev_room: Option<ChannelId>,
-    pub channel_id: ChannelId,
+    pub prev_room_idx: usize,
+    pub current_room_idx: usize,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]

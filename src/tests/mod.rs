@@ -1,6 +1,6 @@
 use crate::database::{Database, DatabaseConfig};
 use crate::escalation::EscalationService;
-use crate::primitives::{AlertDelivery, ChannelId, Command, User, UserAction, UserConfirmation};
+use crate::primitives::{ChannelId, Command, User, UserAction, UserConfirmation};
 use crate::user_request::RequestHandler;
 use crate::{start_tasks, Result};
 use actix::prelude::*;

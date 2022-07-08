@@ -1,5 +1,5 @@
 use crate::escalation::EscalationService;
-use crate::primitives::{AlertDelivery, ChannelId, Command, User, UserAction};
+use crate::primitives::{ChannelId, Command, User, UserAction};
 use crate::user_request::RequestHandler;
 use crate::Result;
 use actix::prelude::*;
@@ -101,16 +101,6 @@ impl Actor for MatrixClient {
 
 impl Adapter for MatrixClient {
     type Channel = ();
-}
-
-impl Handler<AlertDelivery> for MatrixClient {
-    type Result = ResponseActFuture<Self, Result<()>>;
-
-    fn handle(&mut self, _alert: AlertDelivery, _ctx: &mut Self::Context) -> Self::Result {
-        let f = async move { unimplemented!() };
-
-        Box::pin(f.into_actor(self))
-    }
 }
 
 pub struct Listener {

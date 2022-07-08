@@ -1,42 +1,19 @@
 use crate::adapter::{Adapter, MatrixClient};
 use crate::database::Database;
 use crate::primitives::{
-    Acknowledgement, AlertContext, AlertDelivery, ChannelId, Escalation, IncrementedPendingAlerts,
+    Acknowledgement, AlertContext, ChannelId, Escalation, IncrementedPendingAlerts,
     NotifyNewlyInserted, PendingAlerts, Role, UserConfirmation,
 };
 use crate::{Result, UserInfo};
 use actix::prelude::*;
-use actix_broker::BrokerSubscribe;
+use actix_broker::{BrokerSubscribe, BrokerIssue};
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::RwLock;
+use tokio::time::{sleep, Duration};
+use tokio::sync::broadcast::{channel, Sender, Receiver};
 
 const INTERVAL: u64 = 10;
-
-struct AdapterContext<T: Actor + Adapter> {
-    adapter: Addr<T>,
-    levels: Vec<<T as Adapter>::Channel>,
-}
-
-impl<T> AdapterContext<T>
-where
-    T: Adapter + Actor + Handler<Escalation<T>>,
-    <T as Actor>::Context: actix::dev::ToEnvelope<T, Escalation<T>>,
-{
-    async fn escalate(&self, mut alert: AlertContext) -> (Escalation<T>, IncrementedPendingAlerts) {
-        let alert_id = alert.id;
-        let (escalation, new_level_idx) = alert.into_escalation::<T>(&self.levels);
-
-        (
-            escalation,
-            IncrementedPendingAlerts {
-                id: alert_id,
-                new_level_idx,
-            },
-        )
-    }
-}
 
 pub enum PermissionType {
     Users(HashSet<UserInfo>),
@@ -51,137 +28,34 @@ pub enum PermissionType {
 pub struct EscalationService {
     db: Database,
     window: Duration,
-    is_locked: Arc<RwLock<bool>>,
     permission: Arc<PermissionType>,
-    matrix_adapter: Arc<AdapterContext<MatrixClient>>,
+    broadcaster: Sender<Escalation>,
 }
 
 impl EscalationService {
-    pub fn new(
-        db: Database,
-        window: Duration,
-        permission: PermissionType,
-        matrix_adapter: AdapterContext<MatrixClient>,
-    ) -> Self {
-        EscalationService {
-            db,
-            window,
-            is_locked: Arc::new(RwLock::new(false)),
-            permission: Arc::new(permission),
-            matrix_adapter: Arc::new(matrix_adapter),
+    async fn run(self) {
+        loop {
+            match self.local().await {
+                Ok(_) => {},
+                Err(_) => {},
+            }
+
+            sleep(Duration::from_secs(INTERVAL)).await;
         }
     }
-}
+    async fn local(&self) -> Result<()> {
+        let pending = self.db.get_pending(Some(self.window)).await?;
+        for alert in pending.alerts {
+            let escalation = alert.into_escalation();
+            self.broadcaster.send(escalation)?;
+            // TODO: Update database.
+        }
 
-impl Actor for EscalationService {
-    type Context = Context<Self>;
-
-    fn started(&mut self, ctx: &mut Self::Context) {
-        self.subscribe_system_async::<NotifyNewlyInserted>(ctx);
-
-        ctx.run_interval(Duration::from_secs(INTERVAL), |actor, _ctx| {
-            let db = actor.db.clone();
-
-            let is_locked = Arc::clone(&actor.is_locked);
-            let window = actor.window;
-
-            actix::spawn(async move {
-                // Lock escalation process, do not overlap.
-                let mut l = is_locked.write().await;
-                *l = true;
-                std::mem::drop(l);
-
-                // Retrieve pending alerts.
-                let pending = match db.get_pending(Some(window)).await {
-                    Ok(pending) => pending,
-                    Err(err) => {
-                        error!("failed to retrieve pending alerts: {:?}", err);
-
-                        // Unlock escalation process, ready to be picked up on the next interval.
-                        let mut l = is_locked.write().await;
-                        *l = false;
-
-                        return;
-                    }
-                };
-
-                // Notify adapter about each alert.
-                for alert in pending.alerts {
-                    // Increment the escalation level, if necessary
-                    /*
-                    let (delivery, new_idx) = alert.into_delivery(&levels);
-                    let id = delivery.id;
-
-                    // If delivery fails, it will be attempted again on the next interval.
-                    match addr.send(delivery).await {
-                        Ok(resp) => match resp {
-                            Ok(_) => {
-                                let _ = db.increment_alert_state(id, new_idx).await.map_err(|err| {
-                                    error!("failed to increment alert state of {}, error: {:?}", id, err)
-                                });
-                            }
-                            Err(err) => {
-                                error!("failed to notify users about new alert: {:?}", err);
-                            }
-                        },
-                        Err(err) => {
-                            error!(
-                                "actor mailbox error when attempting to notify about new alert: {:?}",
-                                err
-                            );
-                        }
-                    }
-                    */
-                }
-
-                // Unlock escalation process, ready to be picked up on the next interval.
-                let mut l = is_locked.write().await;
-                *l = false;
-            });
-        });
+        Ok(())
     }
 }
 
-impl Handler<NotifyNewlyInserted> for EscalationService {
-    type Result = ResponseActFuture<Self, ()>;
-
-    fn handle(&mut self, inserted: NotifyNewlyInserted, _ctx: &mut Self::Context) -> Self::Result {
-        let db = self.db.clone();
-
-        let f = async move {
-            for alert in inserted.alerts {
-                /*
-                let (delivery, _) = alert.into_delivery(&levels);
-                let id = delivery.id;
-
-                // If delivery fails, it will be attempted again by the
-                // background interval in `<Self as Actor>::started`.
-                match addr.send(delivery).await {
-                    Ok(resp) => match resp {
-                        Ok(_) => {
-                            let _ = db.mark_delivered(id).await.map_err(|err| {
-                                error!("failed to mark alert {} as delivered: {:?}", id, err)
-                            });
-                        }
-                        Err(err) => {
-                            error!("failed to notify users about new alert: {:?}", err);
-                        }
-                    },
-                    Err(err) => {
-                        error!(
-                            "actor mailbox error when attempting to notify about new alert: {:?}",
-                            err
-                        );
-                    }
-                }
-                */
-            }
-        };
-
-        Box::pin(f.into_actor(self))
-    }
-}
-
+/*
 impl Handler<Acknowledgement> for EscalationService {
     type Result = ResponseActFuture<Self, Result<UserConfirmation>>;
 
@@ -258,3 +132,4 @@ impl Handler<Acknowledgement> for EscalationService {
         Box::pin(f.into_actor(self))
     }
 }
+*/
