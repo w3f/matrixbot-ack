@@ -1,6 +1,8 @@
+use crate::adapter::Adapter;
 use crate::database::Database;
 use crate::primitives::{
-    Acknowledgement, AlertDelivery, ChannelId, NotifyNewlyInserted, Role, UserConfirmation,
+    Acknowledgement, AlertDelivery, ChannelId, Escalation, NotifyNewlyInserted, Role,
+    UserConfirmation,
 };
 use crate::{Result, UserInfo};
 use actix::prelude::*;
@@ -11,6 +13,15 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 
 const INTERVAL: u64 = 10;
+
+struct AdapterContext<T>
+where
+    T: Adapter + Actor + Handler<Escalation>,
+    <T as Actor>::Context: actix::dev::ToEnvelope<T, Escalation>,
+{
+    adapter: Addr<T>,
+    levels: Arc<Vec<<T as Adapter>::Channel>>,
+}
 
 pub enum PermissionType {
     Users(HashSet<UserInfo>),

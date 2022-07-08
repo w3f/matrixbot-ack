@@ -86,6 +86,10 @@ impl AlertContext {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Message)]
+#[rtype(result = "Result<()>")]
+pub struct Escalation {}
+
 // TODO: Rename
 #[derive(Clone, Debug, Eq, PartialEq, Message)]
 #[rtype(result = "Result<()>")]
