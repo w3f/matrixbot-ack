@@ -48,6 +48,15 @@ impl AlertContext {
             acked_at_tmsp: None,
         }
     }
+    pub fn into_acknowleged<T: Clone>(self, acked_by: User, levels: &[T]) -> Notification<T> {
+        Notification {
+            id: self.id,
+            alert: self.alert,
+            prev_room_idx: None,
+            current_room_idx: levels.get(self.level_idx).unwrap().clone(),
+            ty: NotificationType::Escalation,
+        }
+    }
     pub fn into_escalation<T: Clone>(self, levels: &[T]) -> (Notification<T>, usize) {
         // FYI: `levels` is never empty, this is checked on application startup.
         // Therefore unwrapping is fine.
@@ -91,7 +100,7 @@ pub struct Notification<T> {
 pub enum NotificationType {
     Alert,
     Escalation,
-    Acknowledged,
+    Acknowledged(User),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]

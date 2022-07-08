@@ -10,7 +10,7 @@ use actix_broker::{BrokerIssue, BrokerSubscribe};
 use ruma::RoomId;
 use std::collections::HashSet;
 use std::sync::Arc;
-use tokio::sync::mpsc::{unbounded_channel, Receiver, Sender};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::sync::RwLock;
 use tokio::time::{sleep, Duration};
 
@@ -24,10 +24,12 @@ pub struct EscalationService {
 
 struct AdapterContext<T> {
     db: Database,
-    adapter: Sender<Notification<T>>,
+    adapter: UnboundedSender<Notification<T>>,
     levels: Vec<T>,
     permission: PermissionType,
-    req_hander: Option<Receiver<UserAction<T>>>,
+    // This turns into `None` after `run_request_handler` is therefore
+    // not reused anymore.
+    req_hander: Option<UnboundedReceiver<UserAction<T>>>,
 }
 
 pub enum PermissionType {
@@ -43,18 +45,20 @@ pub enum PermissionType {
 
 impl EscalationService {
     async fn run(mut self) {
+        let (tx, queue) = unbounded_channel();
+
         // Start request handlers
-        self.adapter_matrix.run_request_handler().await;
+        self.adapter_matrix.run_request_handler(tx).await;
 
         loop {
-            if let Err(err) = self.local().await {
+            if let Err(err) = self.local_escalations().await {
                 error!("escalation even loop: {:?}", err);
             }
 
             sleep(Duration::from_secs(INTERVAL)).await;
         }
     }
-    async fn local(&self) -> Result<()> {
+    async fn local_escalations(&self) -> Result<()> {
         let pending = self.db.get_pending(Some(self.window)).await?;
         for alert in pending.alerts {
             // Don't exit on error if an adapter failed, continue with the rest.
@@ -74,13 +78,16 @@ impl EscalationService {
 
         Ok(())
     }
+    async fn local_event_notifier(&self) -> Result<()> {
+        unimplemented!()
+    }
 }
 
 impl<T> AdapterContext<T>
 where
     T: 'static + Send + Sync + std::fmt::Debug + Clone,
 {
-    async fn run_request_handler(&mut self) {
+    async fn run_request_handler(&mut self, to_queue: UnboundedSender<UserConfirmation>) {
         let db = self.db.clone();
 
         let mut req_handler = std::mem::take(&mut self.req_hander).unwrap();
@@ -108,7 +115,7 @@ where
     }
     async fn notify_escalation(&self, alert: AlertContext) -> Result<()> {
         let (escalation, _new_level_idx) = alert.into_escalation(&self.levels);
-        self.adapter.send(escalation).await?;
+        self.adapter.send(escalation)?;
 
         Ok(())
     }
