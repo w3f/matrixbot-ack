@@ -1,27 +1,27 @@
 use crate::adapter::Adapter;
 use crate::database::Database;
 use crate::primitives::{Command, Notification, UserConfirmation};
-use tokio::time::{sleep, Duration};
 use std::sync::Arc;
+use tokio::time::{sleep, Duration};
 
 const INTERVAL: u64 = 10;
 
 pub struct EscalationService {
     db: Database,
     window: Duration,
-    adaps: Vec<Arc<Box<dyn Adapter>>>,
+    adapters: Vec<Arc<Box<dyn Adapter>>>,
 }
 
 impl EscalationService {
     async fn register_adapter<T: Adapter>(mut self, adapter: T) -> Self {
-        self.adaps.push(Arc::new(Box::new(adapter)));
+        self.adapters.push(Arc::new(Box::new(adapter)));
         self
     }
     async fn run(self) {
         self.run_request_handler();
 
         loop {
-            for adapter in &self.adaps {
+            for adapter in &self.adapters {
                 // TODO: Handle unwrap
                 let pending = self
                     .db
@@ -68,12 +68,12 @@ impl EscalationService {
         }
     }
     fn run_request_handler(&self) {
-        for adapter in &self.adaps {
+        for adapter in &self.adapters {
             let adapter = Arc::clone(adapter);
             let db = self.db.clone();
 
             let others: Vec<Arc<Box<dyn Adapter>>> = self
-                .adaps
+                .adapters
                 .iter()
                 .filter(|other| other.name() != adapter.name())
                 .map(Arc::clone)
@@ -111,8 +111,9 @@ impl EscalationService {
                             let acked_by = action.user.clone();
                             let other = Arc::clone(other);
 
-                            // Notify in other thread which will keep retrying
-                            // in case notification fails.
+                            // Start the notification process in another thread
+                            // which will keep retrying in case the process
+                            // fails.
                             tokio::spawn(async move {
                                 let mut counter = 0;
                                 loop {
@@ -132,7 +133,7 @@ impl EscalationService {
 
                                     counter += 1;
 
-                                    // Retry max three times, or exit...
+                                    // Retry max three times, then exit...
                                     if counter <= 3 {
                                         sleep(Duration::from_secs(5 * counter)).await;
                                     } else {
@@ -140,10 +141,10 @@ impl EscalationService {
                                     }
                                 }
                             });
-                            // TODO: Check response
                         }
                     }
 
+                    // TODO: Check response
                     adapter.respond(message).await;
                 }
             });
