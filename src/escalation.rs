@@ -47,9 +47,8 @@ impl EscalationService {
         self.adapter_matrix.run_request_handler().await;
 
         loop {
-            match self.local().await {
-                Ok(_) => {}
-                Err(_) => {}
+            if let Err(err) = self.local().await {
+                error!("escalation even loop: {:?}", err);
             }
 
             sleep(Duration::from_secs(INTERVAL)).await;
@@ -59,12 +58,18 @@ impl EscalationService {
         let pending = self.db.get_pending(Some(self.window)).await?;
         for alert in pending.alerts {
             // Don't exit on error if an adapter failed, continue with the rest.
+            let dbg_id = alert.id;
+
             match self.adapter_matrix.notify_escalation(alert).await {
-                Ok(_) => {}
-                Err(_) => {}
+                Ok(_) => {
+                    info!("notified matrix adapter about alert: {:?}", dbg_id);
+                }
+                Err(err) => {
+                    error!("failed to notify matrix adapter: {:?}", err);
+                }
             }
 
-            // TODO: Update database with new idx
+            // TODO: Update database with new idx, track which adapters failed
         }
 
         Ok(())
