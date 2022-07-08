@@ -48,7 +48,7 @@ impl AlertContext {
             acked_at_tmsp: None,
         }
     }
-    pub fn into_escalation<T: Clone>(self, levels: &[T]) -> (Escalation<T>, usize) {
+    pub fn into_escalation<T: Clone>(self, levels: &[T]) -> (Notification<T>, usize) {
         // FYI: `levels` is never empty, this is checked on application startup.
         // Therefore unwrapping is fine.
         let mut prev = None;
@@ -66,24 +66,32 @@ impl AlertContext {
         }
 
         (
-            Escalation {
+            Notification {
                 id: self.id,
                 alert: self.alert,
                 prev_room_idx: prev,
                 current_room_idx: current,
+                ty: NotificationType::Escalation,
             },
             new_idx,
         )
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Message)]
-#[rtype(result = "()")]
-pub struct Escalation<T> {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Notification<T> {
     pub id: AlertId,
     pub alert: Alert,
     pub prev_room_idx: Option<T>,
     pub current_room_idx: T,
+    pub ty: NotificationType,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum NotificationType {
+    Alert,
+    Escalation,
+    Acknowledged,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]

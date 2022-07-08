@@ -1,7 +1,7 @@
 use crate::adapter::{Adapter, MatrixClient};
 use crate::database::Database;
 use crate::primitives::{
-    Acknowledgement, AlertContext, Command, Escalation, IncrementedPendingAlerts,
+    Acknowledgement, AlertContext, Command, IncrementedPendingAlerts, Notification,
     NotifyNewlyInserted, PendingAlerts, Role, UserAction, UserConfirmation,
 };
 use crate::{Result, UserInfo};
@@ -24,7 +24,7 @@ pub struct EscalationService {
 
 struct AdapterContext<T> {
     db: Database,
-    adapter: Sender<Escalation<T>>,
+    adapter: Sender<Notification<T>>,
     levels: Vec<T>,
     permission: PermissionType,
     req_hander: Option<Receiver<UserAction<T>>>,
