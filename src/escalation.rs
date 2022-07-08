@@ -86,16 +86,25 @@ impl EscalationService {
                 .adaps
                 .iter()
                 .filter(|other| other.name() != adapter.name())
-                .map(|other| Arc::clone(other))
+                .map(Arc::clone)
                 .collect();
 
             tokio::spawn(async move {
                 while let Some(action) = adapter.endpoint_request().await {
                     let message = match action.command {
-                        Command::Ack(alert_id) => {
-                            // TODO
-                            unimplemented!()
-                        }
+                        Command::Ack(alert_id) => match db
+                            .acknowledge_alert(&alert_id, &action.user)
+                            .await
+                        {
+                            Ok(_) => {
+                                info!("Alert {} was acknowleged by {:?}!", alert_id, action.user);
+                                UserConfirmation::AlertAcknowledged(alert_id)
+                            }
+                            Err(err) => {
+                                error!("failed to acknowledge alert: {:?}", err);
+                                UserConfirmation::InternalError
+                            }
+                        },
                         Command::Pending => match db.get_pending(None, None).await {
                             Ok(pending) => UserConfirmation::PendingAlerts(pending),
                             Err(err) => {
@@ -107,19 +116,42 @@ impl EscalationService {
                     };
 
                     // If an alert was acknowledged, notify the other adapters about it.
-                    match message {
-                        UserConfirmation::AlertAcknowledged(alert_id) => {
-                            for other in &others {
-                                // TODO: Check response
-                                let x = other
-                                    .notify(Notification::Acknowledged {
-                                        id: alert_id,
-                                        acked_by: action.user.clone(),
-                                    })
-                                    .await;
-                            }
+                    if let UserConfirmation::AlertAcknowledged(alert_id) = message {
+                        for other in &others {
+                            let acked_by = action.user.clone();
+                            let other = Arc::clone(other);
+
+                            // Notify in other thread which will keep retrying
+                            // in case notification fails.
+                            tokio::spawn(async move {
+                                let mut counter = 0;
+                                loop {
+                                    if let Err(err) = other
+                                        .notify(Notification::Acknowledged {
+                                            id: alert_id,
+                                            acked_by: acked_by.clone(),
+                                        })
+                                        .await
+                                    {
+                                        error!("Failed to notify {} adapter about acknowledged of ID {}: {:?}", other.name(), alert_id, err);
+                                        debug!("Retrying...");
+                                    } else {
+                                        // Notification successful, exit...
+                                        break;
+                                    }
+
+                                    counter += 1;
+
+                                    // Retry max three times, or exit...
+                                    if counter <= 3 {
+                                        sleep(Duration::from_secs(5 * counter)).await;
+                                    } else {
+                                        break;
+                                    }
+                                }
+                            });
+                            // TODO: Check response
                         }
-                        _ => {}
                     }
 
                     adapter.respond(message).await;
