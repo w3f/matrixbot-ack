@@ -12,7 +12,7 @@ use tokio::sync::mpsc::{self, unbounded_channel, UnboundedReceiver, UnboundedSen
 use tokio::sync::Mutex;
 use url::Url;
 
-use super::{Adapter, AdapterName, LevelManager};
+use super::{Adapter, AdapterAlertId, AdapterName, LevelManager};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MatrixConfig {
@@ -101,7 +101,7 @@ impl Adapter for MatrixClient {
     fn name(&self) -> AdapterName {
         AdapterName::Matrix
     }
-    async fn notify(&self, _: Notification) -> Result<()> {
+    async fn notify(&self, _: Notification) -> Result<Option<AdapterAlertId>> {
         unimplemented!()
     }
     async fn respond(&self, resp: UserConfirmation, level_idx: usize) -> Result<()> {

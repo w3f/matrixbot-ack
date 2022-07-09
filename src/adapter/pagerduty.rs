@@ -1,4 +1,4 @@
-use super::{Adapter, LevelManager};
+use super::{Adapter, AdapterAlertId, LevelManager};
 use crate::primitives::{
     Acknowledgement, AlertContext, AlertId, Notification, NotifyNewlyInserted, UserAction,
     UserConfirmation,
@@ -25,7 +25,7 @@ impl Adapter for PagerDutyClient {
     fn name(&self) -> AdapterName {
         AdapterName::PagerDuty
     }
-    async fn notify(&self, notification: Notification) -> Result<()> {
+    async fn notify(&self, notification: Notification) -> Result<Option<AdapterAlertId>> {
         self.handle(notification).await
     }
     async fn respond(&self, _: UserConfirmation, _level_idx: usize) -> Result<()> {
@@ -48,46 +48,52 @@ impl PagerDutyClient {
         }
     }
     #[rustfmt::skip]
-    async fn handle(&self, notification: Notification) -> Result<()> {
+    async fn handle(&self, notification: Notification) -> Result<Option<AdapterAlertId>> {
         // Create an alert type native to the PagerDuty API.
-        if let Notification::Alert { context: alert } = notification {
-            let level = self.levels.single_level(alert.level_idx);
-            let level = if let Some(level) = level {
-                level
-            } else {
-                warn!("TODO");
-                return Ok(());
-            };
+        match notification {
+            Notification::Alert { context: alert } => {
+                let level = self.levels.single_level(alert.level_idx);
+                let level = if let Some(level) = level {
+                    level
+                } else {
+                    warn!("TODO");
+                    return Ok(None);
+                };
 
-            let alert = new_alert_event(
-                level.integration_key.to_string(),
-                self.config.payload_source.to_string(),
-                level.payload_severity,
-                &alert,
-            );
+                let alert = new_alert_event(
+                    level.integration_key.to_string(),
+                    self.config.payload_source.to_string(),
+                    level.payload_severity,
+                    &alert,
+                );
 
-            let resp = post_alert(&self.client, self.config.api_key.as_str(), &alert).await?;
+                let resp = post_alert(&self.client, self.config.api_key.as_str(), &alert).await?;
 
-            match resp.status() {
-                StatusCode::ACCEPTED => {
-                    debug!("Received ACCEPTED from PagerDuty API");
-                }
-                StatusCode::BAD_REQUEST => {
-                    return Err(anyhow!("BAD_REQUEST from server"))
-                },
-                err => {
-                    return Err(anyhow!(
-                        "unrecognized status code {:?} from server: {:?}",
-                        err,
-                        resp
-                    ))
+                match resp.status() {
+                    StatusCode::ACCEPTED => {
+                        debug!("Received ACCEPTED from PagerDuty API");
+                        // TODO: Return PagerDuty specific ID
+                    }
+                    StatusCode::BAD_REQUEST => {
+                        return Err(anyhow!("BAD_REQUEST from server"))
+                    },
+                    err => {
+                        return Err(anyhow!(
+                            "unrecognized status code {:?} from server: {:?}",
+                            err,
+                            resp
+                        ))
+                    }
                 }
             }
-        };
+            Notification::Acknowledged { id, acked_by } => {
+                // TODO: acknowledge via API.
+            }
+        }
 
         // Ignore any other type of Notification
 
-        Ok(())
+        Ok(None)
     }
 }
 
