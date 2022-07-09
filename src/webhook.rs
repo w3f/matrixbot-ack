@@ -43,7 +43,7 @@ async fn insert_alerts(req: web::Json<InsertAlerts>, db: web::Data<Database>) ->
 
     // Attempt to insert the events into the database.
     match db.insert_alerts(insert).await {
-        Ok(newly_inserted) => HttpResponse::Ok().body("OK"),
+        Ok(_) => HttpResponse::Ok().body("OK"),
         Err(err) => {
             error!("Failed to process new alerts: {:?}", err);
             HttpResponse::InternalServerError().finish()

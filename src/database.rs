@@ -1,6 +1,5 @@
 use crate::adapter::AdapterName;
-use crate::primitives::{AlertContext, AlertId, PendingAlerts};
-use crate::primitives::{NotifyNewlyInserted, User};
+use crate::primitives::{AlertContext, AlertId, PendingAlerts, User};
 use crate::webhook::InsertAlerts;
 use crate::{unix_time, Result};
 use bson::{doc, to_bson};
@@ -44,7 +43,7 @@ impl Database {
                 .database(&config.name),
         })
     }
-    pub async fn insert_alerts(&self, inserts: InsertAlerts) -> Result<NotifyNewlyInserted> {
+    pub async fn insert_alerts(&self, inserts: InsertAlerts) -> Result<()> {
         let pending = self.db.collection::<AlertContext>(PENDING);
 
         let mut contexts = vec![];
@@ -57,7 +56,7 @@ impl Database {
             contexts.push(ctx);
         }
 
-        Ok(NotifyNewlyInserted { alerts: contexts })
+        Ok(())
     }
     async fn get_next_id(&self) -> Result<AlertId> {
         let id_cursor = self.db.collection::<IdCursor>(ID_CURSOR);

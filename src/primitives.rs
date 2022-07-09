@@ -74,11 +74,6 @@ pub struct Labels {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct NotifyNewlyInserted {
-    pub alerts: Vec<AlertContext>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PendingAlerts {
     pub alerts: Vec<AlertContext>,
 }
