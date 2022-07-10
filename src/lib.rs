@@ -11,7 +11,7 @@ use adapter::matrix::MatrixConfig;
 use adapter::pagerduty::{PagerDutyConfig, PayloadSeverity};
 use database::DatabaseConfig;
 
-use primitives::{Role, User};
+use primitives::User;
 
 use structopt::StructOpt;
 use tokio::time::{sleep, Duration};
@@ -41,7 +41,6 @@ struct Config {
     escalation: Option<EscalationConfig<()>>,
     adapters: AdapterOptions,
     users: Vec<UserInfo>,
-    roles: Vec<RoleInfo>,
 }
 
 // TODO: Move to primitives.
@@ -53,12 +52,6 @@ pub struct UserInfo {
     pagerduty: Option<String>,
     #[cfg(test)]
     mocker: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct RoleInfo {
-    name: Role,
-    members: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,16 +77,7 @@ struct AdapterConfig<T, L> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct EscalationConfig<T> {
     window: u64,
-    acks: AckType,
     levels: Vec<T>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-enum AckType {
-    Users(Vec<String>),
-    MinRole(Role),
-    Roles(Vec<Role>),
-    EscalationLevel,
 }
 
 #[derive(StructOpt, Debug)]

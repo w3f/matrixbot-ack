@@ -1,4 +1,4 @@
-use crate::{unix_time, Result};
+use crate::{unix_time, Result, adapter::AdapterName};
 
 // TODO: Remove
 use std::fmt::Display;
@@ -33,6 +33,13 @@ pub struct AlertContext {
     pub last_notified_tmsp: Option<u64>,
     pub acked_by: Option<User>,
     pub acked_at_tmsp: Option<u64>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct AdapterContext {
+    pub name: AdapterName,
+    pub level_idx: usize,
+    pub last_notified_tmsp: Option<u64>,
 }
 
 impl AlertContext {
@@ -140,14 +147,6 @@ pub enum User {
     PagerDuty(String),
     #[cfg(test)]
     Mocker(String),
-}
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct Role(String);
-
-impl Display for Role {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
