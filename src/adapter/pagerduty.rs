@@ -13,8 +13,7 @@ const SEND_ALERT_ENDPOINT: &str = "https://events.pagerduty.com/v2/enqueue";
 const RETRY_TIMEOUT: u64 = 10; // seconds
 
 pub struct PagerDutyClient {
-    // TODO: Make this a separate type
-    levels: LevelManager<PagerDutyConfig>,
+    levels: LevelManager<PagerDutyLevel>,
     config: PagerDutyConfig,
     client: reqwest::Client,
 }
@@ -37,7 +36,7 @@ impl Adapter for PagerDutyClient {
 }
 
 impl PagerDutyClient {
-    pub fn new(mut config: PagerDutyConfig, levels: Vec<PagerDutyConfig>) -> Self {
+    pub fn new(mut config: PagerDutyConfig, levels: Vec<PagerDutyLevel>) -> Self {
         config.api_key = format!("Token token={}", config.api_key);
 
         PagerDutyClient {
@@ -94,15 +93,17 @@ impl PagerDutyClient {
 
         Ok(None)
     }
+    async fn run_ack_checker(&self) {
+        unimplemented!()
+    }
 }
 
 /// Alert Event for the PagerDuty API.
 #[derive(Debug, Clone, Serialize)]
 pub struct AlertEvent {
-    #[serde(skip_serializing)]
-    id: AlertId,
     routing_key: String,
     event_action: EventAction,
+    dedup_key: String,
     payload: Payload,
 }
 
@@ -132,11 +133,21 @@ pub enum PayloadSeverity {
     Info,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+struct LogEntries {
+    log_entries: Vec<LogEntry>,
+}
+
+struct LogEntry {}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PagerDutyConfig {
     api_key: String,
-    integration_key: String,
     payload_source: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct PagerDutyLevel {
+    integration_key: String,
     payload_severity: PayloadSeverity,
 }
 
@@ -147,11 +158,11 @@ fn new_alert_event(
     alert: &AlertContext,
 ) -> AlertEvent {
     AlertEvent {
-        id: alert.id,
         routing_key: key,
         event_action: EventAction::Trigger,
+        dedup_key: format!("ID#{}", alert.id),
         payload: Payload {
-            summary: "TODO".to_string(),
+            summary: alert.to_string_pagerduty(),
             source,
             severity,
         },
@@ -175,10 +186,11 @@ async fn post_alert(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{primitives::{Alert, AlertContext}, unix_time};
     use std::env;
 
     #[ignore]
-    #[actix_web::test]
+    #[tokio::test]
     async fn submit_alert_event() {
         // Keep those entries a SECRET!
         let integration_key = env::var("PD_SERVICE_KEY").unwrap();
@@ -186,12 +198,21 @@ mod tests {
 
         let config = PagerDutyConfig {
             api_key,
-            integration_key,
             payload_source: "matrixbot-ack-test".to_string(),
+        };
+
+        let level = PagerDutyLevel {
+            integration_key,
             payload_severity: PayloadSeverity::Warning,
         };
 
-        let _client = PagerDutyClient::new(config);
+        let client = PagerDutyClient::new(config, vec![level]);
+
+        let notification = Notification::Alert {
+            context: AlertContext::new(unix_time().into(), Alert::test()),
+        };
+
+        let resp = client.handle(notification).await;
 
         // TODO
     }

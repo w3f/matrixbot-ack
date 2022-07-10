@@ -20,8 +20,6 @@ mod adapter;
 mod database;
 mod escalation;
 mod primitives;
-#[cfg(test)]
-mod tests;
 mod webhook;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;

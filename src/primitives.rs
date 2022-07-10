@@ -1,5 +1,6 @@
 use crate::{unix_time, Result};
 
+// TODO: Remove
 use std::fmt::Display;
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
@@ -45,6 +46,44 @@ impl AlertContext {
             acked_by: None,
             acked_at_tmsp: None,
         }
+    }
+    pub fn to_string_matrix(&self) -> String {
+        format!(
+            "\
+            - ID: {}\n  \
+              Name: {}\n  \
+              Severity: {}\n  \
+              Message: {}\n  \
+              Description: {}\n\
+        ",
+            self.id,
+            self.alert.labels.alert_name,
+            self.alert.labels.severity,
+            self.alert.annotations.message.as_deref().unwrap_or("N/A"),
+            self.alert
+                .annotations
+                .description
+                .as_deref()
+                .unwrap_or("N/A")
+        )
+    }
+    pub fn to_string_pagerduty(&self) -> String {
+        format!(
+            "\
+              Name: {}, \
+              Severity: {},  \
+              Message: {},  \
+              Description: {}\
+        ",
+            self.alert.labels.alert_name,
+            self.alert.labels.severity,
+            self.alert.annotations.message.as_deref().unwrap_or("N/A"),
+            self.alert
+                .annotations
+                .description
+                .as_deref()
+                .unwrap_or("N/A")
+        )
     }
 }
 
@@ -170,5 +209,25 @@ impl Command {
         };
 
         Ok(Some(cmd))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    impl Alert {
+        pub fn test() -> Self {
+            Alert {
+                annotations: Annotations {
+                    message: Some("Test Alert".to_string()),
+                    description: Some("Test Description".to_string()),
+                },
+                labels: Labels {
+                    severity: "Test Severity".to_string(),
+                    alert_name: "Test Alert Name".to_string(),
+                },
+            }
+        }
     }
 }
