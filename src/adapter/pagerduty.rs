@@ -1,6 +1,7 @@
 use super::{Adapter, AdapterAlertId, LevelManager};
 use crate::primitives::{
-    Acknowledgement, AlertContext, AlertId, Notification, User, UserAction, UserConfirmation,
+    Acknowledgement, AlertContext, AlertId, Command, Notification, User, UserAction,
+    UserConfirmation,
 };
 use crate::Result;
 use reqwest::header::AUTHORIZATION;
@@ -17,14 +18,15 @@ use super::AdapterName;
 const SEND_ALERT_ENDPOINT: &str = "https://events.pagerduty.com/v2/enqueue";
 // TODO: Add note about limit
 const GET_LOG_ENTRIES_ENDPOINT: &str = "https://api.pagerduty.com/log_entries?limit=20";
+const FETCH_LOG_ENTRIES_INTERVAL: u64 = 5;
 const RETRY_TIMEOUT: u64 = 10; // seconds
 
 pub struct PagerDutyClient {
     levels: LevelManager<PagerDutyLevel>,
     config: PagerDutyConfig,
-    client: reqwest::Client,
+    client: Arc<reqwest::Client>,
     user_actions: Arc<Mutex<UnboundedReceiver<UserAction>>>,
-    tx: UnboundedSender<UserAction>,
+    tx: Arc<UnboundedSender<UserAction>>,
 }
 
 #[async_trait]
@@ -46,18 +48,22 @@ impl Adapter for PagerDutyClient {
 }
 
 impl PagerDutyClient {
-    pub fn new(mut config: PagerDutyConfig, levels: Vec<PagerDutyLevel>) -> Self {
+    pub async fn new(mut config: PagerDutyConfig, levels: Vec<PagerDutyLevel>) -> Self {
         config.api_key = format!("Token token={}", config.api_key);
 
         let (tx, user_actions) = unbounded_channel();
 
-        PagerDutyClient {
+        let client = PagerDutyClient {
             levels: LevelManager::from(levels),
             config,
-            client: reqwest::Client::new(),
+            client: Arc::new(reqwest::Client::new()),
             user_actions: Arc::new(Mutex::new(user_actions)),
-            tx,
-        }
+            tx: Arc::new(tx),
+        };
+
+        client.run_log_entries().await;
+
+        client
     }
     #[rustfmt::skip]
     async fn handle(&self, notification: Notification) -> Result<Option<AdapterAlertId>> {
@@ -92,12 +98,32 @@ impl PagerDutyClient {
 
         Ok(None)
     }
-    async fn fetch_log_entries(&self) {
-        let resp =
-            auth_get::<LogEntries>(GET_LOG_ENTRIES_ENDPOINT, &self.client, &self.config.api_key)
-                .await
-                .unwrap();
-        println!("{:?}", resp);
+    async fn run_log_entries(&self) {
+        let client = Arc::clone(&self.client);
+        let tx = Arc::clone(&self.tx);
+        let api_key = self.config.api_key.to_string();
+
+        tokio::spawn(async move {
+            loop {
+                match auth_get::<LogEntries>(GET_LOG_ENTRIES_ENDPOINT, &client, &api_key).await {
+                    Ok(entries) => {
+                        for (alert_id, user) in entries.get_acknowledged() {
+                            tx.send(UserAction {
+                                user,
+                                channel_id: 0,
+                                command: Command::Ack(alert_id),
+                            })
+                            .unwrap()
+                        }
+                    }
+                    Err(err) => {
+                        error!("failed to fetch PagerDuty log entries: {:?}", err);
+                    }
+                }
+
+                sleep(Duration::from_secs(FETCH_LOG_ENTRIES_INTERVAL)).await;
+            }
+        });
     }
 }
 
