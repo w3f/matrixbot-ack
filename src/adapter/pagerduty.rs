@@ -87,17 +87,27 @@ impl PagerDutyClient {
 
                 // Send authenticated POST request. We don't care about the
                 // return value as long as it succeeds.
-                let _resp = auth_post::<_, serde_json::Value>(SEND_ALERT_ENDPOINT, &self.client, &self.config.api_key, &alert).await?;
+                let _resp = auth_post::<_, serde_json::Value>(
+                    SEND_ALERT_ENDPOINT,
+                    &self.client,
+                    &self.config.api_key,
+                    &alert
+                ).await?;
             }
-            Notification::Acknowledged { id, _acked_by } => {
+            Notification::Acknowledged { id: alert_id, acked_by: _} => {
                 // NOTE: Acknowlegement of alerts always happens on the first
                 // specified integration key.
                 let level = self.levels.single_level(0).unwrap();
-                let ack = new_alert_acknowlegement(level.integration_key.to_string(), id);
+                let ack = new_alert_ack(level.integration_key.to_string(), alert_id);
 
                 // Send authenticated POST request. We don't care about the
                 // return value as long as it succeeds.
-                let _resp = auth_post::<_, serde_json::Value>(SEND_ALERT_ENDPOINT, &self.client, &self.config.api_key, &ack).await?;
+                let _resp = auth_post::<_, serde_json::Value>(
+                    SEND_ALERT_ENDPOINT,
+                    &self.client,
+                    &self.config.api_key,
+                    &ack
+                ).await?;
             }
         }
 
@@ -275,7 +285,7 @@ fn new_alert_event(
     }
 }
 
-fn new_alert_acknowlegement(key: String, alert_id: AlertId) -> AlertEvent {
+fn new_alert_ack(key: String, alert_id: AlertId) -> AlertEvent {
     AlertEvent {
         routing_key: key,
         event_action: EventAction::Acknowledge,
