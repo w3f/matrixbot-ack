@@ -70,7 +70,10 @@ impl PagerDutyClient {
         // Create an alert type native to the PagerDuty API.
         match notification {
             Notification::Alert { context: alert } => {
-                let level = self.levels.single_level(alert.level_idx);
+                let level = self
+                    .levels
+                    .single_level(alert.level_idx(self.name()));
+
                 let level = if let Some(level) = level {
                     level
                 } else {

@@ -1,4 +1,4 @@
-use crate::{unix_time, Result, adapter::AdapterName};
+use crate::{adapter::AdapterName, unix_time, Result};
 
 // TODO: Remove
 use std::fmt::Display;
@@ -29,8 +29,7 @@ pub struct AlertContext {
     pub id: AlertId,
     pub alert: Alert,
     pub inserted_tmsp: u64,
-    pub level_idx: usize,
-    pub last_notified_tmsp: Option<u64>,
+    pub adapters: Vec<AdapterContext>,
     pub acked_by: Option<User>,
     pub acked_at_tmsp: Option<u64>,
 }
@@ -48,11 +47,17 @@ impl AlertContext {
             id,
             alert,
             inserted_tmsp: unix_time(),
-            level_idx: 0,
-            last_notified_tmsp: None,
+            adapters: vec![],
             acked_by: None,
             acked_at_tmsp: None,
         }
+    }
+    pub fn level_idx(&self, adapter: AdapterName) -> usize {
+        self.adapters
+            .iter()
+            .find(|ctx| ctx.name == adapter)
+            .map(|ctx| ctx.level_idx)
+            .unwrap_or(0)
     }
     pub fn to_string_matrix(&self) -> String {
         format!(
