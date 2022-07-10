@@ -7,6 +7,9 @@ use reqwest::header::AUTHORIZATION;
 use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
 
 use super::AdapterName;
@@ -20,6 +23,8 @@ pub struct PagerDutyClient {
     levels: LevelManager<PagerDutyLevel>,
     config: PagerDutyConfig,
     client: reqwest::Client,
+    user_actions: Arc<Mutex<UnboundedReceiver<UserAction>>>,
+    tx: UnboundedSender<UserAction>,
 }
 
 #[async_trait]
@@ -35,7 +40,8 @@ impl Adapter for PagerDutyClient {
         Ok(())
     }
     async fn endpoint_request(&self) -> Option<UserAction> {
-        unimplemented!()
+        let mut l = self.user_actions.lock().await;
+        l.recv().await
     }
 }
 
@@ -43,10 +49,14 @@ impl PagerDutyClient {
     pub fn new(mut config: PagerDutyConfig, levels: Vec<PagerDutyLevel>) -> Self {
         config.api_key = format!("Token token={}", config.api_key);
 
+        let (tx, user_actions) = unbounded_channel();
+
         PagerDutyClient {
             levels: LevelManager::from(levels),
             config,
             client: reqwest::Client::new(),
+            user_actions: Arc::new(Mutex::new(user_actions)),
+            tx,
         }
     }
     #[rustfmt::skip]
