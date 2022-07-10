@@ -36,7 +36,7 @@ pub struct AlertContext {
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AdapterContext {
-    pub name: AdapterName,
+    pub adapter: AdapterName,
     pub level_idx: usize,
     pub last_notified_tmsp: Option<u64>,
 }
@@ -55,7 +55,7 @@ impl AlertContext {
     pub fn level_idx(&self, adapter: AdapterName) -> usize {
         self.adapters
             .iter()
-            .find(|ctx| ctx.name == adapter)
+            .find(|ctx| ctx.adapter == adapter)
             .map(|ctx| ctx.level_idx)
             .unwrap_or(0)
     }

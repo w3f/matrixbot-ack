@@ -9,7 +9,7 @@ pub use pagerduty::PagerDutyClient;
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "adapter", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum AdapterName {
     Matrix,
     PagerDuty,

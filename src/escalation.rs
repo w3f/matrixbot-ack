@@ -58,8 +58,6 @@ impl EscalationService {
                         ),
                     }
                 }
-
-                // TODO: Update database with new idx, track which adapters failed
             }
 
             sleep(Duration::from_secs(INTERVAL)).await;

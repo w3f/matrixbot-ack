@@ -109,44 +109,41 @@ impl Database {
             Ok(true)
         }
     }
-    // TODO: handle adapter
     pub async fn get_pending(
         &self,
         interval: Option<Duration>,
-        _adapter: Option<AdapterName>,
+        adapter: Option<AdapterName>,
     ) -> Result<PendingAlerts> {
-        const INSERTED_OFFSET: u64 = 10;
-
         let pending = self.db.collection::<AlertContext>(PENDING);
         let now = unix_time();
 
-        let last_notified_query = match interval {
-            Some(i) => {
-                doc! {
-                    "last_notified_tmsp": {
-                        "$lt": to_bson(&(now - i.as_secs()))?
+        // TODO: Test this individually.
+        match (interval.is_some(), adapter.is_some()) {
+            (true, false) | (false, true) => return Err(anyhow!("")),
+            _ => {}
+        }
+
+        // Main query, search for unacknowleged alerts.
+        let mut query = doc! {
+            "acked_by": null,
+        };
+
+        if let Some(adapter) = adapter {
+            query.extend(doc! {
+                "adapters.name": to_bson(&adapter)?,
+            });
+
+            if let Some(interval) = interval {
+                query.extend(doc! {
+                    "adapters.$.last_notified_tmsp": {
+                        "$lt": to_bson(&(now - interval.as_secs()))?
                     }
-                }
+                });
             }
-            None => doc! {},
         };
 
         pending
-            .find(
-                doc! {
-                    "inserted_tmsp": {
-                        "$lt": to_bson(&(now-INSERTED_OFFSET))?
-                    },
-                    "$or": [
-                        {
-                            "last_notified_tmsp": null
-                        },
-                        last_notified_query,
-                    ],
-                    "acked_by": null
-                },
-                None,
-            )
+            .find(query, None)
             .await?
             .map(|res| res.map_err(|err| err.into()))
             .collect::<Vec<Result<AlertContext>>>()
@@ -156,39 +153,20 @@ impl Database {
             .map(|alerts| PendingAlerts { alerts })
     }
     // TODO: Check for modified entries?
-    pub async fn mark_delivered(&self, id: AlertId, _adapter: AdapterName) -> Result<()> {
+    pub async fn mark_delivered(&self, id: AlertId, adapter: AdapterName) -> Result<()> {
         let pending = self.db.collection::<AlertContext>(PENDING);
         let now = unix_time();
 
         pending
             .update_one(
                 doc! {
-                    "id": to_bson(&id)?
+                    "id": to_bson(&id)?,
+                    "adapters.name": to_bson(&adapter)?,
                 },
                 doc! {
                     "$set": {
-                        "last_notified_tmsp": to_bson(&now)?,
-                    }
-                },
-                None,
-            )
-            .await?;
-
-        Ok(())
-    }
-    pub async fn increment_alert_state(&self, id: AlertId, new_idx: usize) -> Result<()> {
-        let pending = self.db.collection::<AlertContext>(PENDING);
-        let now = unix_time();
-
-        pending
-            .update_one(
-                doc! {
-                    "id": to_bson(&id)?
-                },
-                doc! {
-                    "$set": {
-                        "level_idx": to_bson(&new_idx)?,
-                        "last_notified_tmsp": to_bson(&now)?
+                        "adapters.$.level_idx": 1,
+                        "adapters.$.last_notified_tmsp": to_bson(&now)?,
                     }
                 },
                 None,
