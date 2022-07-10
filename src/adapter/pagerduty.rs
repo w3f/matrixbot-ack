@@ -131,6 +131,37 @@ struct LogEntries {
     log_entries: Vec<LogEntry>,
 }
 
+impl LogEntries {
+    fn get_acknowledged(&self) -> Vec<AlertId> {
+        self.log_entries
+            .iter()
+            // Filter for acknowledged alerts
+            .filter(|entry| {
+                entry
+                    .ty
+                    .as_ref()
+                    .map(|ty| ty.contains("acknowledge_log_entry"))
+                    .unwrap_or(false)
+            })
+            // Search for `{...} - ID#{...}` in summary field
+            .filter_map(|entry| {
+                entry.incident.summary.as_ref().map(|sum| {
+                    let parts: Vec<&str> = sum.split('-').collect();
+
+                    parts.last().and_then(|last| {
+                        if last.starts_with("ID#") {
+                            AlertId::from_str(last.replace("ID#", "").as_str()).ok()
+                        } else {
+                            None
+                        }
+                    })
+                })
+            })
+            .filter_map(|s| s)
+            .collect()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct LogEntry {
     #[serde(rename = "type")]

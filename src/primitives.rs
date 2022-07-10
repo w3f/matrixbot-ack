@@ -7,7 +7,7 @@ use std::fmt::Display;
 pub struct AlertId(u64);
 
 impl AlertId {
-    fn from_str(str: &str) -> Result<Self> {
+    pub fn from_str(str: &str) -> Result<Self> {
         Ok(AlertId(str.parse()?))
     }
 }
