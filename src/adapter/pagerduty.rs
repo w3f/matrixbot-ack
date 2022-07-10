@@ -1,6 +1,6 @@
 use super::{Adapter, AdapterAlertId, LevelManager};
 use crate::primitives::{
-    Acknowledgement, AlertContext, AlertId, Notification, UserAction, UserConfirmation,
+    Acknowledgement, AlertContext, AlertId, Notification, User, UserAction, UserConfirmation,
 };
 use crate::Result;
 use reqwest::header::AUTHORIZATION;
@@ -132,8 +132,9 @@ struct LogEntries {
 }
 
 impl LogEntries {
-    fn get_acknowledged(&self) -> Vec<AlertId> {
-        self.log_entries
+    fn get_acknowledged(&self) -> Vec<(AlertId, User)> {
+        let entries: Vec<&LogEntry> = self
+            .log_entries
             .iter()
             // Filter for acknowledged alerts
             .filter(|entry| {
@@ -143,22 +144,42 @@ impl LogEntries {
                     .map(|ty| ty.contains("acknowledge_log_entry"))
                     .unwrap_or(false)
             })
-            // Search for `{...} - ID#{...}` in summary field
-            .filter_map(|entry| {
-                entry.incident.summary.as_ref().map(|sum| {
-                    let parts: Vec<&str> = sum.split('-').collect();
+            .collect();
 
-                    parts.last().and_then(|last| {
+        let mut acks = vec![];
+
+        for entry in entries {
+            let mut alert_id = None;
+            let mut user = None;
+
+            entry.incident.as_ref().map(|inc| {
+                inc.summary.as_ref().map(|summary| {
+                    let parts: Vec<&str> = summary.split('-').collect();
+
+                    parts.last().as_ref().map(|last| {
                         if last.starts_with("ID#") {
-                            AlertId::from_str(last.replace("ID#", "").as_str()).ok()
-                        } else {
-                            None
+                            AlertId::from_str(last.replace("ID#", "").as_str()).map(|id| {
+                                alert_id = Some(id);
+                            });
                         }
-                    })
+                    });
+                });
+            });
+
+            entry.agent.as_ref().map(|agent| {
+                agent.summary.as_ref().map(|summary| {
+                    user = Some(User::PagerDuty(summary.to_string()));
                 })
-            })
-            .filter_map(|s| s)
-            .collect()
+            });
+
+            if alert_id.is_none() || user.is_none() {
+                continue;
+            }
+
+            acks.push((alert_id.unwrap(), user.unwrap()));
+        }
+
+        acks
     }
 }
 
@@ -166,7 +187,13 @@ impl LogEntries {
 struct LogEntry {
     #[serde(rename = "type")]
     ty: Option<String>,
-    incident: LogEntryIncident,
+    agent: Option<LogAgent>,
+    incident: Option<LogEntryIncident>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct LogAgent {
+    summary: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -55,16 +55,6 @@ pub struct UserInfo {
     mocker: Option<String>,
 }
 
-impl UserInfo {
-    fn matches(&self, user: &User) -> bool {
-        match user {
-            User::Matrix(name) => self.matrix.as_ref().map(|s| s == name).unwrap_or(false),
-            #[cfg(test)]
-            User::Mocker(name) => self.mocker.as_ref().map(|s| s == name).unwrap_or(false),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct RoleInfo {
     name: Role,

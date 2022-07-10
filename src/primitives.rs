@@ -137,6 +137,7 @@ pub struct Acknowledgement<T> {
 #[serde(tag = "adapter", content = "user")]
 pub enum User {
     Matrix(String),
+    PagerDuty(String),
     #[cfg(test)]
     Mocker(String),
 }
