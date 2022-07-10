@@ -110,6 +110,7 @@ impl PagerDutyClient {
                         for (alert_id, user) in entries.get_acknowledged() {
                             tx.send(UserAction {
                                 user,
+                                // TODO: Should this be None?
                                 channel_id: 0,
                                 command: Command::Ack(alert_id),
                             })
@@ -323,33 +324,12 @@ mod tests {
             payload_severity: PayloadSeverity::Warning,
         };
 
-        let client = PagerDutyClient::new(config, vec![level]);
+        let client = PagerDutyClient::new(config, vec![level]).await;
 
         let notification = Notification::Alert {
             context: AlertContext::new(unix_time().into(), Alert::test()),
         };
 
         let _resp = client.handle(notification).await.unwrap();
-    }
-
-    #[ignore]
-    #[tokio::test]
-    async fn fetch_log_entries() {
-        // Keep those entries a SECRET!
-        let integration_key = env::var("PD_SERVICE_KEY").unwrap();
-        let api_key = env::var("PD_API_KEY").unwrap();
-
-        let config = PagerDutyConfig {
-            api_key,
-            payload_source: "matrixbot-ack-test".to_string(),
-        };
-
-        let level = PagerDutyLevel {
-            integration_key,
-            payload_severity: PayloadSeverity::Warning,
-        };
-
-        let client = PagerDutyClient::new(config, vec![level]);
-        client.fetch_log_entries().await;
     }
 }
