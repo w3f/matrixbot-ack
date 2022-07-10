@@ -89,8 +89,15 @@ impl PagerDutyClient {
                 // return value as long as it succeeds.
                 let _resp = auth_post::<_, serde_json::Value>(SEND_ALERT_ENDPOINT, &self.client, &self.config.api_key, &alert).await?;
             }
-            Notification::Acknowledged { id, acked_by } => {
-                // TODO: acknowledge via API.
+            Notification::Acknowledged { id, _acked_by } => {
+                // NOTE: Acknowlegement of alerts always happens on the first
+                // specified integration key.
+                let level = self.levels.single_level(0).unwrap();
+                let ack = new_alert_acknowlegement(level.integration_key.to_string(), id);
+
+                // Send authenticated POST request. We don't care about the
+                // return value as long as it succeeds.
+                let _resp = auth_post::<_, serde_json::Value>(SEND_ALERT_ENDPOINT, &self.client, &self.config.api_key, &ack).await?;
             }
         }
 
@@ -134,7 +141,7 @@ pub struct AlertEvent {
     routing_key: String,
     event_action: EventAction,
     dedup_key: String,
-    payload: Payload,
+    payload: Option<Payload>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -260,11 +267,20 @@ fn new_alert_event(
         routing_key: key,
         event_action: EventAction::Trigger,
         dedup_key: format!("ID#{}", alert.id),
-        payload: Payload {
+        payload: Some(Payload {
             summary: alert.to_string_pagerduty(),
             source,
             severity,
-        },
+        }),
+    }
+}
+
+fn new_alert_acknowlegement(key: String, alert_id: AlertId) -> AlertEvent {
+    AlertEvent {
+        routing_key: key,
+        event_action: EventAction::Acknowledge,
+        dedup_key: format!("ID#{}", alert_id),
+        payload: None,
     }
 }
 
