@@ -73,7 +73,8 @@ impl AlertContext {
               Name: {}, \
               Severity: {},  \
               Message: {},  \
-              Description: {}\
+              Description: {} - \
+              ID#{}\
         ",
             self.alert.labels.alert_name,
             self.alert.labels.severity,
@@ -82,7 +83,8 @@ impl AlertContext {
                 .annotations
                 .description
                 .as_deref()
-                .unwrap_or("N/A")
+                .unwrap_or("N/A"),
+            self.id,
         )
     }
 }

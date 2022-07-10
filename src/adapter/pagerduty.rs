@@ -5,11 +5,15 @@ use crate::primitives::{
 use crate::Result;
 use reqwest::header::AUTHORIZATION;
 use reqwest::StatusCode;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use tokio::time::{sleep, Duration};
 
 use super::AdapterName;
 
 const SEND_ALERT_ENDPOINT: &str = "https://events.pagerduty.com/v2/enqueue";
+// TODO: Add note about limit
+const GET_LOG_ENTRIES_ENDPOINT: &str = "https://api.pagerduty.com/log_entries?limit=20";
 const RETRY_TIMEOUT: u64 = 10; // seconds
 
 pub struct PagerDutyClient {
@@ -65,24 +69,9 @@ impl PagerDutyClient {
                     &alert,
                 );
 
-                let resp = post_alert(&self.client, self.config.api_key.as_str(), &alert).await?;
-
-                match resp.status() {
-                    StatusCode::ACCEPTED => {
-                        debug!("Received ACCEPTED from PagerDuty API");
-                        // TODO: Return PagerDuty specific ID
-                    }
-                    StatusCode::BAD_REQUEST => {
-                        return Err(anyhow!("BAD_REQUEST from server"))
-                    },
-                    err => {
-                        return Err(anyhow!(
-                            "unrecognized status code {:?} from server: {:?}",
-                            err,
-                            resp
-                        ))
-                    }
-                }
+                // Send authenticated POST request. We don't care about the
+                // return value as long as it succeeds.
+                let _resp = auth_post::<_, serde_json::Value>(SEND_ALERT_ENDPOINT, &self.client, &self.config.api_key, &alert).await?;
             }
             Notification::Acknowledged { id, acked_by } => {
                 // TODO: acknowledge via API.
@@ -93,8 +82,12 @@ impl PagerDutyClient {
 
         Ok(None)
     }
-    async fn run_ack_checker(&self) {
-        unimplemented!()
+    async fn fetch_log_entries(&self) {
+        let resp =
+            auth_get::<LogEntries>(GET_LOG_ENTRIES_ENDPOINT, &self.client, &self.config.api_key)
+                .await
+                .unwrap();
+        println!("{:?}", resp);
     }
 }
 
@@ -133,11 +126,22 @@ pub enum PayloadSeverity {
     Info,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct LogEntries {
     log_entries: Vec<LogEntry>,
 }
 
-struct LogEntry {}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct LogEntry {
+    #[serde(rename = "type")]
+    ty: Option<String>,
+    incident: LogEntryIncident,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct LogEntryIncident {
+    summary: Option<String>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PagerDutyConfig {
@@ -169,24 +173,43 @@ fn new_alert_event(
     }
 }
 
-async fn post_alert(
+async fn auth_post<T: Serialize, R: DeserializeOwned>(
+    url: &str,
     client: &reqwest::Client,
     api_key: &str,
-    alert: &AlertEvent,
-) -> Result<reqwest::Response> {
-    client
-        .post(SEND_ALERT_ENDPOINT)
+    data: &T,
+) -> Result<R> {
+    let resp = client
+        .post(url)
         .header(AUTHORIZATION, api_key)
-        .json(alert)
+        .json(data)
         .send()
-        .await
-        .map_err(|err| err.into())
+        .await?;
+
+    resp.json::<R>().await.map_err(|err| err.into())
+}
+
+async fn auth_get<R: DeserializeOwned>(
+    url: &str,
+    client: &reqwest::Client,
+    api_key: &str,
+) -> Result<R> {
+    let resp = client
+        .get(url)
+        .header(AUTHORIZATION, api_key)
+        .send()
+        .await?;
+
+    resp.json::<R>().await.map_err(|err| err.into())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{primitives::{Alert, AlertContext}, unix_time};
+    use crate::{
+        primitives::{Alert, AlertContext},
+        unix_time,
+    };
     use std::env;
 
     #[ignore]
@@ -212,8 +235,27 @@ mod tests {
             context: AlertContext::new(unix_time().into(), Alert::test()),
         };
 
-        let resp = client.handle(notification).await;
+        let _resp = client.handle(notification).await.unwrap();
+    }
 
-        // TODO
+    #[ignore]
+    #[tokio::test]
+    async fn fetch_log_entries() {
+        // Keep those entries a SECRET!
+        let integration_key = env::var("PD_SERVICE_KEY").unwrap();
+        let api_key = env::var("PD_API_KEY").unwrap();
+
+        let config = PagerDutyConfig {
+            api_key,
+            payload_source: "matrixbot-ack-test".to_string(),
+        };
+
+        let level = PagerDutyLevel {
+            integration_key,
+            payload_severity: PayloadSeverity::Warning,
+        };
+
+        let client = PagerDutyClient::new(config, vec![level]);
+        client.fetch_log_entries().await;
     }
 }
