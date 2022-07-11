@@ -128,20 +128,6 @@ pub struct PendingAlerts {
     pub alerts: Vec<AlertContext>,
 }
 
-// TODO: Rename
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct IncrementedPendingAlerts {
-    pub id: AlertId,
-    pub new_level_idx: usize,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Acknowledgement<T> {
-    pub user: User,
-    pub channel_id: T,
-    pub alert_id: AlertId,
-}
-
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "adapter", content = "user")]
 pub enum User {

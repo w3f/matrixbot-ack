@@ -1,6 +1,6 @@
 use super::{Adapter, AdapterAlertId, LevelManager};
 use crate::primitives::{
-    Acknowledgement, AlertContext, AlertId, Command, Notification, User, UserAction,
+    AlertContext, AlertId, Command, Notification, User, UserAction,
     UserConfirmation,
 };
 use crate::Result;
