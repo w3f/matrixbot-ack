@@ -71,4 +71,7 @@ impl<T: Eq + PartialEq> LevelManager<T> {
             )
         }
     }
+    fn all(&self) -> &[T] {
+        self.levels.as_ref()
+    }
 }

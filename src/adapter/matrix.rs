@@ -101,7 +101,16 @@ impl Adapter for MatrixClient {
     fn name(&self) -> AdapterName {
         AdapterName::Matrix
     }
-    async fn notify(&self, _: Notification) -> Result<Option<AdapterAlertId>> {
+    async fn notify(&self, notification: Notification) -> Result<Option<AdapterAlertId>> {
+        match notification {
+            Notification::Alert { context } => {
+                let (pre, next) = self.rooms.level_with_prev(context.level_idx(self.name()));
+            }
+            Notification::Acknowledged { id, acked_by } => {
+                // TODO: Notify all rooms.
+            }
+        }
+
         unimplemented!()
     }
     async fn respond(&self, resp: UserConfirmation, level_idx: usize) -> Result<()> {
