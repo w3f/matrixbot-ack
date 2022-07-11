@@ -38,7 +38,6 @@ pub trait Adapter: 'static + Send + Sync {
     async fn endpoint_request(&self) -> Option<UserAction>;
 }
 
-// TODO: Note about empty levels and unwraps.
 #[derive(Debug, Clone)]
 struct LevelManager<T> {
     levels: Vec<T>,
@@ -55,6 +54,9 @@ impl<T: Eq + PartialEq> LevelManager<T> {
         self.levels
             .get(level)
             .unwrap_or_else(|| self.levels.last().unwrap())
+    }
+    fn position(&self, level: &T) -> Option<usize> {
+        self.levels.iter().position(|l| l == level)
     }
     // TODO: Rename
     fn level_with_prev(&self, level: usize) -> (Option<&T>, &T) {

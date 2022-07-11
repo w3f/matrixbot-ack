@@ -154,9 +154,8 @@ impl EventHandler for Listener {
                     if let Some(cmd) = try_cmd {
                         let action = UserAction {
                             user: User::Matrix(event.sender.to_string()),
-                            // TODO:
-                            //channel_id: room.room_id().clone(),
-                            channel_id: 0,
+                            // Panicing would imply bug.
+                            channel_id: self.rooms.position(room.room_id()).unwrap(),
                             command: cmd,
                         };
 
@@ -164,7 +163,7 @@ impl EventHandler for Listener {
                     }
                 }
                 Err(_err) => {
-                    // TODO: Resp error
+                    // Ignore unrecognized commands/talk.
                 }
             }
         }
