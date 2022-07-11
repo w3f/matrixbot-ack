@@ -123,7 +123,7 @@ impl Adapter for MatrixClient {
                 // informed to avoid the occurence of duplicate messages.
                 let mut at_least_one = false;
 
-                for room_id in self.rooms.all() {
+                for room_id in self.rooms.all_up_to(level_idx) {
                     let mut counter = 0;
 
                     loop {

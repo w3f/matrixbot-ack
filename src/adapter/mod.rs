@@ -71,7 +71,7 @@ impl<T: Eq + PartialEq> LevelManager<T> {
             )
         }
     }
-    fn all(&self) -> &[T] {
-        self.levels.as_ref()
+    fn all_up_to(&self, level_idx: usize) -> Vec<&T> {
+        self.levels.iter().take(level_idx).collect()
     }
 }
