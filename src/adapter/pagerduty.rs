@@ -74,13 +74,6 @@ impl PagerDutyClient {
                     .levels
                     .single_level(alert.level_idx(self.name()));
 
-                let level = if let Some(level) = level {
-                    level
-                } else {
-                    warn!("TODO");
-                    return Ok(None);
-                };
-
                 let alert = new_alert_event(
                     level.integration_key.to_string(),
                     self.config.payload_source.to_string(),
@@ -100,7 +93,7 @@ impl PagerDutyClient {
             Notification::Acknowledged { id: alert_id, acked_by: _} => {
                 // NOTE: Acknowlegement of alerts always happens on the first
                 // specified integration key.
-                let level = self.levels.single_level(0).unwrap();
+                let level = self.levels.single_level(0);
                 let ack = new_alert_ack(level.integration_key.to_string(), alert_id);
 
                 // Send authenticated POST request. We don't care about the

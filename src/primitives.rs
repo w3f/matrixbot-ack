@@ -1,8 +1,5 @@
 use crate::{adapter::AdapterName, unix_time, Result};
 
-// TODO: Remove
-use std::fmt::Display;
-
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct AlertId(u64);
 

@@ -105,9 +105,11 @@ impl Adapter for MatrixClient {
         unimplemented!()
     }
     async fn respond(&self, resp: UserConfirmation, level_idx: usize) -> Result<()> {
-        // TODO: note about unwrap
-        let room_id = self.rooms.single_level(level_idx).unwrap();
-        let room = self.client.get_joined_room(room_id).unwrap();
+        let room_id = self.rooms.single_level(level_idx);
+        let room = self
+            .client
+            .get_joined_room(room_id)
+            .ok_or_else(|| anyhow!("Failed to get room from Matrix for index {}", level_idx))?;
 
         let content =
             AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(resp.to_string()));

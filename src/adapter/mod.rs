@@ -51,8 +51,10 @@ impl<T: Eq + PartialEq> LevelManager<T> {
     fn contains(&self, level: &T) -> bool {
         self.levels.contains(level)
     }
-    fn single_level(&self, level: usize) -> Option<&T> {
-        self.levels.get(level)
+    fn single_level(&self, level: usize) -> &T {
+        self.levels
+            .get(level)
+            .unwrap_or_else(|| self.levels.last().unwrap())
     }
     // TODO: Rename
     fn level_with_prev(&self, level: usize) -> (Option<&T>, &T) {
