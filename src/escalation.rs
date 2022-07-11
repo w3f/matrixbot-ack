@@ -121,7 +121,7 @@ impl EscalationService {
                                         })
                                         .await
                                     {
-                                        error!("Failed to notify {} adapter about acknowledged of ID {}: {:?}", other.name(), alert_id, err);
+                                        error!("Failed to notify {} adapter about acknowledgement of alert {}: {:?}", other.name(), alert_id, err);
                                         debug!("Retrying...");
                                     } else {
                                         // Notification successful, exit...

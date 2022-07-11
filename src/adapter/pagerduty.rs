@@ -1,7 +1,6 @@
 use super::{Adapter, AdapterAlertId, LevelManager};
 use crate::primitives::{
-    AlertContext, AlertId, Command, Notification, User, UserAction,
-    UserConfirmation,
+    AlertContext, AlertId, Command, Notification, User, UserAction, UserConfirmation,
 };
 use crate::Result;
 use reqwest::header::AUTHORIZATION;

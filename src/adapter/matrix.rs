@@ -106,8 +106,23 @@ impl Adapter for MatrixClient {
             Notification::Alert { context } => {
                 let (pre, next) = self.rooms.level_with_prev(context.level_idx(self.name()));
             }
-            Notification::Acknowledged { id, acked_by } => {
+            Notification::Acknowledged {
+                id: alert_id,
+                acked_by,
+            } => {
                 // TODO: Notify all rooms.
+                for room_id in self.rooms.all() {
+                    let room = self.client.get_joined_room(room_id).ok_or_else(|| {
+                        anyhow!("Failed to get room from Matrix on ID {:?}", room_id)
+                    })?;
+
+                    let content =
+                        AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(
+                            format!("Alert {} was acknowleged by {}", alert_id, acked_by),
+                        ));
+
+                    room.send(content, None).await?;
+                }
             }
         }
 

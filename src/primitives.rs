@@ -137,6 +137,19 @@ pub enum User {
     Mocker(String),
 }
 
+impl std::fmt::Display for User {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (name, adapter) = match self {
+            User::Matrix(n) => (n, "Matrix"),
+            User::PagerDuty(n) => (n, "PagerDuty"),
+            #[cfg(test)]
+            _ => unimplemented!(),
+        };
+
+        write!(f, "{} ({})", name, adapter)
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum UserConfirmation {
     PendingAlerts(PendingAlerts),
