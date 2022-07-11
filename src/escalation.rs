@@ -29,9 +29,12 @@ impl EscalationService {
             // Notify adapter about escalation
             for alert in &pending.alerts {
                 adapter
-                    .notify(Notification::Alert {
-                        context: alert.clone(),
-                    })
+                    .notify(
+                        Notification::Alert {
+                            context: alert.clone(),
+                        },
+                        alert.level_idx(adapter.name()),
+                    )
                     .await?;
 
                 info!(
@@ -115,10 +118,13 @@ impl EscalationService {
                                 let mut counter = 0;
                                 loop {
                                     if let Err(err) = other
-                                        .notify(Notification::Acknowledged {
-                                            id: alert_id,
-                                            acked_by: acked_by.clone(),
-                                        })
+                                        .notify(
+                                            Notification::Acknowledged {
+                                                id: alert_id,
+                                                acked_by: acked_by.clone(),
+                                            },
+                                            action.channel_id,
+                                        )
                                         .await
                                     {
                                         error!("Failed to notify {} adapter about acknowledgement of alert {}: {:?}", other.name(), alert_id, err);

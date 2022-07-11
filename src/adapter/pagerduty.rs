@@ -33,7 +33,7 @@ impl Adapter for PagerDutyClient {
     fn name(&self) -> AdapterName {
         AdapterName::PagerDuty
     }
-    async fn notify(&self, notification: Notification) -> Result<Option<AdapterAlertId>> {
+    async fn notify(&self, notification: Notification, _: usize) -> Result<Option<AdapterAlertId>> {
         self.handle(notification).await
     }
     async fn respond(&self, _: UserConfirmation, _level_idx: usize) -> Result<()> {

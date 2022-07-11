@@ -33,7 +33,7 @@ pub struct AdapterAlertId(String);
 #[async_trait]
 pub trait Adapter: 'static + Send + Sync {
     fn name(&self) -> AdapterName;
-    async fn notify(&self, _: Notification) -> Result<Option<AdapterAlertId>>;
+    async fn notify(&self, _: Notification, level_idx: usize) -> Result<Option<AdapterAlertId>>;
     async fn respond(&self, _: UserConfirmation, level_idx: usize) -> Result<()>;
     async fn endpoint_request(&self) -> Option<UserAction>;
 }

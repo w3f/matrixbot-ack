@@ -10,6 +10,7 @@ use std::convert::TryFrom;
 use std::sync::Arc;
 use tokio::sync::mpsc::{self, unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::sync::Mutex;
+use tokio::time::{sleep, Duration};
 use url::Url;
 
 use super::{Adapter, AdapterAlertId, AdapterName, LevelManager};
@@ -101,32 +102,68 @@ impl Adapter for MatrixClient {
     fn name(&self) -> AdapterName {
         AdapterName::Matrix
     }
-    async fn notify(&self, notification: Notification) -> Result<Option<AdapterAlertId>> {
+    async fn notify(
+        &self,
+        notification: Notification,
+        level_idx: usize,
+    ) -> Result<Option<AdapterAlertId>> {
         match notification {
             Notification::Alert { context } => {
                 let (pre, next) = self.rooms.level_with_prev(context.level_idx(self.name()));
+
+                // TODO.
             }
             Notification::Acknowledged {
                 id: alert_id,
                 acked_by,
             } => {
-                // TODO: Notify all rooms.
+                // We try to notify every relevant room about the
+                // acknowlegement, retrying if one fails, but only up to three
+                // attemps. We will not return an error if at least one room was
+                // informed to avoid the occurence of duplicate messages.
+                let mut at_least_one = false;
+
                 for room_id in self.rooms.all() {
-                    let room = self.client.get_joined_room(room_id).ok_or_else(|| {
-                        anyhow!("Failed to get room from Matrix on ID {:?}", room_id)
-                    })?;
+                    let mut counter = 0;
 
-                    let content =
-                        AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(
-                            format!("Alert {} was acknowleged by {}", alert_id, acked_by),
-                        ));
+                    loop {
+                        let room = self.client.get_joined_room(room_id).ok_or_else(|| {
+                            anyhow!("Failed to get room from Matrix on ID {:?}", room_id)
+                        });
 
-                    room.send(content, None).await?;
+                        if let Err(err) = &room {
+                            error!("{:?}", err);
+                            counter += 1;
+
+                            // Retry max three times, then exit...
+                            if counter <= 3 {
+                                sleep(Duration::from_secs(5 * counter)).await;
+                            } else {
+                                break;
+                            }
+                        }
+
+                        at_least_one = true;
+
+                        let content =
+                            AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(
+                                format!("Alert {} was acknowleged by {}", alert_id, acked_by),
+                            ));
+
+                        // Unwrap is fine since possibility of an error is checked before.
+                        room.unwrap().send(content, None).await?;
+                    }
+                }
+
+                if !at_least_one {
+                    return Err(anyhow!(
+                        "failed to notify room(s) about the acknowlegement... retrying again later"
+                    ));
                 }
             }
         }
 
-        unimplemented!()
+        Ok(None)
     }
     async fn respond(&self, resp: UserConfirmation, level_idx: usize) -> Result<()> {
         let room_id = self.rooms.single_level(level_idx);
