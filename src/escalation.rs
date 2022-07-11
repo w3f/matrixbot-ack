@@ -1,6 +1,7 @@
 use crate::adapter::Adapter;
 use crate::database::Database;
 use crate::primitives::{Command, Notification, UserConfirmation};
+use crate::Result;
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 
@@ -18,45 +19,44 @@ impl EscalationService {
         self
     }
     async fn run(self) {
+        async fn local(
+            db: &Database,
+            window: Duration,
+            adapter: &Arc<Box<dyn Adapter>>,
+        ) -> Result<()> {
+            let pending = db.get_pending(Some(window), Some(adapter.name())).await?;
+
+            // Notify adapter about escalation
+            for alert in &pending.alerts {
+                adapter
+                    .notify(Notification::Alert {
+                        context: alert.clone(),
+                    })
+                    .await?;
+
+                info!(
+                    "Notified {} adapter about escalation ID {}",
+                    adapter.name(),
+                    alert.id
+                );
+
+                db.mark_delivered(alert.id, adapter.name()).await?
+            }
+
+            Ok(())
+        }
+
+        // Run background tasks that handles user requests.
         self.run_request_handler();
 
         loop {
             for adapter in &self.adapters {
-                // TODO: Handle unwrap
-                let pending = self
-                    .db
-                    .get_pending(Some(self.window), Some(adapter.name()))
-                    .await
-                    .unwrap();
-
-                // Notify adapter about escalation
-                for alert in &pending.alerts {
-                    match adapter
-                        .notify(Notification::Alert {
-                            context: alert.clone(),
-                        })
-                        .await
-                    {
-                        Ok(_) => {
-                            info!(
-                                "Notified {} adapter about escalation ID {}",
-                                adapter.name(),
-                                alert.id
-                            );
-
-                            // TODO: Handle unwrap
-                            self.db
-                                .mark_delivered(alert.id, adapter.name())
-                                .await
-                                .unwrap();
-                        }
-                        Err(err) => error!(
-                            "failed to notify {} adapter about escalation ID {}: {:?}",
-                            adapter.name(),
-                            alert.id,
-                            err
-                        ),
-                    }
+                if let Err(err) = local(&self.db, self.window, adapter).await {
+                    error!(
+                        "Error when processing possible escalations for the {} adapter: {:?}",
+                        adapter.name(),
+                        err
+                    );
                 }
             }
 
@@ -75,6 +75,7 @@ impl EscalationService {
                 .map(Arc::clone)
                 .collect();
 
+            let adapter_name = adapter.name();
             tokio::spawn(async move {
                 while let Some(action) = adapter.endpoint_request().await {
                     let message = match action.command {
@@ -140,8 +141,15 @@ impl EscalationService {
                         }
                     }
 
-                    // TODO: Check response
-                    adapter.respond(message, action.channel_id).await;
+                    match adapter.respond(message, action.channel_id).await {
+                        Ok(_) => {}
+                        Err(err) => {
+                            error!(
+                                "failed to respond to request on {} adapter: {:?}",
+                                adapter_name, err
+                            );
+                        }
+                    }
                 }
             });
         }
