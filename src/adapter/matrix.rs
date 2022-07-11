@@ -1,17 +1,18 @@
-use crate::escalation::EscalationService;
-use crate::primitives::{AlertDelivery, ChannelId, Command, User, UserAction};
-use crate::user_request::RequestHandler;
+use crate::primitives::{Command, Notification, User, UserAction, UserConfirmation};
 use crate::Result;
-use actix::prelude::*;
 use matrix_sdk::events::room::message::MessageEventContent;
-use matrix_sdk::events::SyncMessageEvent;
+use matrix_sdk::events::{AnyMessageEventContent, SyncMessageEvent};
 use matrix_sdk::room::Room;
 use matrix_sdk::{Client, ClientConfig, EventHandler, SyncSettings};
 use ruma::events::room::message::MessageType;
 use ruma::RoomId;
 use std::convert::TryFrom;
 use std::sync::Arc;
+use tokio::sync::mpsc::{self, unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::sync::Mutex;
 use url::Url;
+
+use super::{Adapter, AdapterAlertId, AdapterName, LevelManager};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MatrixConfig {
@@ -24,10 +25,11 @@ pub struct MatrixConfig {
     pub rooms: Vec<String>,
 }
 
-#[derive(Clone)]
 pub struct MatrixClient {
-    _rooms: Arc<Vec<RoomId>>,
-    _client: Arc<Client>,
+    rooms: LevelManager<RoomId>,
+    client: Client,
+    // An "ugly" workaround mutation rules.
+    listener: Arc<Mutex<UnboundedReceiver<UserAction>>>,
 }
 
 impl MatrixClient {
@@ -60,16 +62,16 @@ impl MatrixClient {
             .map(|room| RoomId::try_from(room).map_err(|err| err.into()))
             .collect::<Result<Vec<RoomId>>>()?;
 
+        let rooms = LevelManager::from(rooms);
+
         // Add event handler
-        /* TODO
-        if handle_user_command {
-            client
-                .set_event_handler(Box::new(Listener {
-                    rooms: rooms.clone(),
-                }))
-                .await;
-        }
-         */
+        let (tx, listener) = unbounded_channel();
+        client
+            .set_event_handler(Box::new(Listener {
+                rooms: rooms.clone(),
+                queue: tx,
+            }))
+            .await;
 
         // Start backend syncing service
         info!("Executing background sync");
@@ -82,34 +84,59 @@ impl MatrixClient {
 
         // Sync in background.
         let t_client = client.clone();
-        actix::spawn(async move {
+        tokio::spawn(async move {
             t_client.clone().sync(settings).await;
         });
 
         Ok(MatrixClient {
-            _rooms: Arc::new(rooms),
-            _client: Arc::new(client),
+            rooms,
+            client,
+            listener: Arc::new(Mutex::new(listener)),
         })
     }
 }
 
-impl Actor for MatrixClient {
-    type Context = Context<Self>;
-}
+#[async_trait]
+impl Adapter for MatrixClient {
+    fn name(&self) -> AdapterName {
+        AdapterName::Matrix
+    }
+    async fn notify(&self, notification: Notification) -> Result<Option<AdapterAlertId>> {
+        match notification {
+            Notification::Alert { context } => {
+                let (pre, next) = self.rooms.level_with_prev(context.level_idx(self.name()));
+            }
+            Notification::Acknowledged { id, acked_by } => {
+                // TODO: Notify all rooms.
+            }
+        }
 
-impl Handler<AlertDelivery> for MatrixClient {
-    type Result = ResponseActFuture<Self, Result<()>>;
+        unimplemented!()
+    }
+    async fn respond(&self, resp: UserConfirmation, level_idx: usize) -> Result<()> {
+        let room_id = self.rooms.single_level(level_idx);
+        let room = self
+            .client
+            .get_joined_room(room_id)
+            .ok_or_else(|| anyhow!("Failed to get room from Matrix for index {}", level_idx))?;
 
-    fn handle(&mut self, _alert: AlertDelivery, _ctx: &mut Self::Context) -> Self::Result {
-        let f = async move { unimplemented!() };
+        let content =
+            AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(resp.to_string()));
 
-        Box::pin(f.into_actor(self))
+        room.send(content, None)
+            .await
+            .map(|_| ())
+            .map_err(|err| err.into())
+    }
+    async fn endpoint_request(&self) -> Option<UserAction> {
+        let mut l = self.listener.lock().await;
+        l.recv().await
     }
 }
 
 pub struct Listener {
-    rooms: Vec<RoomId>,
-    request_handler: Addr<RequestHandler<EscalationService<MatrixClient>>>,
+    rooms: LevelManager<RoomId>,
+    queue: UnboundedSender<UserAction>,
 }
 
 #[async_trait]
@@ -136,16 +163,16 @@ impl EventHandler for Listener {
                     if let Some(cmd) = try_cmd {
                         let action = UserAction {
                             user: User::Matrix(event.sender.to_string()),
-                            channel_id: ChannelId::Matrix(room.room_id().clone()),
+                            // Panicing would imply bug.
+                            channel_id: self.rooms.position(room.room_id()).unwrap(),
                             command: cmd,
                         };
 
-                        // TODO: Handle
-                        let _x = self.request_handler.send(action).await;
+                        self.queue.send(action).unwrap();
                     }
                 }
                 Err(_err) => {
-                    // TODO: Resp error
+                    // Ignore unrecognized commands/talk.
                 }
             }
         }

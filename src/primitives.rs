@@ -1,13 +1,10 @@
-use crate::adapter::pagerduty::PayloadSeverity;
-use crate::{unix_time, Result};
-use ruma::RoomId;
-use std::fmt::Display;
+use crate::{adapter::AdapterName, unix_time, Result};
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub struct AlertId(u64);
 
 impl AlertId {
-    fn from_str(str: &str) -> Result<Self> {
+    pub fn from_str(str: &str) -> Result<Self> {
         Ok(AlertId(str.parse()?))
     }
 }
@@ -27,12 +24,18 @@ impl std::fmt::Display for AlertId {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AlertContext {
     pub id: AlertId,
-    alert: Alert,
-    inserted_tmsp: u64,
-    level_idx: usize,
-    last_notified_tmsp: Option<u64>,
-    acked_by: Option<User>,
-    acked_at_tmsp: Option<u64>,
+    pub alert: Alert,
+    pub inserted_tmsp: u64,
+    pub adapters: Vec<AdapterContext>,
+    pub acked_by: Option<User>,
+    pub acked_at_tmsp: Option<u64>,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct AdapterContext {
+    pub adapter: AdapterName,
+    pub level_idx: usize,
+    pub last_notified_tmsp: Option<u64>,
 }
 
 impl AlertContext {
@@ -41,59 +44,64 @@ impl AlertContext {
             id,
             alert,
             inserted_tmsp: unix_time(),
-            level_idx: 0,
-            last_notified_tmsp: None,
+            adapters: vec![],
             acked_by: None,
             acked_at_tmsp: None,
         }
     }
-    pub fn into_delivery(self, levels: &[ChannelId]) -> (AlertDelivery, usize) {
-        // Unwraps in this method will only panic if `levels` is
-        // empty, which is checked for on application startup. I.e. panicing
-        // indicates a bug.
-
-        // TODO: Document
-        let (prev_room, channel_id) = {
-            if self.level_idx == 0 && self.last_notified_tmsp.is_none() {
-                (None, levels.get(self.level_idx).cloned().unwrap())
-            } else {
-                (
-                    levels.get(self.level_idx).cloned(),
-                    levels
-                        .get(self.level_idx + 1)
-                        .or_else(|| levels.last())
-                        .cloned()
-                        .unwrap(),
-                )
-            }
-        };
-
-        (
-            AlertDelivery {
-                id: self.id,
-                alert: self.alert,
-                prev_room,
-                channel_id,
-            },
-            {
-                if self.level_idx == levels.len() - 1 {
-                    self.level_idx
-                } else {
-                    self.level_idx + 1
-                }
-            },
+    pub fn level_idx(&self, adapter: AdapterName) -> usize {
+        self.adapters
+            .iter()
+            .find(|ctx| ctx.adapter == adapter)
+            .map(|ctx| ctx.level_idx)
+            .unwrap_or(0)
+    }
+    pub fn to_string_matrix(&self) -> String {
+        format!(
+            "\
+            - ID: {}\n  \
+              Name: {}\n  \
+              Severity: {}\n  \
+              Message: {}\n  \
+              Description: {}\n\
+        ",
+            self.id,
+            self.alert.labels.alert_name,
+            self.alert.labels.severity,
+            self.alert.annotations.message.as_deref().unwrap_or("N/A"),
+            self.alert
+                .annotations
+                .description
+                .as_deref()
+                .unwrap_or("N/A")
+        )
+    }
+    pub fn to_string_pagerduty(&self) -> String {
+        format!(
+            "\
+              Name: {}, \
+              Severity: {},  \
+              Message: {},  \
+              Description: {} - \
+              ID#{}\
+        ",
+            self.alert.labels.alert_name,
+            self.alert.labels.severity,
+            self.alert.annotations.message.as_deref().unwrap_or("N/A"),
+            self.alert
+                .annotations
+                .description
+                .as_deref()
+                .unwrap_or("N/A"),
+            self.id,
         )
     }
 }
 
-// TODO: Rename
-#[derive(Clone, Debug, Eq, PartialEq, Message)]
-#[rtype(result = "Result<()>")]
-pub struct AlertDelivery {
-    pub id: AlertId,
-    pub alert: Alert,
-    pub prev_room: Option<ChannelId>,
-    pub channel_id: ChannelId,
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Notification {
+    Alert { context: AlertContext },
+    Acknowledged { id: AlertId, acked_by: User },
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -115,39 +123,18 @@ pub struct Labels {
     pub alert_name: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Message)]
-#[rtype(result = "()")]
-pub struct NotifyNewlyInserted {
-    pub alerts: Vec<AlertContext>,
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PendingAlerts {
     pub alerts: Vec<AlertContext>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Message)]
-#[rtype(result = "Result<UserConfirmation>")]
-pub struct Acknowledgement {
-    pub user: User,
-    pub channel_id: ChannelId,
-    pub alert_id: AlertId,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "adapter", content = "user")]
 pub enum User {
     Matrix(String),
+    PagerDuty(String),
     #[cfg(test)]
     Mocker(String),
-}
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct Role(String);
-
-impl Display for Role {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -161,22 +148,17 @@ pub enum UserConfirmation {
     InternalError,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ChannelId {
-    Matrix(RoomId),
-    PagerDuty {
-        integration_key: String,
-        payload_severity: PayloadSeverity,
-    },
-    #[cfg(test)]
-    Mocker(String),
+impl std::fmt::Display for UserConfirmation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        unimplemented!()
+    }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Message)]
-#[rtype(result = "Result<UserConfirmation>")]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UserAction {
     pub user: User,
-    pub channel_id: ChannelId,
+    // TODO: Rename, use custom type.
+    pub channel_id: usize,
     pub command: Command,
 }
 
@@ -217,5 +199,25 @@ impl Command {
         };
 
         Ok(Some(cmd))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    impl Alert {
+        pub fn test() -> Self {
+            Alert {
+                annotations: Annotations {
+                    message: Some("Test Alert".to_string()),
+                    description: Some("Test Description".to_string()),
+                },
+                labels: Labels {
+                    severity: "Test Severity".to_string(),
+                    alert_name: "Test Alert Name".to_string(),
+                },
+            }
+        }
     }
 }

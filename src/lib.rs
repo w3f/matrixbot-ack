@@ -6,29 +6,20 @@ extern crate anyhow;
 extern crate serde;
 #[macro_use]
 extern crate async_trait;
-#[macro_use]
-extern crate actix;
 
-use actix::clock::sleep;
-use actix::prelude::*;
-use adapter::matrix::{MatrixClient, MatrixConfig};
-use adapter::pagerduty::{PagerDutyClient, PagerDutyConfig, PayloadSeverity};
-use database::{Database, DatabaseConfig};
-use escalation::{EscalationService, PermissionType};
-use primitives::{AlertDelivery, ChannelId, Role, User};
-use ruma::RoomId;
-use std::collections::{HashMap, HashSet};
-use std::str::FromStr;
-use std::time::Duration;
+use adapter::matrix::MatrixConfig;
+use adapter::pagerduty::{PagerDutyConfig, PayloadSeverity};
+use database::DatabaseConfig;
+
+use primitives::User;
+
 use structopt::StructOpt;
+use tokio::time::{sleep, Duration};
 
 mod adapter;
 mod database;
 mod escalation;
 mod primitives;
-#[cfg(test)]
-mod tests;
-mod user_request;
 mod webhook;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;
@@ -50,7 +41,6 @@ struct Config {
     escalation: Option<EscalationConfig<()>>,
     adapters: AdapterOptions,
     users: Vec<UserInfo>,
-    roles: Vec<RoleInfo>,
 }
 
 // TODO: Move to primitives.
@@ -62,22 +52,6 @@ pub struct UserInfo {
     pagerduty: Option<String>,
     #[cfg(test)]
     mocker: Option<String>,
-}
-
-impl UserInfo {
-    fn matches(&self, user: &User) -> bool {
-        match user {
-            User::Matrix(name) => self.matrix.as_ref().map(|s| s == name).unwrap_or(false),
-            #[cfg(test)]
-            User::Mocker(name) => self.mocker.as_ref().map(|s| s == name).unwrap_or(false),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct RoleInfo {
-    name: Role,
-    members: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,16 +77,7 @@ struct AdapterConfig<T, L> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct EscalationConfig<T> {
     window: u64,
-    acks: AckType,
     levels: Vec<T>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-enum AckType {
-    Users(Vec<String>),
-    MinRole(Role),
-    Roles(Vec<Role>),
-    EscalationLevel,
 }
 
 #[derive(StructOpt, Debug)]
@@ -139,9 +104,6 @@ pub async fn run() -> Result<()> {
 
     info!("Preparing adapter config data");
 
-    info!("Creating role index");
-    let role_index = RoleIndex::create_index(config.users, config.roles)?;
-
     info!("Setting up database {:?}", config.database);
     let db = database::Database::new(config.database).await?;
 
@@ -153,12 +115,12 @@ pub async fn run() -> Result<()> {
 
     // Start adapters with their appropriate tasks.
     let adapters = config.adapters;
-    if let Some(matrix) = adapters.matrix {
-        start_matrix_tasks(matrix, db.clone(), &role_index).await?;
+    if let Some(_matrix) = adapters.matrix {
+        //start_matrix_tasks(matrix, db.clone(), &role_index).await?;
     }
 
-    if let Some(pagerduty) = adapters.pagerduty {
-        start_pager_duty_tasks(pagerduty, db.clone(), &role_index).await?;
+    if let Some(_pagerduty) = adapters.pagerduty {
+        //start_pager_duty_tasks(pagerduty, db.clone(), &role_index).await?;
     }
 
     // Starting webhook.
@@ -167,174 +129,5 @@ pub async fn run() -> Result<()> {
 
     loop {
         sleep(Duration::from_secs(u64::MAX)).await;
-    }
-}
-
-fn start_tasks<T, L>(
-    db: Database,
-    client: Addr<T>,
-    escalation_config: EscalationConfig<L>,
-    role_index: &RoleIndex,
-    levels: Vec<ChannelId>,
-) -> Result<()>
-where
-    T: Actor + Handler<AlertDelivery>,
-    <T as Actor>::Context: actix::dev::ToEnvelope<T, AlertDelivery>,
-{
-    let window = Duration::from_secs(escalation_config.window);
-    let permissions = role_index.as_permission_type(escalation_config.acks)?;
-
-    #[rustfmt::skip]
-    let service = escalation::EscalationService::<T>::new(
-        db.clone(),
-        window,
-        client,
-        permissions,
-        levels
-    ).start();
-
-    #[rustfmt::skip]
-    user_request::RequestHandler::<EscalationService<T>>::new(
-        service,
-        db
-    ).start();
-
-    Ok(())
-}
-
-// Convenience function for processing the matrix configuration and starting all
-// necessary tasks.
-async fn start_matrix_tasks(
-    adapter: AdapterConfig<MatrixConfig, String>,
-    db: Database,
-    role_index: &RoleIndex,
-) -> Result<()> {
-    let levels = adapter
-        .escation
-        .levels
-        .iter()
-        .map(|level| {
-            RoomId::from_str(level)
-                .map(ChannelId::Matrix)
-                .map_err(|err| err.into())
-        })
-        .collect::<Result<Vec<ChannelId>>>()?;
-
-    start_tasks(
-        db,
-        MatrixClient::new(
-            adapter
-                .config
-                .ok_or_else(|| anyhow!("no matrix configuration provided"))?,
-        )
-        .await?
-        .start(),
-        adapter.escation,
-        role_index,
-        levels,
-    )
-}
-
-// Convenience function for processing the PagerDuty configuration and starting all
-// necessary tasks.
-async fn start_pager_duty_tasks(
-    adapter: AdapterConfig<PagerDutyConfig, PagerDutyLevel>,
-    db: Database,
-    role_index: &RoleIndex,
-) -> Result<()> {
-    // TODO: Consider struct destructuring to avoid clones.
-
-    let levels = adapter
-        .escation
-        .levels
-        .iter()
-        .map(|level| ChannelId::PagerDuty {
-            integration_key: level.integration_key.clone(),
-            payload_severity: level.payload_severity,
-        })
-        .collect();
-
-    start_tasks(
-        db,
-        PagerDutyClient::new(
-            adapter
-                .config
-                .ok_or_else(|| anyhow!("no PagerDuty configuration provided"))?,
-        )
-        .start(),
-        adapter.escation,
-        role_index,
-        levels,
-    )
-}
-
-struct RoleIndex {
-    users: HashMap<String, UserInfo>,
-    roles: Vec<(Role, Vec<UserInfo>)>,
-}
-
-impl RoleIndex {
-    fn create_index(users: Vec<UserInfo>, roles: Vec<RoleInfo>) -> Result<Self> {
-        // Create a lookup table for all user entries, searchable by name.
-        let mut lookup = HashMap::new();
-        for user in users {
-            lookup.insert(user.name.clone(), user);
-        }
-
-        // Create a role index by grouping users based on roles. Users can appear in
-        // multiple roles or in none.
-        let mut index = vec![];
-        for role in roles {
-            let mut user_infos = vec![];
-            for member in role.members {
-                let info = lookup.get(&member).ok_or_else(|| {
-                    anyhow!(
-                        "user {} specified in role {} does not exit",
-                        member,
-                        role.name
-                    )
-                })?;
-                user_infos.push(info.clone());
-            }
-            index.push((role.name, user_infos));
-        }
-
-        Ok(RoleIndex {
-            users: lookup,
-            roles: index,
-        })
-    }
-    /// Fetches the necessary data from the role index and converts it into a
-    /// `PermissionType`, which is used by the escalation service to check for
-    /// permissions when receiving acknowledgments.
-    fn as_permission_type(&self, ack_type: AckType) -> Result<PermissionType> {
-        let ty = match ack_type {
-            AckType::Users(users) => {
-                let mut infos = HashSet::new();
-                for raw in &users {
-                    let info = self
-                        .users
-                        .get(raw)
-                        .ok_or_else(|| anyhow!("user {} is not configured", raw))?;
-                    infos.insert(info.clone());
-                }
-
-                PermissionType::Users(infos)
-            }
-            AckType::MinRole(role) => PermissionType::MinRole {
-                min: role,
-                roles: self.roles.clone(),
-            },
-            AckType::Roles(roles) => PermissionType::Roles(
-                self.roles
-                    .iter()
-                    .cloned()
-                    .filter(|(role, _)| roles.contains(role))
-                    .collect(),
-            ),
-            AckType::EscalationLevel => PermissionType::EscalationLevel(None),
-        };
-
-        Ok(ty)
     }
 }
