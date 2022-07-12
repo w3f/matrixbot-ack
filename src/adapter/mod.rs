@@ -1,6 +1,6 @@
+pub mod email;
 pub mod matrix;
 pub mod pagerduty;
-pub mod email;
 
 use crate::primitives::{Notification, UserAction, UserConfirmation};
 use crate::Result;
