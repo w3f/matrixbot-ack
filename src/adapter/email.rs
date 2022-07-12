@@ -42,7 +42,7 @@ impl EmailClient {
     }
     pub async fn run_message_import(&self) {
         // TODO: Add filter/max/limit
-        let messages = self
+        let (resp, list) = self
             .client
             .users()
             .messages_list(&self.config.address)
@@ -50,6 +50,25 @@ impl EmailClient {
             .await
             .unwrap();
 
+        for message in &list.messages.unwrap() {
+            let (resp, message) = self
+                .client
+                .users()
+                .messages_get(&self.config.address, &message.id.as_ref().unwrap())
+                .doit()
+                .await
+                .unwrap();
+
+            if let Some(payload) = message.payload {
+                if let Some(body) = payload.body {
+                    if let Some(data) = body.data {
+                        if data.to_lowercase().contains("ack") {
+                            // TODO
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
