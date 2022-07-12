@@ -7,7 +7,9 @@ pub struct EmailConfig {}
 
 pub struct EmailLevel {}
 
-pub struct EmailClient {}
+pub struct EmailClient {
+	client: Gmail,
+}
 
 impl EmailClient {
     pub async fn new() -> Result<Self> {
@@ -20,7 +22,7 @@ impl EmailClient {
         .build()
         .await?;
 
-        let mut hub = Gmail::new(
+        let client = Gmail::new(
             hyper::Client::builder().build(
                 hyper_rustls::HttpsConnectorBuilder::new().with_native_roots()
                     .https_or_http()
@@ -31,7 +33,11 @@ impl EmailClient {
             auth,
         );
 
-        unimplemented!()
+		Ok(
+			EmailClient {
+				client
+			}
+		)
     }
 }
 
