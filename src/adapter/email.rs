@@ -1,18 +1,22 @@
 use super::{Adapter, AdapterAlertId, AdapterName};
 use crate::primitives::{Notification, UserAction, UserConfirmation};
 use crate::Result;
+use google_gmail1::api::Message;
 use google_gmail1::{hyper, hyper_rustls, oauth2, Gmail};
 
-pub struct EmailConfig {}
+pub struct EmailConfig {
+    address: String,
+}
 
 pub struct EmailLevel {}
 
 pub struct EmailClient {
-	client: Gmail,
+    client: Gmail,
+    config: EmailConfig,
 }
 
 impl EmailClient {
-    pub async fn new() -> Result<Self> {
+    pub async fn new(config: EmailConfig) -> Result<Self> {
         // TODO
         let secret: oauth2::ApplicationSecret = Default::default();
         let auth = oauth2::InstalledFlowAuthenticator::builder(
@@ -24,7 +28,8 @@ impl EmailClient {
 
         let client = Gmail::new(
             hyper::Client::builder().build(
-                hyper_rustls::HttpsConnectorBuilder::new().with_native_roots()
+                hyper_rustls::HttpsConnectorBuilder::new()
+                    .with_native_roots()
                     .https_or_http()
                     .enable_http1()
                     .enable_http2()
@@ -33,11 +38,18 @@ impl EmailClient {
             auth,
         );
 
-		Ok(
-			EmailClient {
-				client
-			}
-		)
+        Ok(EmailClient { client, config })
+    }
+    pub async fn run_message_import(&self) {
+        // TODO: Add filter/max/limit
+        let messages = self
+            .client
+            .users()
+            .messages_list(&self.config.address)
+            .doit()
+            .await
+            .unwrap();
+
     }
 }
 
