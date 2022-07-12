@@ -42,7 +42,7 @@ impl EmailClient {
     }
     pub async fn run_message_import(&self) {
         // TODO: Add filter/max/limit
-        let (resp, list) = self
+        let (_resp, list) = self
             .client
             .users()
             .messages_list(&self.config.address)
@@ -51,7 +51,7 @@ impl EmailClient {
             .unwrap();
 
         for message in &list.messages.unwrap() {
-            let (resp, message) = self
+            let (_resp, message) = self
                 .client
                 .users()
                 .messages_get(&self.config.address, &message.id.as_ref().unwrap())
