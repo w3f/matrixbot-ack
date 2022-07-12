@@ -1,5 +1,6 @@
 pub mod matrix;
 pub mod pagerduty;
+pub mod email;
 
 use crate::primitives::{Notification, UserAction, UserConfirmation};
 use crate::Result;
@@ -28,6 +29,7 @@ impl fmt::Display for AdapterName {
     }
 }
 
+// TODO: Deprecate this
 pub struct AdapterAlertId(String);
 
 #[async_trait]
