@@ -109,9 +109,29 @@ impl Adapter for MatrixClient {
     ) -> Result<Option<AdapterAlertId>> {
         match notification {
             Notification::Alert { context } => {
-                let (pre, next) = self.rooms.level_with_prev(context.level_idx(self.name()));
+                let (prev, next) = self.rooms.level_with_prev(context.level_idx(self.name()));
 
-                // TODO.
+                // Notify previous room about escalation.
+                if let Some(prev) = prev {
+                    let prev = self.client.get_joined_room(prev).ok_or(anyhow!(""))?;
+
+                    let content = AnyMessageEventContent::RoomMessage(
+                        MessageEventContent::text_plain(format!(
+                            "Escalation occurred! Notifying next room about escalation ID {}",
+                            context.id
+                        )),
+                    );
+
+                    prev.send(content, None).await?;
+                }
+
+                // Notify next room about escalation with the actual alert.
+                let content = AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(
+                    context.to_string_with_newlines(),
+                ));
+
+                let next = self.client.get_joined_room(next).ok_or(anyhow!(""))?;
+                next.send(content, None).await?;
             }
             Notification::Acknowledged {
                 id: alert_id,
@@ -151,6 +171,7 @@ impl Adapter for MatrixClient {
                             ));
 
                         // Unwrap is fine since possibility of an error is checked before.
+                        // TODO: This should not return.
                         room.unwrap().send(content, None).await?;
                     }
                 }
