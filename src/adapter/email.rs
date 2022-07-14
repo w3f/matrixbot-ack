@@ -1,4 +1,4 @@
-use super::{Adapter, AdapterAlertId, AdapterName};
+use super::{Adapter, AdapterAlertId, AdapterName, LevelManager};
 use crate::primitives::{AlertId, Command, Notification, User, UserAction, UserConfirmation};
 use crate::Result;
 use google_gmail1::api::{Message, MessagePart, MessagePartHeader};
@@ -15,17 +15,19 @@ pub struct EmailConfig {
     max_import_days: usize,
 }
 
-pub struct EmailLevel {}
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct EmailLevel(String);
 
 pub struct EmailClient {
     client: Arc<Gmail>,
     config: EmailConfig,
+    levels: LevelManager<EmailLevel>,
     tx: Arc<UnboundedSender<UserAction>>,
     queue: Arc<Mutex<UnboundedReceiver<UserAction>>>,
 }
 
 impl EmailClient {
-    pub async fn new(config: EmailConfig) -> Result<Self> {
+    pub async fn new(config: EmailConfig, levels: LevelManager<EmailLevel>) -> Result<Self> {
         // TODO
         let secret: oauth2::ApplicationSecret = Default::default();
         let auth = oauth2::InstalledFlowAuthenticator::builder(
@@ -52,6 +54,7 @@ impl EmailClient {
         let email = EmailClient {
             client: Arc::new(client),
             config,
+            levels,
             tx: Arc::new(tx),
             queue: Arc::new(Mutex::new(queue)),
         };
@@ -148,17 +151,24 @@ impl EmailClient {
 
         unimplemented!()
     }
+    async fn send_message(&self, msg: Message) -> Result<()> {
+        // TODO
+        let _call = self.client.users().messages_send(msg, &self.config.address);
+        unimplemented!()
+    }
 }
 
 fn create_message(to: &str, content: &str) -> Message {
     let mut msg = Message::default();
     let mut payload = MessagePart::default();
 
+    // Prepare header with recipient.
     let header = MessagePartHeader {
         name: Some("To".to_string()),
         value: Some(to.to_string()),
     };
 
+    // Create payload.
     payload.headers = Some(vec![header]);
     msg.payload = Some(payload);
     msg.raw = Some(base64::encode(content));
@@ -176,6 +186,21 @@ impl Adapter for EmailClient {
         notification: Notification,
         level_idx: usize,
     ) -> Result<Option<AdapterAlertId>> {
+        match notification {
+            Notification::Alert { context } => {
+                let idx = context.level_idx(self.name());
+                let (prev, now) = self.levels.level_with_prev(idx);
+
+                if let Some(prev) = prev {
+                    //let prev_msg = create_message()
+                }
+
+                let text = context.to_string_with_newlines();
+                let msg = create_message(&now.0, &text);
+            }
+            Notification::Acknowledged { id, acked_by } => {}
+        }
+
         unimplemented!()
     }
     async fn respond(&self, resp: UserConfirmation, level_idx: usize) -> Result<()> {

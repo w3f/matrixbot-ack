@@ -273,7 +273,7 @@ fn new_alert_event(
         event_action: EventAction::Trigger,
         dedup_key: format!("ID#{}", alert.id),
         payload: Some(Payload {
-            summary: alert.to_string_pagerduty(),
+            summary: alert.to_string_with_oneline(),
             source,
             severity,
         }),

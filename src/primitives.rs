@@ -56,7 +56,7 @@ impl AlertContext {
             .map(|ctx| ctx.level_idx)
             .unwrap_or(0)
     }
-    pub fn to_string_matrix(&self) -> String {
+    pub fn to_string_with_newlines(&self) -> String {
         format!(
             "\
             - ID: {}\n  \
@@ -76,7 +76,7 @@ impl AlertContext {
                 .unwrap_or("N/A")
         )
     }
-    pub fn to_string_pagerduty(&self) -> String {
+    pub fn to_string_with_oneline(&self) -> String {
         format!(
             "\
               Name: {}, \

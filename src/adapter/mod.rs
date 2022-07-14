@@ -41,7 +41,7 @@ pub trait Adapter: 'static + Send + Sync {
 }
 
 #[derive(Debug, Clone)]
-struct LevelManager<T> {
+pub struct LevelManager<T> {
     levels: Vec<T>,
 }
 
