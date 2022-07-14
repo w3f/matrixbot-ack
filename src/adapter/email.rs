@@ -28,7 +28,7 @@ pub struct EmailClient {
 }
 
 impl EmailClient {
-    pub async fn new(config: EmailConfig, levels: LevelManager<EmailLevel>) -> Result<Self> {
+    pub async fn new(config: EmailConfig, levels: Vec<EmailLevel>) -> Result<Self> {
         // TODO
         let secret: oauth2::ApplicationSecret = Default::default();
         let auth = oauth2::InstalledFlowAuthenticator::builder(
@@ -49,6 +49,8 @@ impl EmailClient {
             ),
             auth,
         );
+
+        let levels = LevelManager::from(levels);
 
         let (tx, queue) = unbounded_channel();
 
