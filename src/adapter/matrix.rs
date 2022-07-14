@@ -108,7 +108,10 @@ impl Adapter for MatrixClient {
 
                 // Notify previous room about escalation.
                 if let Some(prev) = prev {
-                    let prev = self.client.get_joined_room(prev).ok_or(anyhow!(""))?;
+                    let prev = self
+                        .client
+                        .get_joined_room(prev)
+                        .ok_or_else(|| anyhow!("TODO"))?;
 
                     let content = AnyMessageEventContent::RoomMessage(
                         MessageEventContent::text_plain(format!(
@@ -126,7 +129,10 @@ impl Adapter for MatrixClient {
                     context.to_string_with_newlines(),
                 ));
 
-                let next = self.client.get_joined_room(next).ok_or(anyhow!(""))?;
+                let next = self
+                    .client
+                    .get_joined_room(next)
+                    .ok_or_else(|| anyhow!("TODO"))?;
                 next.send(content, None).await?;
             }
             Notification::Acknowledged {

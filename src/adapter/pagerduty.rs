@@ -17,7 +17,6 @@ const SEND_ALERT_ENDPOINT: &str = "https://events.pagerduty.com/v2/enqueue";
 // TODO: Add note about limit
 const GET_LOG_ENTRIES_ENDPOINT: &str = "https://api.pagerduty.com/log_entries?limit=20";
 const FETCH_LOG_ENTRIES_INTERVAL: u64 = 5;
-const RETRY_TIMEOUT: u64 = 10; // seconds
 
 pub struct PagerDutyClient {
     levels: LevelManager<PagerDutyLevel>,
@@ -200,19 +199,19 @@ impl LogEntries {
             let mut alert_id = None;
             let mut user = None;
 
-            entry.incident.as_ref().map(|inc| {
-                inc.summary.as_ref().map(|summary| {
+            if let Some(inc) = &entry.incident {
+                if let Some(summary) = &inc.summary {
                     let parts: Vec<&str> = summary.split('-').collect();
 
-                    parts.last().as_ref().map(|last| {
+                    if let Some(last) = parts.last().as_ref() {
                         if last.starts_with("ID#") {
-                            AlertId::from_str(last.replace("ID#", "").as_str()).map(|id| {
+                            if let Ok(id) = AlertId::from_str(last.replace("ID#", "").as_str()) {
                                 alert_id = Some(id);
-                            });
+                            };
                         }
-                    });
-                });
-            });
+                    };
+                };
+            };
 
             entry.agent.as_ref().map(|agent| {
                 agent.summary.as_ref().map(|summary| {
