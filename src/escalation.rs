@@ -14,11 +14,17 @@ pub struct EscalationService {
 }
 
 impl EscalationService {
-    async fn register_adapter<T: Adapter>(mut self, adapter: T) -> Self {
-        self.adapters.push(Arc::new(Box::new(adapter)));
-        self
+    pub fn new(db: Database, window: Duration) -> Self {
+        EscalationService {
+            db,
+            window,
+            adapters: vec![],
+        }
     }
-    async fn run(self) {
+    pub fn register_adapter<T: Adapter>(&mut self, adapter: T) {
+        self.adapters.push(Arc::new(Box::new(adapter)));
+    }
+    pub async fn run_service(self) {
         async fn local(
             db: &Database,
             window: Duration,

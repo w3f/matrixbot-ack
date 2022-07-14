@@ -19,6 +19,7 @@ use tokio::time::{sleep, Duration};
 
 use crate::adapter::email::EmailClient;
 use crate::adapter::{MatrixClient, PagerDutyClient};
+use crate::escalation::EscalationService;
 
 mod adapter;
 mod database;
@@ -97,11 +98,15 @@ pub async fn run() -> Result<()> {
     //let span = info_span!("starting_adapter_clients");
     info!("Starting clients and background tasks");
 
+    // TODO
+    let mut escalation = EscalationService::new(db.clone(), Duration::from_secs(10));
+
     // Start adapters with their appropriate tasks.
     let adapters = config.adapters;
     if let Some(matrix_conf) = adapters.matrix {
         if matrix_conf.enabled {
             let matrix = MatrixClient::new(matrix_conf.config.unwrap()).await?;
+            escalation.register_adapter(matrix);
         }
     }
 
@@ -112,18 +117,21 @@ pub async fn run() -> Result<()> {
                 pagerduty_conf.levels.unwrap(),
             )
             .await;
+
+            escalation.register_adapter(pagerduty);
         }
-        //start_pager_duty_tasks(pagerduty, db.clone(), &role_index).await?;
     }
 
     if let Some(email_conf) = adapters.email {
         if email_conf.enabled {
             let email =
                 EmailClient::new(email_conf.config.unwrap(), email_conf.levels.unwrap()).await?;
+
+            escalation.register_adapter(email);
         }
     }
 
-    // TODO: Register to escalation service
+    escalation.run_service().await;
 
     // Starting webhook.
     info!("Starting API server");
