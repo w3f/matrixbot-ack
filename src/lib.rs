@@ -7,6 +7,7 @@ extern crate serde;
 #[macro_use]
 extern crate async_trait;
 
+use adapter::email::{EmailConfig, EmailLevel};
 use adapter::matrix::MatrixConfig;
 use adapter::pagerduty::{PagerDutyConfig, PayloadSeverity};
 use database::DatabaseConfig;
@@ -38,7 +39,7 @@ fn unix_time() -> u64 {
 struct Config {
     database: DatabaseConfig,
     listener: String,
-    escalation: Option<EscalationConfig<()>>,
+    escalation: Option<EscalationConfig>,
     adapters: AdapterOptions,
 }
 
@@ -47,6 +48,7 @@ struct AdapterOptions {
     matrix: Option<AdapterConfig<MatrixConfig, String>>,
     #[serde(alias = "pager_duty")]
     pagerduty: Option<AdapterConfig<PagerDutyConfig, PagerDutyLevel>>,
+    email: Option<AdapterConfig<EmailConfig, EmailLevel>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,14 +60,13 @@ pub struct PagerDutyLevel {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct AdapterConfig<T, L> {
     enabled: bool,
-    escation: EscalationConfig<L>,
     config: Option<T>,
+    levels: Vec<L>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct EscalationConfig<T> {
+struct EscalationConfig {
     window: u64,
-    levels: Vec<T>,
 }
 
 #[derive(StructOpt, Debug)]

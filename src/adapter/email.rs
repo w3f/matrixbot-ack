@@ -10,12 +10,13 @@ use tokio::time::{sleep, Duration};
 
 const MESSAGE_IMPORT_INTERVAL: u64 = 5;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmailConfig {
     address: String,
     max_import_days: usize,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct EmailLevel(String);
 
 pub struct EmailClient {
