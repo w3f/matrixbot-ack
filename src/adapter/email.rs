@@ -1,7 +1,7 @@
 use super::{Adapter, AdapterAlertId, AdapterName};
 use crate::primitives::{AlertId, Command, Notification, User, UserAction, UserConfirmation};
 use crate::Result;
-use google_gmail1::api::Message;
+use google_gmail1::api::{Message, MessagePart, MessagePartHeader};
 use google_gmail1::{hyper, hyper_rustls, oauth2, Gmail};
 use std::sync::Arc;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
@@ -150,11 +150,20 @@ impl EmailClient {
     }
 }
 
-#[test]
-fn some() {
-    let text = "ack whatever";
-    let res: Vec<&str> = text.split("ack").collect();
-    println!("{:?}", res);
+fn create_message(to: &str, content: &str) -> Message {
+    let mut msg = Message::default();
+    let mut payload = MessagePart::default();
+
+    let header = MessagePartHeader {
+        name: Some("To".to_string()),
+        value: Some(to.to_string()),
+    };
+
+    payload.headers = Some(vec![header]);
+    msg.payload = Some(payload);
+    msg.raw = Some(base64::encode(content));
+
+    msg
 }
 
 #[async_trait]
@@ -173,6 +182,7 @@ impl Adapter for EmailClient {
         unimplemented!()
     }
     async fn endpoint_request(&self) -> Option<UserAction> {
-        unimplemented!()
+        let mut l = self.queue.lock().await;
+        l.recv().await
     }
 }

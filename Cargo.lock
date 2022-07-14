@@ -1708,6 +1708,7 @@ dependencies = [
  "actix-web",
  "anyhow",
  "async-trait",
+ "base64",
  "bson",
  "futures",
  "google-gmail1",
