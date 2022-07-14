@@ -40,18 +40,6 @@ struct Config {
     listener: String,
     escalation: Option<EscalationConfig<()>>,
     adapters: AdapterOptions,
-    users: Vec<UserInfo>,
-}
-
-// TODO: Move to primitives.
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub struct UserInfo {
-    name: String,
-    email: Option<String>,
-    matrix: Option<String>,
-    pagerduty: Option<String>,
-    #[cfg(test)]
-    mocker: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
