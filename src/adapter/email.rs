@@ -88,7 +88,7 @@ impl EmailClient {
         for message in &list.messages.unwrap() {
             let (_resp, message) = client
                 .users()
-                .messages_get(address, &message.id.as_ref().unwrap())
+                .messages_get(address, message.id.as_ref().unwrap())
                 .doit()
                 .await
                 .unwrap();
@@ -101,8 +101,33 @@ impl EmailClient {
                         if text.contains("ack") {
                             if let Some(id_str) = text.split("ack").nth(1) {
                                 if let Ok(alert_id) = AlertId::from_str(id_str) {
+                                    // Retrieve sender from 'To' field.
+                                    let name;
+                                    match payload.headers {
+                                        Some(headers) => {
+                                            let to_header = headers.iter().find(|part| {
+                                                part.name
+                                                    .as_ref()
+                                                    .map(|name| name == "To")
+                                                    .unwrap_or(false)
+                                            });
+
+                                            name = to_header
+                                                .ok_or(anyhow!(""))?
+                                                .value
+                                                .as_ref()
+                                                .ok_or(anyhow!(""))?
+                                                .clone();
+                                        }
+                                        None => {
+                                            error!("TODO");
+                                            continue;
+                                        }
+                                    }
+
+                                    // Create user action.
                                     let action = UserAction {
-                                        user: User::Email("TODO".to_string()),
+                                        user: User::Email(name),
                                         channel_id: 0,
                                         command: Command::Ack(alert_id),
                                     };
