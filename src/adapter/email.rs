@@ -1,4 +1,4 @@
-use super::{Adapter, AdapterAlertId, AdapterName, LevelManager};
+use super::{Adapter, AdapterName, LevelManager};
 use crate::primitives::{AlertId, Command, Notification, User, UserAction, UserConfirmation};
 use crate::Result;
 use google_gmail1::api::{Message, MessagePart, MessagePartHeader};
@@ -29,7 +29,6 @@ pub struct EmailClient {
 
 impl EmailClient {
     pub async fn new(config: EmailConfig, levels: Vec<EmailLevel>) -> Result<Self> {
-        // TODO
         let secret: oauth2::ApplicationSecret = Default::default();
         let auth = oauth2::InstalledFlowAuthenticator::builder(
             secret,
@@ -87,7 +86,6 @@ impl EmailClient {
         tx: &Arc<UnboundedSender<UserAction>>,
         max_days: usize,
     ) -> Result<()> {
-        // TODO: Add filter/max/limit
         let (_resp, list) = client
             .users()
             .messages_list(address)
@@ -184,11 +182,7 @@ impl Adapter for EmailClient {
     fn name(&self) -> AdapterName {
         AdapterName::Matrix
     }
-    async fn notify(
-        &self,
-        notification: Notification,
-        level_idx: usize,
-    ) -> Result<Option<AdapterAlertId>> {
+    async fn notify(&self, notification: Notification, level_idx: usize) -> Result<()> {
         match notification {
             Notification::Alert { context } => {
                 let idx = context.level_idx(self.name());
@@ -204,6 +198,7 @@ impl Adapter for EmailClient {
             Notification::Acknowledged { id, acked_by } => {}
         }
 
+        // TODO
         unimplemented!()
     }
     async fn respond(&self, resp: UserConfirmation, level_idx: usize) -> Result<()> {

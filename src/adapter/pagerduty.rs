@@ -1,4 +1,4 @@
-use super::{Adapter, AdapterAlertId, LevelManager};
+use super::{Adapter, LevelManager};
 use crate::primitives::{
     AlertContext, AlertId, Command, Notification, User, UserAction, UserConfirmation,
 };
@@ -33,7 +33,7 @@ impl Adapter for PagerDutyClient {
     fn name(&self) -> AdapterName {
         AdapterName::PagerDuty
     }
-    async fn notify(&self, notification: Notification, _: usize) -> Result<Option<AdapterAlertId>> {
+    async fn notify(&self, notification: Notification, _: usize) -> Result<()> {
         self.handle(notification).await
     }
     async fn respond(&self, _: UserConfirmation, _level_idx: usize) -> Result<()> {
@@ -65,7 +65,7 @@ impl PagerDutyClient {
         client
     }
     #[rustfmt::skip]
-    async fn handle(&self, notification: Notification) -> Result<Option<AdapterAlertId>> {
+    async fn handle(&self, notification: Notification) -> Result<()> {
         // Create an alert type native to the PagerDuty API.
         match notification {
             Notification::Alert { context: alert } => {
@@ -108,7 +108,7 @@ impl PagerDutyClient {
 
         // Ignore any other type of Notification
 
-        Ok(None)
+        Ok(())
     }
     async fn run_log_entries(&self) {
         let client = Arc::clone(&self.client);

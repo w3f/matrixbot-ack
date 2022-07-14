@@ -1,3 +1,4 @@
+use super::{Adapter, AdapterName, LevelManager};
 use crate::primitives::{Command, Notification, User, UserAction, UserConfirmation};
 use crate::Result;
 use matrix_sdk::events::room::message::MessageEventContent;
@@ -12,8 +13,6 @@ use tokio::sync::mpsc::{self, unbounded_channel, UnboundedReceiver, UnboundedSen
 use tokio::sync::Mutex;
 use tokio::time::{sleep, Duration};
 use url::Url;
-
-use super::{Adapter, AdapterAlertId, AdapterName, LevelManager};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MatrixConfig {
@@ -102,11 +101,7 @@ impl Adapter for MatrixClient {
     fn name(&self) -> AdapterName {
         AdapterName::Matrix
     }
-    async fn notify(
-        &self,
-        notification: Notification,
-        level_idx: usize,
-    ) -> Result<Option<AdapterAlertId>> {
+    async fn notify(&self, notification: Notification, level_idx: usize) -> Result<()> {
         match notification {
             Notification::Alert { context } => {
                 let (prev, next) = self.rooms.level_with_prev(context.level_idx(self.name()));
@@ -154,7 +149,7 @@ impl Adapter for MatrixClient {
             }
         }
 
-        Ok(None)
+        Ok(())
     }
     async fn respond(&self, resp: UserConfirmation, level_idx: usize) -> Result<()> {
         let room_id = self.rooms.single_level(level_idx);
