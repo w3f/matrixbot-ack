@@ -122,6 +122,7 @@ impl Adapter for MatrixClient {
                         )),
                     );
 
+                    // Send message to room
                     prev.send(content, None).await?;
                 }
 
@@ -137,49 +138,18 @@ impl Adapter for MatrixClient {
                 id: alert_id,
                 acked_by,
             } => {
-                // We try to notify every relevant room about the
-                // acknowlegement, retrying if one fails, but only up to three
-                // attemps. We will not return an error if at least one room was
-                // informed to avoid the occurence of duplicate messages.
-                let mut at_least_one = false;
-
                 for room_id in self.rooms.all_up_to(level_idx) {
-                    let mut counter = 0;
+                    let room = self.client.get_joined_room(room_id).ok_or_else(|| {
+                        anyhow!("Failed to get room from Matrix on ID {:?}", room_id)
+                    })?;
 
-                    loop {
-                        let room = self.client.get_joined_room(room_id).ok_or_else(|| {
-                            anyhow!("Failed to get room from Matrix on ID {:?}", room_id)
-                        });
+                    let content =
+                        AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(
+                            format!("Alert {} was acknowleged by {}", alert_id, acked_by),
+                        ));
 
-                        if let Err(err) = &room {
-                            error!("{:?}", err);
-                            counter += 1;
-
-                            // Retry max three times, then exit...
-                            if counter <= 3 {
-                                sleep(Duration::from_secs(5 * counter)).await;
-                            } else {
-                                break;
-                            }
-                        }
-
-                        at_least_one = true;
-
-                        let content =
-                            AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(
-                                format!("Alert {} was acknowleged by {}", alert_id, acked_by),
-                            ));
-
-                        // Unwrap is fine since possibility of an error is checked before.
-                        // TODO: This should not return.
-                        room.unwrap().send(content, None).await?;
-                    }
-                }
-
-                if !at_least_one {
-                    return Err(anyhow!(
-                        "failed to notify room(s) about the acknowlegement... retrying again later"
-                    ));
+                    // Send message to room.
+                    room.send(content, None).await?;
                 }
             }
         }
