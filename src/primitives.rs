@@ -164,7 +164,7 @@ pub enum UserConfirmation {
 }
 
 impl std::fmt::Display for UserConfirmation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         unimplemented!()
     }
 }

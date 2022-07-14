@@ -9,11 +9,8 @@ extern crate async_trait;
 
 use adapter::email::{EmailConfig, EmailLevel};
 use adapter::matrix::MatrixConfig;
-use adapter::pagerduty::{PagerDutyConfig, PagerDutyLevel, PayloadSeverity};
+use adapter::pagerduty::{PagerDutyConfig, PagerDutyLevel};
 use database::DatabaseConfig;
-
-use primitives::User;
-
 use structopt::StructOpt;
 use tokio::time::{sleep, Duration};
 

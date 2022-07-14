@@ -182,26 +182,26 @@ impl Adapter for EmailClient {
     fn name(&self) -> AdapterName {
         AdapterName::Matrix
     }
-    async fn notify(&self, notification: Notification, level_idx: usize) -> Result<()> {
+    async fn notify(&self, notification: Notification, _level_idx: usize) -> Result<()> {
         match notification {
             Notification::Alert { context } => {
                 let idx = context.level_idx(self.name());
                 let (prev, now) = self.levels.level_with_prev(idx);
 
-                if let Some(prev) = prev {
+                if let Some(_prev) = prev {
                     //let prev_msg = create_message()
                 }
 
                 let text = context.to_string_with_newlines();
-                let msg = create_message(&now.0, &text);
+                let _msg = create_message(&now.0, &text);
             }
-            Notification::Acknowledged { id, acked_by } => {}
+            Notification::Acknowledged { id: _, acked_by: _ } => {}
         }
 
         // TODO
         unimplemented!()
     }
-    async fn respond(&self, resp: UserConfirmation, level_idx: usize) -> Result<()> {
+    async fn respond(&self, _resp: UserConfirmation, _level_idx: usize) -> Result<()> {
         unimplemented!()
     }
     async fn endpoint_request(&self) -> Option<UserAction> {

@@ -9,9 +9,9 @@ use ruma::events::room::message::MessageType;
 use ruma::RoomId;
 use std::convert::TryFrom;
 use std::sync::Arc;
-use tokio::sync::mpsc::{self, unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::sync::Mutex;
-use tokio::time::{sleep, Duration};
+
 use url::Url;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

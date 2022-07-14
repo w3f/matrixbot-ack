@@ -4,7 +4,6 @@ use crate::primitives::{
 };
 use crate::Result;
 use reqwest::header::AUTHORIZATION;
-use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
