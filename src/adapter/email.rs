@@ -1,8 +1,9 @@
 use super::{Adapter, AdapterAlertId, AdapterName};
-use crate::primitives::{Notification, UserAction, UserConfirmation};
+use crate::primitives::{Notification, UserAction, UserConfirmation, AlertId, Command, User};
 use crate::Result;
 use google_gmail1::api::Message;
 use google_gmail1::{hyper, hyper_rustls, oauth2, Gmail};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 pub struct EmailConfig {
     address: String,
@@ -13,6 +14,7 @@ pub struct EmailLevel {}
 pub struct EmailClient {
     client: Gmail,
     config: EmailConfig,
+    queue: UnboundedReceiver<UserAction>,
 }
 
 impl EmailClient {
@@ -38,7 +40,8 @@ impl EmailClient {
             auth,
         );
 
-        Ok(EmailClient { client, config })
+        unimplemented!()
+        //Ok(EmailClient { client, config })
     }
     pub async fn run_message_import(&self) {
         // TODO: Add filter/max/limit
@@ -62,14 +65,33 @@ impl EmailClient {
             if let Some(payload) = message.payload {
                 if let Some(body) = payload.body {
                     if let Some(data) = body.data {
-                        if data.to_lowercase().contains("ack") {
-                            // TODO
+                        // TODO: Restrict this some more?
+                        let text = data.to_lowercase();
+                        if text.contains("ack") {
+                            if let Some(id_str) = text.split("ack").nth(1) {
+                                if let Ok(alert_id) = AlertId::from_str(id_str) {
+                                    let action = UserAction {
+                                        user: User::Email("TODO".to_string()),
+                                        channel_id: 0,
+                                        command: Command::Ack(alert_id),
+                                    };
+
+                                    // TODO: send
+                                }
+                            }
                         }
                     }
                 }
             }
         }
     }
+}
+
+#[test]
+fn some() {
+    let text = "ack whatever";
+    let res: Vec<&str> = text.split("ack").collect();
+    println!("{:?}", res);
 }
 
 #[async_trait]

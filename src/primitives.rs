@@ -133,6 +133,7 @@ pub struct PendingAlerts {
 pub enum User {
     Matrix(String),
     PagerDuty(String),
+    Email(String),
     #[cfg(test)]
     Mocker(String),
 }
