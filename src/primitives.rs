@@ -143,6 +143,7 @@ impl std::fmt::Display for User {
         let (name, adapter) = match self {
             User::Matrix(n) => (n, "Matrix"),
             User::PagerDuty(n) => (n, "PagerDuty"),
+            User::Email(n) => (n, "email"),
             #[cfg(test)]
             _ => unimplemented!(),
         };

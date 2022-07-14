@@ -6,9 +6,13 @@ use google_gmail1::{hyper, hyper_rustls, oauth2, Gmail};
 use std::sync::Arc;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::sync::Mutex;
+use tokio::time::{sleep, Duration};
+
+const MESSAGE_IMPORT_INTERVAL: u64 = 5;
 
 pub struct EmailConfig {
     address: String,
+    max_import_days: usize,
 }
 
 pub struct EmailLevel {}
@@ -56,20 +60,30 @@ impl EmailClient {
         let client = Arc::clone(&self.client);
         let address = self.config.address.to_string();
         let tx = Arc::clone(&self.tx);
+        let max_days = self.config.max_import_days;
 
         tokio::spawn(async move {
-            if let Err(err) = Self::import_messages(&address, &client, &tx).await {
+            if let Err(err) = Self::import_messages(&address, &client, &tx, max_days).await {
                 error!("failed to import emails: {:?}", err);
             }
+
+            sleep(Duration::from_secs(MESSAGE_IMPORT_INTERVAL)).await
         });
     }
     async fn import_messages(
         address: &str,
         client: &Arc<Gmail>,
         tx: &Arc<UnboundedSender<UserAction>>,
+        max_days: usize,
     ) -> Result<()> {
         // TODO: Add filter/max/limit
-        let (_resp, list) = client.users().messages_list(address).doit().await.unwrap();
+        let (_resp, list) = client
+            .users()
+            .messages_list(address)
+            .q(&format!("newer_than:{}d", max_days))
+            .doit()
+            .await
+            .unwrap();
 
         for message in &list.messages.unwrap() {
             let (_resp, message) = client
@@ -93,7 +107,7 @@ impl EmailClient {
                                         command: Command::Ack(alert_id),
                                     };
 
-                                    // TODO: send
+                                    tx.send(action).unwrap();
                                 }
                             }
                         }
