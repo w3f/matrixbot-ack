@@ -49,12 +49,17 @@ impl EmailClient {
 
         let (tx, queue) = unbounded_channel();
 
-        Ok(EmailClient {
+        let email = EmailClient {
             client: Arc::new(client),
             config,
             tx: Arc::new(tx),
             queue: Arc::new(Mutex::new(queue)),
-        })
+        };
+
+        // Run background task for importing emails.
+        email.run_message_import().await;
+
+        Ok(email)
     }
     async fn run_message_import(&self) {
         let client = Arc::clone(&self.client);
