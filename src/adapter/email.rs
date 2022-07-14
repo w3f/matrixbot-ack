@@ -1,9 +1,11 @@
 use super::{Adapter, AdapterAlertId, AdapterName};
-use crate::primitives::{Notification, UserAction, UserConfirmation, AlertId, Command, User};
+use crate::primitives::{AlertId, Command, Notification, User, UserAction, UserConfirmation};
 use crate::Result;
 use google_gmail1::api::Message;
 use google_gmail1::{hyper, hyper_rustls, oauth2, Gmail};
+use std::sync::Arc;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::sync::Mutex;
 
 pub struct EmailConfig {
     address: String,
@@ -12,9 +14,10 @@ pub struct EmailConfig {
 pub struct EmailLevel {}
 
 pub struct EmailClient {
-    client: Gmail,
+    client: Arc<Gmail>,
     config: EmailConfig,
-    queue: UnboundedReceiver<UserAction>,
+    tx: Arc<UnboundedSender<UserAction>>,
+    queue: Arc<Mutex<UnboundedReceiver<UserAction>>>,
 }
 
 impl EmailClient {
@@ -40,24 +43,38 @@ impl EmailClient {
             auth,
         );
 
-        unimplemented!()
-        //Ok(EmailClient { client, config })
+        let (tx, queue) = unbounded_channel();
+
+        Ok(EmailClient {
+            client: Arc::new(client),
+            config,
+            tx: Arc::new(tx),
+            queue: Arc::new(Mutex::new(queue)),
+        })
     }
-    pub async fn run_message_import(&self) {
+    async fn run_message_import(&self) {
+        let client = Arc::clone(&self.client);
+        let address = self.config.address.to_string();
+        let tx = Arc::clone(&self.tx);
+
+        tokio::spawn(async move {
+            if let Err(err) = Self::import_messages(&address, &client, &tx).await {
+                error!("failed to import emails: {:?}", err);
+            }
+        });
+    }
+    async fn import_messages(
+        address: &str,
+        client: &Arc<Gmail>,
+        tx: &Arc<UnboundedSender<UserAction>>,
+    ) -> Result<()> {
         // TODO: Add filter/max/limit
-        let (_resp, list) = self
-            .client
-            .users()
-            .messages_list(&self.config.address)
-            .doit()
-            .await
-            .unwrap();
+        let (_resp, list) = client.users().messages_list(address).doit().await.unwrap();
 
         for message in &list.messages.unwrap() {
-            let (_resp, message) = self
-                .client
+            let (_resp, message) = client
                 .users()
-                .messages_get(&self.config.address, &message.id.as_ref().unwrap())
+                .messages_get(address, &message.id.as_ref().unwrap())
                 .doit()
                 .await
                 .unwrap();
@@ -84,6 +101,8 @@ impl EmailClient {
                 }
             }
         }
+
+        unimplemented!()
     }
 }
 
