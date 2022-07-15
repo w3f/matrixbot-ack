@@ -5,7 +5,7 @@ use crate::Result;
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 
-const INTERVAL: u64 = 10;
+const INTERVAL: u64 = 5;
 
 pub struct EscalationService {
     db: Database,
@@ -32,7 +32,6 @@ impl EscalationService {
         ) -> Result<()> {
             let pending = db.get_pending(Some(window), Some(adapter.name())).await?;
 
-            println!("PENDING");
             // Notify adapter about escalation
             for alert in &pending.alerts {
                 adapter
