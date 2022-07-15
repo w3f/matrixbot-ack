@@ -222,7 +222,7 @@ mod tests {
     use super::*;
 
     impl Alert {
-        pub fn test() -> Self {
+        pub fn new_test() -> Self {
             Alert {
                 annotations: Annotations {
                     message: Some("Test Alert".to_string()),

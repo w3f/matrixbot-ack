@@ -5,7 +5,7 @@ use actix_web::{web, App, HttpResponse, HttpServer};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct InsertAlerts {
-    alerts: Vec<Alert>,
+    pub alerts: Vec<Alert>,
 }
 
 impl InsertAlerts {
@@ -47,6 +47,17 @@ async fn insert_alerts(req: web::Json<InsertAlerts>, db: web::Data<Database>) ->
         Err(err) => {
             error!("Failed to process new alerts: {:?}", err);
             HttpResponse::InternalServerError().finish()
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    impl InsertAlerts {
+        pub fn new_test() -> Self {
+            InsertAlerts { alerts: vec![Alert::new_test()] }
         }
     }
 }

@@ -30,6 +30,10 @@ impl fmt::Display for AdapterName {
                 AdapterName::Matrix => "Matrix",
                 AdapterName::PagerDuty => "PagerDuty",
                 AdapterName::Email => "email",
+                #[cfg(test)]
+                AdapterName::MockerFirst => "MockerFirst",
+                #[cfg(test)]
+                AdapterName::MockerSecond => "MockerSecond",
             }
         )
     }

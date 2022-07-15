@@ -346,7 +346,7 @@ mod tests {
         let client = PagerDutyClient::new(config, vec![level]).await;
 
         let notification = Notification::Alert {
-            context: AlertContext::new(unix_time().into(), Alert::test()),
+            context: AlertContext::new(unix_time().into(), Alert::new_test()),
         };
 
         let _resp = client.handle(notification).await.unwrap();
