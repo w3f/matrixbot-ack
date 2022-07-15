@@ -32,6 +32,7 @@ impl EscalationService {
         ) -> Result<()> {
             let pending = db.get_pending(Some(window), Some(adapter.name())).await?;
 
+            println!("PENDING");
             // Notify adapter about escalation
             for alert in &pending.alerts {
                 adapter
@@ -58,19 +59,21 @@ impl EscalationService {
         // Run background tasks that handles user requests.
         self.run_request_handler();
 
-        loop {
-            for adapter in &self.adapters {
-                if let Err(err) = local(&self.db, self.window, adapter).await {
-                    error!(
-                        "Error when processing possible escalations for the {} adapter: {:?}",
-                        adapter.name(),
-                        err
-                    );
+        tokio::spawn(async move {
+            loop {
+                for adapter in &self.adapters {
+                    if let Err(err) = local(&self.db, self.window, adapter).await {
+                        error!(
+                            "Error when processing possible escalations for the {} adapter: {:?}",
+                            adapter.name(),
+                            err
+                        );
+                    }
                 }
-            }
 
-            sleep(Duration::from_secs(INTERVAL)).await;
-        }
+                sleep(Duration::from_secs(INTERVAL)).await;
+            }
+        });
     }
     fn run_request_handler(&self) {
         for adapter in &self.adapters {

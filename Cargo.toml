@@ -15,6 +15,7 @@ path = "src/main.rs"
 
 [dependencies]
 tracing = "0.1.35" 
+tracing-subscriber = "0.2"
 anyhow = "1.0.43"
 serde = "1.0.129"
 serde_json = "1.0.66"

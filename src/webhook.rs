@@ -57,7 +57,9 @@ mod tests {
 
     impl InsertAlerts {
         pub fn new_test() -> Self {
-            InsertAlerts { alerts: vec![Alert::new_test()] }
+            InsertAlerts {
+                alerts: vec![Alert::new_test()],
+            }
         }
     }
 }

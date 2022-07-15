@@ -4,7 +4,7 @@ use crate::webhook::InsertAlerts;
 use crate::{unix_time, Result};
 use bson::{doc, to_bson};
 use futures::StreamExt;
-use mongodb::options::{FindOneAndUpdateOptions, ReturnDocument};
+use mongodb::options::{FindOneAndUpdateOptions, ReturnDocument, UpdateOptions};
 use mongodb::{Client, Database as MongoDb};
 use std::time::Duration;
 
@@ -129,17 +129,34 @@ impl Database {
         };
 
         if let Some(adapter) = adapter {
-            query.extend(doc! {
+            let mut check_adapter = doc! {
                 "adapters.name": to_bson(&adapter)?,
-            });
+            };
 
             if let Some(interval) = interval {
-                query.extend(doc! {
-                    "adapters.$.last_notified_tmsp": {
-                        "$lt": to_bson(&(now - interval.as_secs()))?
+                let limit = now - interval.as_secs();
+
+                check_adapter.extend(doc! {
+                    "adapters.last_notified_tmsp": {
+                        "$lt": to_bson(&limit)?
                     }
                 });
             }
+
+            query.extend(doc! {
+                "$or": [
+                    check_adapter,
+                    {
+                        "adapters": {
+                            "$not": {
+                                "$elemMatch": {
+                                    "name": to_bson(&adapter)?,
+                                }
+                            }
+                        }
+                    }
+                ]
+            });
         };
 
         pending
@@ -161,12 +178,38 @@ impl Database {
             .update_one(
                 doc! {
                     "id": to_bson(&id)?,
+                    "adapters": {
+                        "$not": {
+                            "$elemMatch": {
+                                "name": to_bson(&adapter)?,
+                            }
+                        }
+                    }
+                },
+                doc! {
+                    "$push": {
+                        "adapters": {
+                            "name": to_bson(&adapter)?,
+                            "level_idx": 0,
+                        }
+                    }
+                },
+                None,
+            )
+            .await?;
+
+        pending
+            .update_one(
+                doc! {
+                    "id": to_bson(&id)?,
                     "adapters.name": to_bson(&adapter)?,
                 },
                 doc! {
                     "$set": {
-                        "adapters.$.level_idx": 1,
                         "adapters.$.last_notified_tmsp": to_bson(&now)?,
+                    },
+                    "$inc": {
+                        "adapters.$.level_idx": 1,
                     }
                 },
                 None,

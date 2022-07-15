@@ -1,8 +1,8 @@
 use crate::adapter::{Adapter, AdapterName};
 use crate::database::{Database, DatabaseConfig};
-use crate::primitives::{Notification, UserAction, UserConfirmation, Alert};
-use crate::Result;
+use crate::primitives::{Alert, Notification, UserAction, UserConfirmation};
 use crate::webhook::InsertAlerts;
+use crate::Result;
 use rand::{thread_rng, Rng};
 use std::sync::Arc;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
@@ -10,7 +10,19 @@ use tokio::sync::Mutex;
 
 mod escalation;
 
+/*
+pub async fn setup_mockers() -> (Comms, Comms) {
+    let db = setup_db().await;
+
+}
+*/
+
 pub async fn setup_db() -> Database {
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .with_env_filter("system")
+        .init();
+
     let host = std::env::var("MONGODB_HOST").unwrap_or("localhost".to_string());
     let port = std::env::var("MONGODB_PORT").unwrap_or("27017".to_string());
     let prefix = std::env::var("MONGODB_PREFIX").unwrap_or("test_matrixbot_ack".to_string());
