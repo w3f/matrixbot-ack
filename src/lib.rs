@@ -23,6 +23,8 @@ mod database;
 mod escalation;
 mod primitives;
 mod webhook;
+#[cfg(test)]
+mod tests;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;
 
@@ -40,7 +42,7 @@ fn unix_time() -> u64 {
 struct Config {
     database: DatabaseConfig,
     listener: String,
-    escalation: Option<EscalationConfig>,
+    escalation: EscalationConfig,
     adapters: AdapterOptions,
 }
 
@@ -92,11 +94,10 @@ pub async fn run() -> Result<()> {
     let db = database::Database::new(config.database).await?;
 
     // Starting adapters.
-    //let span = info_span!("starting_adapter_clients");
     info!("Starting clients and background tasks");
 
-    // TODO
-    let mut escalation = EscalationService::new(db.clone(), Duration::from_secs(10));
+    // Setup escalation service.
+    let mut escalation = EscalationService::new(db.clone(), Duration::from_secs(config.escalation.window));
 
     // Start adapters with their appropriate tasks.
     let adapters = config.adapters;
