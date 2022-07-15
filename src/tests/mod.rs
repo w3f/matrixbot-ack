@@ -16,10 +16,12 @@ mod escalation;
 
 async fn setup_mockers() -> (Database, Comms, Comms) {
     // Init logging
+    /*
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)
         .with_env_filter("system")
         .init();
+    */
 
     let db = setup_db().await;
 
@@ -56,17 +58,19 @@ pub async fn setup_db() -> Database {
 }
 
 struct Comms {
-    notifications: UnboundedReceiver<(Notification, usize)>,
-    responses: UnboundedReceiver<(UserConfirmation, usize)>,
+    notifications: Arc<Mutex<UnboundedReceiver<(Notification, usize)>>>,
+    responses: Arc<Mutex<UnboundedReceiver<(UserConfirmation, usize)>>>,
     injector: UnboundedSender<UserAction>,
 }
 
 impl Comms {
-    async fn next_notification(&mut self) -> (Notification, usize) {
-        self.notifications.recv().await.unwrap()
+    async fn next_notification(&self) -> (Notification, usize) {
+        let mut l = self.notifications.lock().await;
+        l.recv().await.unwrap()
     }
-    async fn next_response(&mut self) -> (UserConfirmation, usize) {
-        self.responses.recv().await.unwrap()
+    async fn next_response(&self) -> (UserConfirmation, usize) {
+        let mut l = self.responses.lock().await;
+        l.recv().await.unwrap()
     }
     async fn inject(&self, action: UserAction) {
         self.injector.send(action).unwrap();
@@ -92,8 +96,8 @@ impl FirstMocker {
                 injector: Arc::new(Mutex::new(recv3)),
             },
             Comms {
-                notifications: recv1,
-                responses: recv2,
+                notifications: Arc::new(Mutex::new(recv1)),
+                responses: Arc::new(Mutex::new(recv2)),
                 injector: tx3,
             },
         )
@@ -140,8 +144,8 @@ impl SecondMocker {
                 injector: Arc::new(Mutex::new(recv3)),
             },
             Comms {
-                notifications: recv1,
-                responses: recv2,
+                notifications: Arc::new(Mutex::new(recv1)),
+                responses: Arc::new(Mutex::new(recv2)),
                 injector: tx3,
             },
         )
