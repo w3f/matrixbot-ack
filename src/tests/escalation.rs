@@ -49,7 +49,7 @@ async fn ensure_empty<F: Future<Output = U>, U: std::fmt::Debug>(f: F) -> bool {
 }
 
 #[tokio::test]
-async fn acknowledge_alert() {
+async fn acknowledge_alert_with_repeated_attempt() {
     let (_db, mocker1, mocker2) = setup_mockers().await;
 
     join!(wait_for_alerts(3, &mocker1), wait_for_alerts(3, &mocker2),);
@@ -63,10 +63,33 @@ async fn acknowledge_alert() {
         })
         .await;
 
+    // Acknowledge alert again, which leaves the state unchanged and
+    // generates an extra response.
+    mocker1
+        .inject(UserAction {
+            user: User::FirstMocker,
+            channel_id: 3,
+            command: Command::Ack(AlertId::from(1)),
+        })
+        .await;
+
+    // Check responses.
     let (confirmation, level) = mocker1.next_response().await;
     match confirmation {
         UserConfirmation::AlertAcknowledged(id) => {
             assert_eq!(id, AlertId::from(1));
+            assert_eq!(level, 3);
+        }
+        _ => {
+            dbg!(confirmation);
+            panic!();
+        }
+    }
+
+    let (confirmation, level) = mocker1.next_response().await;
+    match confirmation {
+        UserConfirmation::AlreadyAcknowleged(user) => {
+            assert_eq!(user, User::FirstMocker);
             assert_eq!(level, 3);
         }
         _ => {
