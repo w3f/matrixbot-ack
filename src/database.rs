@@ -35,6 +35,12 @@ struct AlertAcknowledged {
     acked_timestamp: u64,
 }
 
+pub enum AcknowlegementResult {
+    Ok,
+    OutOfScope,
+    AlreadyAcknowleged(User),
+}
+
 impl Database {
     pub async fn new(config: DatabaseConfig) -> Result<Self> {
         Ok(Database {
@@ -84,9 +90,35 @@ impl Database {
 
         Ok(id)
     }
-    pub async fn acknowledge_alert(&self, alert_id: &AlertId, acked_by: &User) -> Result<bool> {
+    pub async fn acknowledge_alert(
+        &self,
+        alert_id: &AlertId,
+        acked_by: &User,
+        adapter: AdapterName,
+        level_idx: usize,
+    ) -> Result<AcknowlegementResult> {
         let pending = self.db.collection::<AlertContext>(PENDING);
         let now = unix_time();
+
+        let mut res = pending
+            .find(
+                doc! {
+                    "id": to_bson(&alert_id)?,
+                },
+                None,
+            )
+            .await?;
+
+        if let Some(doc) = res.next().await {
+            let context = doc?;
+            if context.level_idx(adapter) > level_idx {
+                return Ok(AcknowlegementResult::OutOfScope);
+            }
+
+            if let Some(user) = context.acked_by {
+                return Ok(AcknowlegementResult::AlreadyAcknowleged(user));
+            }
+        }
 
         let res = pending
             .update_one(
@@ -103,11 +135,7 @@ impl Database {
             )
             .await?;
 
-        if res.modified_count == 0 {
-            Ok(false)
-        } else {
-            Ok(true)
-        }
+        Ok(AcknowlegementResult::Ok)
     }
     pub async fn get_pending(
         &self,

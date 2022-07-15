@@ -158,9 +158,10 @@ impl std::fmt::Display for User {
 pub enum UserConfirmation {
     PendingAlerts(PendingAlerts),
     NoPermission,
-    _AlertOutOfScope,
+    AlertOutOfScope,
     AlertAcknowledged(AlertId),
     AlertNotFound,
+    AlreadyAcknowleged(User),
     Help,
     InternalError,
 }

@@ -1,5 +1,5 @@
 use crate::adapter::Adapter;
-use crate::database::Database;
+use crate::database::{AcknowlegementResult, Database};
 use crate::primitives::{Command, Notification, UserConfirmation};
 use crate::Result;
 use std::sync::Arc;
@@ -94,13 +94,29 @@ impl EscalationService {
                 while let Some(action) = adapter.endpoint_request().await {
                     let message = match action.command {
                         Command::Ack(alert_id) => match db
-                            .acknowledge_alert(&alert_id, &action.user)
+                            .acknowledge_alert(
+                                &alert_id,
+                                &action.user,
+                                adapter_name,
+                                action.channel_id,
+                            )
                             .await
                         {
-                            Ok(_) => {
-                                info!("Alert {} was acknowleged by {:?}!", alert_id, action.user);
-                                UserConfirmation::AlertAcknowledged(alert_id)
-                            }
+                            Ok(res) => match res {
+                                AcknowlegementResult::Ok => {
+                                    info!(
+                                        "Alert {} was acknowleged by {:?}!",
+                                        alert_id, action.user
+                                    );
+                                    UserConfirmation::AlertAcknowledged(alert_id)
+                                }
+                                AcknowlegementResult::AlreadyAcknowleged(user) => {
+                                    UserConfirmation::AlreadyAcknowleged(user)
+                                }
+                                AcknowlegementResult::OutOfScope => {
+                                    UserConfirmation::AlertOutOfScope
+                                }
+                            },
                             Err(err) => {
                                 error!("failed to acknowledge alert: {:?}", err);
                                 UserConfirmation::InternalError
