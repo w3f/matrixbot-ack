@@ -39,6 +39,7 @@ pub enum AcknowlegementResult {
     Ok,
     OutOfScope,
     AlreadyAcknowleged(User),
+    NotFound,
 }
 
 impl Database {
@@ -135,7 +136,11 @@ impl Database {
             )
             .await?;
 
-        Ok(AcknowlegementResult::Ok)
+        if res.modified_count == 0 {
+            Ok(AcknowlegementResult::NotFound)
+        } else {
+            Ok(AcknowlegementResult::Ok)
+        }
     }
     pub async fn get_pending(
         &self,

@@ -124,6 +124,13 @@ impl EscalationService {
                                     );
                                     UserConfirmation::AlertOutOfScope
                                 }
+                                AcknowlegementResult::NotFound => {
+                                    debug!(
+                                        "Alert {} was not found",
+                                        alert_id
+                                    );
+                                    UserConfirmation::AlertNotFound
+                                }
                             },
                             Err(err) => {
                                 error!("failed to acknowledge alert: {:?}", err);

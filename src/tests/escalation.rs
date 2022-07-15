@@ -167,3 +167,43 @@ async fn acknowledge_alert_out_of_scope() {
     // Escalations continue...
     assert_eq!(res, (false, false, true, true));
 }
+
+#[tokio::test]
+async fn acknowledge_alert_not_found() {
+    let (_db, mocker1, mocker2) = setup_mockers().await;
+
+    join!(wait_for_alerts(1, &mocker1), wait_for_alerts(1, &mocker2),);
+
+    // Acknowledge alert (invalid attempt).
+    mocker1
+        .inject(UserAction {
+            user: User::FirstMocker,
+            channel_id: 3,
+			// Alert Id does not exist.
+            command: Command::Ack(AlertId::from(10)),
+        })
+        .await;
+
+    let (confirmation, level) = mocker1.next_response().await;
+    match confirmation {
+        UserConfirmation::AlertNotFound => {
+            // Ok.
+            assert_eq!(level, 3);
+        }
+        _ => {
+            dbg!(confirmation);
+            panic!();
+        }
+    }
+
+    // No other *responses* left.
+    let res = join!(
+        ensure_empty(mocker1.next_notification()),
+        ensure_empty(mocker2.next_notification()),
+        ensure_empty(mocker1.next_response()),
+        ensure_empty(mocker2.next_response()),
+    );
+
+    // Escalations continue...
+    assert_eq!(res, (false, false, true, true));
+}
