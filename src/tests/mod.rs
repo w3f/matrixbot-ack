@@ -3,19 +3,32 @@ use crate::database::{Database, DatabaseConfig};
 use crate::primitives::{Alert, Notification, UserAction, UserConfirmation};
 use crate::webhook::InsertAlerts;
 use crate::Result;
+use crate::escalation::EscalationService;
 use rand::{thread_rng, Rng};
 use std::sync::Arc;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::sync::Mutex;
+use std::time::Duration;
 
 mod escalation;
 
-/*
-pub async fn setup_mockers() -> (Comms, Comms) {
+pub async fn setup_mockers() -> (Database, Comms, Comms) {
     let db = setup_db().await;
+    let alert = InsertAlerts::new_test();
 
+    db.insert_alerts(alert).await.unwrap();
+
+    let mut escalation = EscalationService::new(db.clone(), Duration::from_secs(5));
+
+    let (f1, mut mocker1) = FirstMocker::new();
+    let (f2, mut mocker2) = SecondMocker::new();
+
+    escalation.register_adapter(f1);
+    escalation.register_adapter(f2);
+    escalation.run_service().await;
+
+    (db, mocker1, mocker2)
 }
-*/
 
 pub async fn setup_db() -> Database {
     tracing_subscriber::fmt()

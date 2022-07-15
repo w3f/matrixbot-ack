@@ -38,19 +38,7 @@ async fn wait_for_alerts(amount: usize, comms: &mut Comms) {
 
 #[tokio::test]
 async fn increase_escalation_levels() {
-    let db = setup_db().await;
-    let alert = InsertAlerts::new_test();
-
-    db.insert_alerts(alert).await.unwrap();
-
-    let mut escalation = EscalationService::new(db, Duration::from_secs(5));
-
-    let (f1, mut mocker1) = FirstMocker::new();
-    let (f2, mut mocker2) = SecondMocker::new();
-
-    escalation.register_adapter(f1);
-    escalation.register_adapter(f2);
-    escalation.run_service().await;
+	let (_db, mut mocker1, mut mocker2) = setup_mockers().await;
 
 	wait_for_alerts(5, &mut mocker1).await;
 	wait_for_alerts(5, &mut mocker2).await;
