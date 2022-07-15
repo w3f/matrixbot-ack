@@ -159,6 +159,7 @@ impl Adapter for SecondMocker {
             .map_err(|err| err.into())
     }
     async fn respond(&self, resp: UserConfirmation, level_idx: usize) -> Result<()> {
+        println!(">> RESPOND");
         self.responses
             .send((resp, level_idx))
             .map_err(|err| err.into())

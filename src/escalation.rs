@@ -111,9 +111,17 @@ impl EscalationService {
                                     UserConfirmation::AlertAcknowledged(alert_id)
                                 }
                                 AcknowlegementResult::AlreadyAcknowleged(user) => {
+                                    debug!(
+                                        "Alert {} was already acknowleged by {:?}",
+                                        alert_id, user
+                                    );
                                     UserConfirmation::AlreadyAcknowleged(user)
                                 }
                                 AcknowlegementResult::OutOfScope => {
+                                    debug!(
+                                        "Alert {} is out of scope for user {:?}",
+                                        alert_id, action.user
+                                    );
                                     UserConfirmation::AlertOutOfScope
                                 }
                             },

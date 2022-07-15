@@ -98,3 +98,45 @@ async fn acknowledge_alert() {
     ensure_empty(mocker1.next_notification()).await;
     ensure_empty(mocker2.next_notification()).await;
 }
+
+#[tokio::test]
+async fn acknowledge_alert_out_of_scope() {
+    let (_db, mut mocker1, mut mocker2) = setup_mockers().await;
+
+    wait_for_alerts(3, &mut mocker1).await;
+    // Let mocker2 catchup with the escalation.
+    sleep(Duration::from_secs(ESCALATION_WINDOW / 2)).await;
+
+    // Acknowledge alert (invalid attempt).
+    mocker1
+        .inject(UserAction {
+            user: User::FirstMocker,
+			// Escalation is on level three, while here we inject a message from
+			// level two.
+            channel_id: 2,
+            command: Command::Ack(AlertId::from(1)),
+        })
+        .await;
+
+    // Mocker2 must have the same alert notifications as mocker1.
+    wait_for_alerts(3, &mut mocker2).await;
+
+    // Mocker2 must be informed about the acknowlegement of the alert.
+    let (confirmation, level) = mocker1.next_response().await;
+    match confirmation {
+		UserConfirmation::AlertOutOfScope => {
+			// Ok.
+			assert_eq!(level, 2);
+		}
+        _ => {
+            dbg!(confirmation);
+            panic!();
+        }
+    }
+
+    // No other notifications left.
+    ensure_empty(mocker1.next_notification()).await;
+    ensure_empty(mocker2.next_notification()).await;
+    ensure_empty(mocker1.next_response()).await;
+    ensure_empty(mocker2.next_response()).await;
+}
