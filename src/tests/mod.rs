@@ -1,28 +1,38 @@
 use crate::adapter::{Adapter, AdapterName};
 use crate::database::{Database, DatabaseConfig};
+use crate::escalation::EscalationService;
 use crate::primitives::{Alert, Notification, UserAction, UserConfirmation};
 use crate::webhook::InsertAlerts;
 use crate::Result;
-use crate::escalation::EscalationService;
 use rand::{thread_rng, Rng};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::sync::Mutex;
-use std::time::Duration;
+
+const ESCALATION_WINDOW: u64 = 5;
 
 mod escalation;
 
-pub async fn setup_mockers() -> (Database, Comms, Comms) {
-    let db = setup_db().await;
-    let alert = InsertAlerts::new_test();
+async fn setup_mockers() -> (Database, Comms, Comms) {
+    // Init logging
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .with_env_filter("system")
+        .init();
 
+    let db = setup_db().await;
+
+    // Insert test alert.
+    let alert = InsertAlerts::new_test();
     db.insert_alerts(alert).await.unwrap();
 
-    let mut escalation = EscalationService::new(db.clone(), Duration::from_secs(5));
+    let mut escalation = EscalationService::new(db.clone(), Duration::from_secs(ESCALATION_WINDOW));
 
-    let (f1, mut mocker1) = FirstMocker::new();
-    let (f2, mut mocker2) = SecondMocker::new();
+    let (f1, mocker1) = FirstMocker::new();
+    let (f2, mocker2) = SecondMocker::new();
 
+    // Register mockers and start background service.
     escalation.register_adapter(f1);
     escalation.register_adapter(f2);
     escalation.run_service().await;
@@ -31,11 +41,6 @@ pub async fn setup_mockers() -> (Database, Comms, Comms) {
 }
 
 pub async fn setup_db() -> Database {
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
-        .with_env_filter("system")
-        .init();
-
     let host = std::env::var("MONGODB_HOST").unwrap_or("localhost".to_string());
     let port = std::env::var("MONGODB_PORT").unwrap_or("27017".to_string());
     let prefix = std::env::var("MONGODB_PREFIX").unwrap_or("test_matrixbot_ack".to_string());

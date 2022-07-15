@@ -135,7 +135,9 @@ pub enum User {
     PagerDuty(String),
     Email(String),
     #[cfg(test)]
-    Mocker(String),
+    FirstMocker,
+    #[cfg(test)]
+    SecondMocker,
 }
 
 impl std::fmt::Display for User {

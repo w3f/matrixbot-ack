@@ -5,7 +5,10 @@ use crate::Result;
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 
+#[cfg(not(test))]
 const INTERVAL: u64 = 5;
+#[cfg(test)]
+const INTERVAL: u64 = 1;
 
 pub struct EscalationService {
     db: Database,
