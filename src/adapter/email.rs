@@ -180,7 +180,7 @@ fn create_message(to: &str, content: &str) -> Message {
 #[async_trait]
 impl Adapter for EmailClient {
     fn name(&self) -> AdapterName {
-        AdapterName::Matrix
+        AdapterName::Email
     }
     async fn notify(&self, notification: Notification, _level_idx: usize) -> Result<()> {
         match notification {

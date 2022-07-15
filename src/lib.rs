@@ -22,9 +22,9 @@ mod adapter;
 mod database;
 mod escalation;
 mod primitives;
-mod webhook;
 #[cfg(test)]
 mod tests;
+mod webhook;
 
 pub type Result<T> = std::result::Result<T, anyhow::Error>;
 
@@ -97,7 +97,8 @@ pub async fn run() -> Result<()> {
     info!("Starting clients and background tasks");
 
     // Setup escalation service.
-    let mut escalation = EscalationService::new(db.clone(), Duration::from_secs(config.escalation.window));
+    let mut escalation =
+        EscalationService::new(db.clone(), Duration::from_secs(config.escalation.window));
 
     // Start adapters with their appropriate tasks.
     let adapters = config.adapters;

@@ -14,6 +14,11 @@ use std::fmt;
 pub enum AdapterName {
     Matrix,
     PagerDuty,
+    Email,
+    #[cfg(test)]
+    MockerFirst,
+    #[cfg(test)]
+    MockerSecond,
 }
 
 impl fmt::Display for AdapterName {
@@ -24,6 +29,7 @@ impl fmt::Display for AdapterName {
             match self {
                 AdapterName::Matrix => "Matrix",
                 AdapterName::PagerDuty => "PagerDuty",
+                AdapterName::Email => "email",
             }
         )
     }
