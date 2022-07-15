@@ -251,4 +251,25 @@ impl Database {
 
         Ok(())
     }
+    pub async fn get_level_idx(&self, adapter: AdapterName) -> Result<usize> {
+        let pending = self.db.collection::<AlertContext>(PENDING);
+
+        let mut res = pending
+            .find(
+                doc! {
+                    "adapters.name": to_bson(&adapter)?,
+                },
+                None,
+            )
+            .await?;
+
+        if let Some(doc) = res.next().await {
+            let context = doc?;
+            Ok(context.level_idx(adapter))
+        } else {
+            // Occurs if no adapter was registered for the alert, i.e. the alert
+            // was created before the adapter was enabled.
+            Ok(0)
+        }
+    }
 }

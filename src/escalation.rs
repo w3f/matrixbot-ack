@@ -125,10 +125,7 @@ impl EscalationService {
                                     UserConfirmation::AlertOutOfScope
                                 }
                                 AcknowlegementResult::NotFound => {
-                                    debug!(
-                                        "Alert {} was not found",
-                                        alert_id
-                                    );
+                                    debug!("Alert {} was not found", alert_id);
                                     UserConfirmation::AlertNotFound
                                 }
                             },
@@ -153,6 +150,9 @@ impl EscalationService {
                             let acked_by = action.user.clone();
                             let other = Arc::clone(other);
 
+                            // TODO: Handle unwrap
+                            let other_level_idx = db.get_level_idx(other.name()).await.unwrap();
+
                             // Start the notification process in another thread
                             // which will keep retrying in case the process
                             // fails.
@@ -165,7 +165,7 @@ impl EscalationService {
                                                 id: alert_id,
                                                 acked_by: acked_by.clone(),
                                             },
-                                            action.channel_id,
+                                            other_level_idx,
                                         )
                                         .await
                                     {
