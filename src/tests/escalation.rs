@@ -113,7 +113,6 @@ async fn acknowledge_alert_with_repeated_attempt() {
             assert_eq!(id, AlertId::from(1));
             assert_eq!(acked_by, User::FirstMocker);
             // Mocker2 gets notified on level zero (first level), not three (!).
-            // TODO: Investigate this further (is this the right decision?)
             assert_eq!(level, 0);
         }
         _ => {
@@ -203,8 +202,8 @@ async fn acknowledge_alert_out_of_scope_with_cross_ack() {
 
             assert_eq!(id, AlertId::from(1));
             assert_eq!(acked_by, User::SecondMocker);
-            // Gets notified on level six, not eight (!).
-            assert_eq!(level, 6);
+            // Gets notified on level five (6-1), not eight (!).
+            assert_eq!(level, 5);
         }
         _ => {
             dbg!(notification);

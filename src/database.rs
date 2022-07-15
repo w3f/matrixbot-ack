@@ -265,7 +265,7 @@ impl Database {
 
         if let Some(doc) = res.next().await {
             let context = doc?;
-            Ok(context.level_idx(adapter))
+            Ok(context.level_idx(adapter).saturating_sub(1))
         } else {
             // Occurs if no adapter was registered for the alert, i.e. the alert
             // was created before the adapter was enabled.
