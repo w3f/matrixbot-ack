@@ -58,3 +58,51 @@ impl Adapter for FirstMocker {
         l.recv().await
     }
 }
+
+struct SecondMocker {
+    notifications: UnboundedSender<(Notification, usize)>,
+    responses: UnboundedSender<(UserConfirmation, usize)>,
+    injector: Arc<Mutex<UnboundedReceiver<UserAction>>>,
+}
+
+impl SecondMocker {
+    pub fn new() -> (Self, Comms) {
+        let (tx1, recv1) = unbounded_channel();
+        let (tx2, recv2) = unbounded_channel();
+        let (tx3, recv3) = unbounded_channel();
+
+        (
+            SecondMocker {
+                notifications: tx1,
+                responses: tx2,
+                injector: Arc::new(Mutex::new(recv3)),
+            },
+            Comms {
+                notifications: recv1,
+                responses: recv2,
+                injector: tx3,
+            },
+        )
+    }
+}
+
+#[async_trait]
+impl Adapter for SecondMocker {
+    fn name(&self) -> AdapterName {
+        AdapterName::MockerSecond
+    }
+    async fn notify(&self, notification: Notification, level_idx: usize) -> Result<()> {
+        self.notifications
+            .send((notification, level_idx))
+            .map_err(|err| err.into())
+    }
+    async fn respond(&self, resp: UserConfirmation, level_idx: usize) -> Result<()> {
+        self.responses
+            .send((resp, level_idx))
+            .map_err(|err| err.into())
+    }
+    async fn endpoint_request(&self) -> Option<UserAction> {
+        let mut l = self.injector.lock().await;
+        l.recv().await
+    }
+}
