@@ -104,14 +104,20 @@ pub async fn run() -> Result<()> {
     let adapters = config.adapter;
     if let Some(matrix_conf) = adapters.matrix {
         if matrix_conf.enabled {
+            info!("Matrix adapter is enabled, starting...");
+
             let matrix =
                 MatrixClient::new(matrix_conf.config.unwrap(), matrix_conf.levels.unwrap()).await?;
             escalation.register_adapter(matrix);
+
+            info!("Matrix adapter setup completed");
         }
     }
 
     if let Some(pagerduty_conf) = adapters.pagerduty {
         if pagerduty_conf.enabled {
+            info!("PagerDuty adapter is enabled, starting...");
+
             let pagerduty = PagerDutyClient::new(
                 pagerduty_conf.config.unwrap(),
                 pagerduty_conf.levels.unwrap(),
@@ -119,15 +125,19 @@ pub async fn run() -> Result<()> {
             .await;
 
             escalation.register_adapter(pagerduty);
+            info!("PagerDuty adapter setup completed");
         }
     }
 
     if let Some(email_conf) = adapters.email {
         if email_conf.enabled {
+            info!("Email adapter is enabled, starting...");
+
             let email =
                 EmailClient::new(email_conf.config.unwrap(), email_conf.levels.unwrap()).await?;
 
             escalation.register_adapter(email);
+            info!("Email adapter setup completed");
         }
     }
 
