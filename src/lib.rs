@@ -43,7 +43,7 @@ struct Config {
     database: DatabaseConfig,
     listener: String,
     escalation: EscalationConfig,
-    adapters: AdapterOptions,
+    adapter: AdapterOptions,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -101,7 +101,7 @@ pub async fn run() -> Result<()> {
         EscalationService::new(db.clone(), Duration::from_secs(config.escalation.window));
 
     // Start adapters with their appropriate tasks.
-    let adapters = config.adapters;
+    let adapters = config.adapter;
     if let Some(matrix_conf) = adapters.matrix {
         if matrix_conf.enabled {
             let matrix =

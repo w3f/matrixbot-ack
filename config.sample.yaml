@@ -4,7 +4,7 @@ database:
 listener: 127.0.0.1:8000
 escalation:
   window: 3600 # one hour
-adapters:
+adapter:
   matrix:
     enabled: false
     levels:
@@ -28,3 +28,11 @@ adapters:
     config:
       api_key: abcdefg
       payload_source: "Matrixbot Ack Service"
+  email:
+    enabled: false
+    levels:
+    - "alice@email.com"
+    - "bob@email.com"
+    - "dave@email.com"
+    config:
+      # TODO
