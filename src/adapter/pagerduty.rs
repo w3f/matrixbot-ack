@@ -67,6 +67,12 @@ impl PagerDutyClient {
         // Create an alert type native to the PagerDuty API.
         match notification {
             Notification::Alert { context: alert } => {
+                // Don't create duplicate entries on PagerDuty. It can already
+                // handle escalations.
+                if alert.has_entry(self.name()) {
+                    return Ok(())
+                }
+
                 let level = self
                     .levels
                     .single_level(alert.level_idx(self.name()));

@@ -49,6 +49,12 @@ impl AlertContext {
             acked_at_tmsp: None,
         }
     }
+    pub fn has_entry(&self, adapter: AdapterName) -> bool {
+        self.adapters
+            .iter()
+            .find(|ctx| ctx.name == adapter)
+            .is_some()
+    }
     pub fn level_idx(&self, adapter: AdapterName) -> usize {
         self.adapters
             .iter()
