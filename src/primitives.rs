@@ -157,7 +157,6 @@ impl std::fmt::Display for User {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum UserConfirmation {
     PendingAlerts(PendingAlerts),
-    NoPermission,
     AlertOutOfScope,
     AlertAcknowledged(AlertId),
     AlertNotFound,
@@ -167,8 +166,45 @@ pub enum UserConfirmation {
 }
 
 impl std::fmt::Display for UserConfirmation {
-    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        unimplemented!()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                UserConfirmation::PendingAlerts(pending) => {
+                    let mut string = "Pending alerts:\n".to_string();
+                    pending
+                        .alerts
+                        .iter()
+                        .for_each(|ctx| string.push_str(ctx.to_string_with_newlines().as_str()));
+
+                    string
+                }
+                UserConfirmation::AlertOutOfScope => {
+                    "The alert already reached the next escalation level.".to_string()
+                }
+                UserConfirmation::AlertAcknowledged(alert_id) => {
+                    format!("The aleart with Id {} has been acknowledged", alert_id)
+                }
+                UserConfirmation::AlertNotFound => {
+                    "Alert Id was not found".to_string()
+                }
+                UserConfirmation::AlreadyAcknowleged(user) => {
+                    format!("The alert was already acknowleged by {}", user)
+                }
+                UserConfirmation::Help => {
+                    "\
+                    'ack <ID>'\t=>\tAcknowlege an alert with the given ID\n
+                    'pending'\t=>\tDisplay pending (unacknowleged) alerts\n
+                    'help'\t=>\tDisplay this help message\
+                    "
+                    .to_string()
+                }
+                UserConfirmation::InternalError => {
+                    "An internal error occurred, please contact the admin.".to_string()
+                }
+            }
+        )
     }
 }
 
