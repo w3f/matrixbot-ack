@@ -23,7 +23,7 @@ pub async fn run_api_server(endpoint: &str, db: Database) -> Result<()> {
     })
     .bind(endpoint)?;
 
-    let _ = server.run();
+    let _ = server.run().await;
     Ok(())
 }
 
@@ -61,5 +61,12 @@ mod tests {
                 alerts: vec![Alert::new_test()],
             }
         }
+    }
+
+    #[ignore]
+    #[test]
+    fn display_insert_test_alert() {
+        let alerts = InsertAlerts::new_test();
+        println!("{}", serde_json::to_string_pretty(&alerts).unwrap());
     }
 }

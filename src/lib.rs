@@ -134,9 +134,10 @@ pub async fn run() -> Result<()> {
     escalation.run_service().await;
 
     // Starting webhook.
-    info!("Starting API server");
+    info!("Starting API server on endpoint {}", config.listener);
     webhook::run_api_server(&config.listener, db).await?;
 
+    info!("Setup completed!");
     loop {
         sleep(Duration::from_secs(u64::MAX)).await;
     }
