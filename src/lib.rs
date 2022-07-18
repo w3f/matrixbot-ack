@@ -103,8 +103,15 @@ pub async fn run() -> Result<()> {
         if matrix_conf.enabled {
             info!("Matrix adapter is enabled, starting...");
 
-            let matrix =
-                MatrixClient::new(matrix_conf.config.unwrap(), matrix_conf.levels.unwrap()).await?;
+            let matrix = MatrixClient::new(
+                matrix_conf
+                    .config
+                    .ok_or_else(|| anyhow!("Matrix config is missing"))?,
+                matrix_conf
+                    .levels
+                    .ok_or_else(|| anyhow!("Matrix levels are not configured"))?,
+            )
+            .await?;
             escalation.register_adapter(matrix);
 
             info!("Matrix adapter setup completed");
@@ -116,8 +123,12 @@ pub async fn run() -> Result<()> {
             info!("PagerDuty adapter is enabled, starting...");
 
             let pagerduty = PagerDutyClient::new(
-                pagerduty_conf.config.unwrap(),
-                pagerduty_conf.levels.unwrap(),
+                pagerduty_conf
+                    .config
+                    .ok_or_else(|| anyhow!("PagerDuty config is missing"))?,
+                pagerduty_conf
+                    .levels
+                    .ok_or_else(|| anyhow!("PagerDuty levels are not configured"))?,
             )
             .await;
 
@@ -130,8 +141,15 @@ pub async fn run() -> Result<()> {
         if email_conf.enabled {
             info!("Email adapter is enabled, starting...");
 
-            let email =
-                EmailClient::new(email_conf.config.unwrap(), email_conf.levels.unwrap()).await?;
+            let email = EmailClient::new(
+                email_conf
+                    .config
+                    .ok_or_else(|| anyhow!("Email config is missing"))?,
+                email_conf
+                    .levels
+                    .ok_or_else(|| anyhow!("Email levels are not configured"))?,
+            )
+            .await?;
 
             escalation.register_adapter(email);
             info!("Email adapter setup completed");

@@ -28,7 +28,12 @@ pub struct EmailClient {
 }
 
 impl EmailClient {
+    #[allow(unreachable_code)]
     pub async fn new(config: EmailConfig, levels: Vec<EmailLevel>) -> Result<Self> {
+        let _c = config;
+        let _l = levels;
+        return Err(anyhow!("The email adapter is currently not supported"));
+
         let secret: oauth2::ApplicationSecret = Default::default();
         let auth = oauth2::InstalledFlowAuthenticator::builder(
             secret,
@@ -121,11 +126,12 @@ impl EmailClient {
                                                     .unwrap_or(false)
                                             });
 
+                                            // TODO
                                             name = to_header
-                                                .ok_or(anyhow!(""))?
+                                                .ok_or_else(|| anyhow!(""))?
                                                 .value
                                                 .as_ref()
-                                                .ok_or(anyhow!(""))?
+                                                .ok_or_else(|| anyhow!(""))?
                                                 .clone();
                                         }
                                         None => {

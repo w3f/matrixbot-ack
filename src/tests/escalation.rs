@@ -1,12 +1,8 @@
 use futures::Future;
 
 use super::*;
-use crate::{
-    escalation::EscalationService,
-    primitives::{AlertContext, AlertId, Command, User},
-};
+use crate::primitives::{AlertId, Command, User};
 use futures::join;
-use tokio::time::{sleep, Duration};
 
 async fn wait_for_alerts(amount: usize, comms: &Comms) {
     wait_for_alerts_with_start(0, amount, comms).await
@@ -53,7 +49,7 @@ async fn ensure_empty<F: Future<Output = U>, U: std::fmt::Debug>(f: F) -> bool {
 }
 
 #[tokio::test]
-async fn acknowledge_alert_with_repeated_attempt() {
+async fn acknowledge_alert_with_repeated_attempts() {
     let (_db, mocker1, mocker2) = setup_mockers().await;
 
     join!(wait_for_alerts(1, &mocker1), wait_for_alerts(1, &mocker2),);
@@ -107,15 +103,50 @@ async fn acknowledge_alert_with_repeated_attempt() {
     // Mocker2 must be informed about the acknowlegement of the alert.
     let (notification, level) = mocker2.next_notification().await;
     match notification {
-        Notification::Acknowledged { id, acked_by } => {
+        Notification::Acknowledged {
+            id,
+            acked_by,
+            acked_on,
+        } => {
             dbg!(&id);
             dbg!(&acked_by);
             dbg!(&level);
+            dbg!(&acked_on);
 
             assert_eq!(id, AlertId::from(1));
             assert_eq!(acked_by, User::FirstMocker);
-            // Mocker2 gets notified on level zero (first level), not three (!).
-            assert_eq!(level, 0);
+            // Mocker2 gets notified on level one.
+            assert_eq!(level, 1);
+            assert_eq!(acked_on, None);
+        }
+        _ => {
+            dbg!(notification);
+            panic!();
+        }
+    }
+
+    // Levels on mocker1 must be notified about the acknowledgement, too. This
+    // contains an additional `acked_on` which can be used to exclude the level
+    // where the alert was acknowledged (as is used in the Matrix and email
+    // adapter).
+    let (notification, level) = mocker1.next_notification().await;
+    match notification {
+        Notification::Acknowledged {
+            id,
+            acked_by,
+            acked_on,
+        } => {
+            dbg!(&id);
+            dbg!(&acked_by);
+            dbg!(&level);
+            dbg!(&acked_on);
+
+            assert_eq!(id, AlertId::from(1));
+            assert_eq!(acked_by, User::FirstMocker);
+            // Mocker2 gets notified on level one.
+            assert_eq!(level, 1);
+            // This is `Some`, unlike on mocker2.
+            assert_eq!(acked_on.unwrap(), 3);
         }
         _ => {
             dbg!(notification);
@@ -145,9 +176,9 @@ async fn acknowledge_alert_out_of_scope_with_cross_ack() {
     mocker1
         .inject(UserAction {
             user: User::FirstMocker,
-            // Escalation is on level three, while here we inject a message from
-            // level two.
-            channel_id: 2,
+            // Escalation is on level two (starts at zero), while here we inject
+            // a message from level one.
+            channel_id: 1,
             is_last_channel: false,
             command: Command::Ack(AlertId::from(1)),
         })
@@ -157,7 +188,7 @@ async fn acknowledge_alert_out_of_scope_with_cross_ack() {
     match confirmation {
         UserConfirmation::AlertOutOfScope => {
             // Ok.
-            assert_eq!(level, 2);
+            assert_eq!(level, 1);
         }
         _ => {
             dbg!(confirmation);
@@ -176,7 +207,7 @@ async fn acknowledge_alert_out_of_scope_with_cross_ack() {
         .inject(UserAction {
             user: User::SecondMocker,
             // This was sent from level eight, while the escalation level is at
-            // six (3 + 3).
+            // five.
             channel_id: 8,
             is_last_channel: false,
             command: Command::Ack(AlertId::from(1)),
@@ -187,7 +218,7 @@ async fn acknowledge_alert_out_of_scope_with_cross_ack() {
     match confirmation {
         UserConfirmation::AlertAcknowledged(id) => {
             assert_eq!(id, AlertId::from(1));
-            // Gets notified on level eight.
+            // Gets a response on level eight.
             assert_eq!(level, 8);
         }
         _ => {
@@ -199,15 +230,50 @@ async fn acknowledge_alert_out_of_scope_with_cross_ack() {
     // Mocker1 must be notified about the acknowledgement.
     let (notification, level) = mocker1.next_notification().await;
     match notification {
-        Notification::Acknowledged { id, acked_by } => {
+        Notification::Acknowledged {
+            id,
+            acked_by,
+            acked_on,
+        } => {
             dbg!(&id);
             dbg!(&acked_by);
             dbg!(&level);
+            dbg!(&acked_on);
 
             assert_eq!(id, AlertId::from(1));
             assert_eq!(acked_by, User::SecondMocker);
-            // Gets notified on level five (6-1), not eight (!).
-            assert_eq!(level, 5);
+            // Gets notified on level 6, not eight.
+            assert_eq!(level, 6);
+            assert_eq!(acked_on, None);
+        }
+        _ => {
+            dbg!(notification);
+            panic!();
+        }
+    }
+
+    // Levels on mocker2 must be notified about the acknowledgement, too. This
+    // contains an additional `acked_on` which can be used to exclude the level
+    // where the alert was acknowledged (as is used in the Matrix and email
+    // adapter).
+    let (notification, level) = mocker2.next_notification().await;
+    match notification {
+        Notification::Acknowledged {
+            id,
+            acked_by,
+            acked_on,
+        } => {
+            dbg!(&id);
+            dbg!(&acked_by);
+            dbg!(&level);
+            dbg!(&acked_on);
+
+            assert_eq!(id, AlertId::from(1));
+            assert_eq!(acked_by, User::SecondMocker);
+            // Gets notified on level 6, not eight.
+            assert_eq!(level, 6);
+            // Unlike for mocker1, this is `Some`.
+            assert_eq!(acked_on.unwrap(), 8);
         }
         _ => {
             dbg!(notification);

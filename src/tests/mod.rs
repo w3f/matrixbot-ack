@@ -1,7 +1,7 @@
 use crate::adapter::{Adapter, AdapterName};
 use crate::database::{Database, DatabaseConfig};
 use crate::escalation::EscalationService;
-use crate::primitives::{Alert, Notification, UserAction, UserConfirmation};
+use crate::primitives::{Notification, UserAction, UserConfirmation};
 use crate::webhook::InsertAlerts;
 use crate::Result;
 use rand::{thread_rng, Rng};
@@ -15,14 +15,6 @@ const ESCALATION_WINDOW: u64 = 5;
 mod escalation;
 
 async fn setup_mockers() -> (Database, Comms, Comms) {
-    // Init logging
-    /*
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
-        .with_env_filter("system")
-        .init();
-    */
-
     let db = setup_db().await;
 
     // Insert test alert.
@@ -42,10 +34,14 @@ async fn setup_mockers() -> (Database, Comms, Comms) {
     (db, mocker1, mocker2)
 }
 
+#[rustfmt::skip]
 pub async fn setup_db() -> Database {
-    let host = std::env::var("MONGODB_HOST").unwrap_or("localhost".to_string());
-    let port = std::env::var("MONGODB_PORT").unwrap_or("27017".to_string());
-    let prefix = std::env::var("MONGODB_PREFIX").unwrap_or("test_matrixbot_ack".to_string());
+    let host = std::env::var("MONGODB_HOST")
+        .unwrap_or_else(|_| "localhost".to_string());
+    let port = std::env::var("MONGODB_PORT")
+        .unwrap_or_else(|_| "27017".to_string());
+    let prefix = std::env::var("MONGODB_PREFIX")
+        .unwrap_or_else(|_| "test_matrixbot_ack".to_string());
 
     // Setup MongoDb database.
     let random: u32 = thread_rng().gen_range(u32::MIN..u32::MAX);
