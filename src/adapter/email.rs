@@ -116,8 +116,7 @@ impl EmailClient {
                             if let Some(id_str) = text.split("ack").nth(1) {
                                 if let Ok(alert_id) = AlertId::from_str(id_str) {
                                     // Retrieve sender from 'To' field.
-                                    let name;
-                                    match payload.headers {
+                                    let name = match payload.headers {
                                         Some(headers) => {
                                             let to_header = headers.iter().find(|part| {
                                                 part.name
@@ -127,18 +126,18 @@ impl EmailClient {
                                             });
 
                                             // TODO
-                                            name = to_header
+                                            to_header
                                                 .ok_or_else(|| anyhow!(""))?
                                                 .value
                                                 .as_ref()
                                                 .ok_or_else(|| anyhow!(""))?
-                                                .clone();
+                                                .clone()
                                         }
                                         None => {
                                             error!("TODO");
                                             continue;
                                         }
-                                    }
+                                    };
 
                                     // Create user action.
                                     let action = UserAction {
