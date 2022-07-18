@@ -157,6 +157,12 @@ impl EscalationService {
                             let other_level_idx =
                                 db.get_level_idx(alert_id, other.name()).await.unwrap();
 
+                            let acked_on = if other.name() == adapter_name {
+                                Some(action.channel_id)
+                            } else {
+                                None
+                            };
+
                             // Start the notification process in another thread
                             // which will keep retrying in case the process
                             // fails.
@@ -168,6 +174,7 @@ impl EscalationService {
                                             Notification::Acknowledged {
                                                 id: alert_id,
                                                 acked_by: acked_by.clone(),
+                                                acked_on,
                                             },
                                             other_level_idx,
                                         )
@@ -191,9 +198,6 @@ impl EscalationService {
                                 }
                             });
                         }
-
-                        // Don't duplicate acknowlegement notifications.
-                        continue;
                     }
 
                     match adapter.respond(message, action.channel_id).await {

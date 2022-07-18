@@ -135,10 +135,8 @@ pub async fn run() -> Result<()> {
 
     // Starting webhook.
     info!("Starting API server on endpoint {}", config.listener);
-    webhook::run_api_server(&config.listener, db).await?;
+    let server = webhook::run_api_server(&config.listener, db).await?;
 
     info!("Setup completed!");
-    loop {
-        sleep(Duration::from_secs(u64::MAX)).await;
-    }
+    server.await.map_err(|err| err.into())
 }

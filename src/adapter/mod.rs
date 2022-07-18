@@ -83,7 +83,18 @@ impl<T: Eq + PartialEq> LevelManager<T> {
             )
         }
     }
-    fn all_up_to(&self, level_idx: usize) -> Vec<&T> {
-        self.levels.iter().take(level_idx).collect()
+    fn all_up_to_excluding(&self, level_idx: usize, excluding: Option<usize>) -> Vec<&T> {
+        let mut levels: Vec<&T> = self.levels.iter().take(level_idx).collect();
+
+        if excluding.is_none() {
+            return levels;
+        }
+
+        let excl = excluding.unwrap();
+        if levels.len() - 1 > excl {
+            levels.remove(excl);
+        }
+
+        levels
     }
 }

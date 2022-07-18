@@ -1,7 +1,7 @@
 use crate::database::Database;
 use crate::primitives::Alert;
 use crate::Result;
-use actix_web::{web, App, HttpResponse, HttpServer};
+use actix_web::{dev::Server, web, App, HttpResponse, HttpServer};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct InsertAlerts {
@@ -14,17 +14,17 @@ impl InsertAlerts {
     }
 }
 
-pub async fn run_api_server(endpoint: &str, db: Database) -> Result<()> {
+pub async fn run_api_server(endpoint: &str, db: Database) -> Result<Server> {
     let server = HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(db.clone()))
             .route("/healthcheck", web::get().to(healthcheck))
             .route("/webhook-ack", web::post().to(insert_alerts))
     })
+    .system_exit()
     .bind(endpoint)?;
 
-    let _ = server.run().await;
-    Ok(())
+    Ok(server.run())
 }
 
 async fn healthcheck() -> HttpResponse {

@@ -100,8 +100,14 @@ impl AlertContext {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Notification {
-    Alert { context: AlertContext },
-    Acknowledged { id: AlertId, acked_by: User },
+    Alert {
+        context: AlertContext,
+    },
+    Acknowledged {
+        id: AlertId,
+        acked_by: User,
+        acked_on: Option<usize>,
+    },
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]

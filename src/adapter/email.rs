@@ -155,7 +155,7 @@ impl EmailClient {
 
         unimplemented!()
     }
-    async fn send_message(&self, msg: Message) -> Result<()> {
+    async fn _send_message(&self, msg: Message) -> Result<()> {
         // TODO
         let _call = self.client.users().messages_send(msg, &self.config.address);
         unimplemented!()
@@ -198,7 +198,11 @@ impl Adapter for EmailClient {
                 let text = context.to_string_with_newlines();
                 let _msg = create_message(&now.0, &text);
             }
-            Notification::Acknowledged { id: _, acked_by: _ } => {}
+            Notification::Acknowledged {
+                id: _,
+                acked_by: _,
+                acked_on: _,
+            } => {}
         }
 
         // TODO

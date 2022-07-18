@@ -142,8 +142,9 @@ impl Adapter for MatrixClient {
             Notification::Acknowledged {
                 id: alert_id,
                 acked_by,
+                acked_on,
             } => {
-                for room_id in self.rooms.all_up_to(level_idx) {
+                for room_id in self.rooms.all_up_to_excluding(level_idx, acked_on) {
                     let room = self.client.get_joined_room(room_id).ok_or_else(|| {
                         anyhow!("Failed to get room from Matrix on ID {:?}", room_id)
                     })?;
