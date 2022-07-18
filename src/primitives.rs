@@ -213,6 +213,7 @@ pub struct UserAction {
     pub user: User,
     // TODO: Rename, use custom type.
     pub channel_id: usize,
+    pub is_last_channel: bool,
     pub command: Command,
 }
 

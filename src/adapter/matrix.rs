@@ -109,7 +109,7 @@ impl Adapter for MatrixClient {
                     let prev = self
                         .client
                         .get_joined_room(prev)
-                        .ok_or_else(|| anyhow!("TODO"))?;
+                        .ok_or_else(|| anyhow!("failed to access room {:?}", prev))?;
 
                     let content = AnyMessageEventContent::RoomMessage(
                         MessageEventContent::text_plain(format!(
@@ -130,7 +130,7 @@ impl Adapter for MatrixClient {
                 let next = self
                     .client
                     .get_joined_room(next)
-                    .ok_or_else(|| anyhow!("TODO"))?;
+                    .ok_or_else(|| anyhow!("failed to access room {:?}", next))?;
                 next.send(content, None).await?;
             }
             Notification::Acknowledged {
@@ -207,6 +207,7 @@ impl EventHandler for Listener {
                             user: User::Matrix(event.sender.to_string()),
                             // Panicing would imply bug.
                             channel_id: self.rooms.position(room.room_id()).unwrap(),
+                            is_last_channel: self.rooms.is_last(room.room_id()),
                             command: cmd,
                         };
 

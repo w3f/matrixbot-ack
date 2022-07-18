@@ -137,7 +137,10 @@ impl EmailClient {
                                     // Create user action.
                                     let action = UserAction {
                                         user: User::Email(name),
+                                        // TODO
                                         channel_id: 0,
+                                        // TODO
+                                        is_last_channel: false,
                                         command: Command::Ack(alert_id),
                                     };
 

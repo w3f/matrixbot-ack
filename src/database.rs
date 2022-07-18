@@ -97,6 +97,7 @@ impl Database {
         acked_by: &User,
         adapter: AdapterName,
         level_idx: usize,
+        is_last: bool,
     ) -> Result<AcknowlegementResult> {
         let pending = self.db.collection::<AlertContext>(PENDING);
         let now = unix_time();
@@ -112,7 +113,7 @@ impl Database {
 
         if let Some(doc) = res.next().await {
             let context = doc?;
-            if context.level_idx(adapter) > level_idx {
+            if context.level_idx(adapter) > level_idx && !is_last {
                 return Ok(AcknowlegementResult::OutOfScope);
             }
 

@@ -122,6 +122,8 @@ impl PagerDutyClient {
                                 user,
                                 // TODO: Should this be None?
                                 channel_id: 0,
+                                // TODO.
+                                is_last_channel: false,
                                 command: Command::Ack(alert_id),
                             })
                             .unwrap()

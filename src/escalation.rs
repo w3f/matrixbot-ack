@@ -99,6 +99,7 @@ impl EscalationService {
                                 &action.user,
                                 adapter_name,
                                 action.channel_id,
+                                action.is_last_channel,
                             )
                             .await
                         {
