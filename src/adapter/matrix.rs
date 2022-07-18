@@ -122,12 +122,16 @@ impl Adapter for MatrixClient {
                     prev.send(content, None).await?;
                 }
 
+                let prefix = if prev.is_some() {
+                    "Escalation occurred:\n".to_string()
+                } else {
+                    "Alert occured:\n".to_string()
+                };
+
                 // Notify next room about escalation with the actual alert.
-                let content =
-                    AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(format!(
-                        "Escalation occurred:\n{}",
-                        context.to_string_with_newlines()
-                    )));
+                let content = AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(
+                    format!("{prefix}{}", context.to_string_with_newlines()),
+                ));
 
                 let next = self
                     .client
@@ -205,8 +209,12 @@ impl EventHandler for Listener {
             match Command::from_string(msg) {
                 Ok(try_cmd) => {
                     if let Some(cmd) = try_cmd {
+                        let user = event.sender.to_string();
+
+                        debug!("Detected valid command by {}: {:?}", user, cmd);
+
                         let action = UserAction {
-                            user: User::Matrix(event.sender.to_string()),
+                            user: User::Matrix(user),
                             // Panicing would imply bug.
                             channel_id: self.rooms.position(room.room_id()).unwrap(),
                             is_last_channel: self.rooms.is_last(room.room_id()),

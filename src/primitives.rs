@@ -194,9 +194,9 @@ impl std::fmt::Display for UserConfirmation {
                 }
                 UserConfirmation::Help => {
                     "\
-                    'ack <ID>'\t=>\tAcknowlege an alert with the given ID\n
-                    'pending'\t=>\tDisplay pending (unacknowleged) alerts\n
-                    'help'\t=>\tDisplay this help message\
+                'ack <ID>'\t=>\tAcknowlege an alert with the given ID\n
+                'pending'\t=>\tDisplay pending (unacknowleged) alerts\n
+                'help'\t=>\tDisplay this help message\
                     "
                     .to_string()
                 }

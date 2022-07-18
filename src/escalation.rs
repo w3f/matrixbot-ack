@@ -91,8 +91,6 @@ impl EscalationService {
                 .map(Arc::clone)
                 .collect();
 
-            let current_adapter_name = adapter.name();
-
             let adapter_name = adapter.name();
             tokio::spawn(async move {
                 while let Some(action) = adapter.endpoint_request().await {
@@ -156,7 +154,8 @@ impl EscalationService {
                             let other = Arc::clone(other);
 
                             // TODO: Handle unwrap
-                            let mut other_level_idx = db.get_level_idx(other.name()).await.unwrap();
+                            let other_level_idx =
+                                db.get_level_idx(alert_id, other.name()).await.unwrap();
 
                             // Start the notification process in another thread
                             // which will keep retrying in case the process
@@ -192,6 +191,9 @@ impl EscalationService {
                                 }
                             });
                         }
+
+                        // Don't duplicate acknowlegement notifications.
+                        continue;
                     }
 
                     match adapter.respond(message, action.channel_id).await {

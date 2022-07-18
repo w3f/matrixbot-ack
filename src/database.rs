@@ -4,7 +4,7 @@ use crate::webhook::InsertAlerts;
 use crate::{unix_time, Result};
 use bson::{doc, to_bson};
 use futures::StreamExt;
-use mongodb::options::{FindOneAndUpdateOptions, ReturnDocument, UpdateOptions};
+use mongodb::options::{FindOneAndUpdateOptions, ReturnDocument};
 use mongodb::{Client, Database as MongoDb};
 use std::time::Duration;
 
@@ -208,7 +208,7 @@ impl Database {
         let pending = self.db.collection::<AlertContext>(PENDING);
         let now = unix_time();
 
-        let res = pending
+        pending
             .update_one(
                 doc! {
                     "id": to_bson(&id)?,
@@ -253,12 +253,13 @@ impl Database {
 
         Ok(())
     }
-    pub async fn get_level_idx(&self, adapter: AdapterName) -> Result<usize> {
+    pub async fn get_level_idx(&self, id: AlertId, adapter: AdapterName) -> Result<usize> {
         let pending = self.db.collection::<AlertContext>(PENDING);
 
         let mut res = pending
             .find(
                 doc! {
+                    "id": to_bson(&id)?,
                     "adapters.name": to_bson(&adapter)?,
                 },
                 None,
@@ -267,7 +268,7 @@ impl Database {
 
         if let Some(doc) = res.next().await {
             let context = doc?;
-            Ok(context.level_idx(adapter).saturating_sub(1))
+            Ok(context.level_idx(adapter))
         } else {
             // Occurs if no adapter was registered for the alert, i.e. the alert
             // was created before the adapter was enabled.

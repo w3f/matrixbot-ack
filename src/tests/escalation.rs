@@ -63,6 +63,7 @@ async fn acknowledge_alert_with_repeated_attempt() {
         .inject(UserAction {
             user: User::FirstMocker,
             channel_id: 3,
+            is_last_channel: false,
             command: Command::Ack(AlertId::from(1)),
         })
         .await;
@@ -73,6 +74,7 @@ async fn acknowledge_alert_with_repeated_attempt() {
         .inject(UserAction {
             user: User::FirstMocker,
             channel_id: 3,
+            is_last_channel: false,
             command: Command::Ack(AlertId::from(1)),
         })
         .await;
@@ -146,6 +148,7 @@ async fn acknowledge_alert_out_of_scope_with_cross_ack() {
             // Escalation is on level three, while here we inject a message from
             // level two.
             channel_id: 2,
+            is_last_channel: false,
             command: Command::Ack(AlertId::from(1)),
         })
         .await;
@@ -175,6 +178,7 @@ async fn acknowledge_alert_out_of_scope_with_cross_ack() {
             // This was sent from level eight, while the escalation level is at
             // six (3 + 3).
             channel_id: 8,
+            is_last_channel: false,
             command: Command::Ack(AlertId::from(1)),
         })
         .await;
@@ -233,6 +237,7 @@ async fn acknowledge_alert_not_found() {
         .inject(UserAction {
             user: User::FirstMocker,
             channel_id: 3,
+            is_last_channel: false,
             // Alert Id does not exist.
             command: Command::Ack(AlertId::from(10)),
         })
