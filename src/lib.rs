@@ -104,7 +104,8 @@ pub async fn run() -> Result<()> {
     let adapters = config.adapters;
     if let Some(matrix_conf) = adapters.matrix {
         if matrix_conf.enabled {
-            let matrix = MatrixClient::new(matrix_conf.config.unwrap()).await?;
+            let matrix =
+                MatrixClient::new(matrix_conf.config.unwrap(), matrix_conf.levels.unwrap()).await?;
             escalation.register_adapter(matrix);
         }
     }

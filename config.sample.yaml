@@ -3,18 +3,13 @@ database:
   name: matrixbot
 listener: 127.0.0.1:8000
 escalation:
-  enabled: true
-  config:
-    window: 3600 # one hour
-adapter:
+  window: 3600 # one hour
+adapters:
   matrix:
     enabled: false
-    escalation:
-      acks:
-        min_role: mods
-      ecalation_levels:
-      - "!abcdef:matrix.org"
-      - "!ghijkl:matrix.org"
+    levels:
+    - "!abcdef:matrix.org"
+    - "!ghijkl:matrix.org"
     config:
       homeserver: https://matrix.org
       username: username
@@ -24,39 +19,12 @@ adapter:
       device_id: matrixbot-some-id
   pager_duty:
     enabled: false
-    escalation:
-      acks:
-        users:
-        - bob
-      ecalation_levels:
-      - integration_key: ABC
-        # Possible values: critical, error, warning, info
-        payload_severity: warning
-      - integration_key: XYZ
-        payload_severity: critical
+    levels:
+    - integration_key: ABC
+      # Possible values: critical, error, warning, info
+      payload_severity: warning
+    - integration_key: XYZ
+      payload_severity: critical
     config:
       api_key: abcdefg
       payload_source: "Matrixbot Ack Service"
-
-users:
-- name: alice
-  email: alice@email.com
-  matrix: '@alice:matrix.org'
-  pagerduty: alice@email.com
-- name: bob
-  email: bob@email.com
-  matrix: '@bob:matrix.org'
-  pagerduty: bob@email.com
-- name: dave
-  email: dave@email.com
-  matrix: '@dave:matrix.org'
-  pagerduty: dave@email.com
-
-roles:
-- name: mods
-  members:
-  - alice
-- name: admins
-  members:
-  - bob
-  - dave

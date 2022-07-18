@@ -22,7 +22,6 @@ pub struct MatrixConfig {
     db_path: String,
     device_name: String,
     device_id: String,
-    pub rooms: Vec<String>,
 }
 
 pub struct MatrixClient {
@@ -33,7 +32,7 @@ pub struct MatrixClient {
 }
 
 impl MatrixClient {
-    pub async fn new(config: MatrixConfig) -> Result<Self> {
+    pub async fn new(config: MatrixConfig, rooms: Vec<String>) -> Result<Self> {
         info!("Setting up Matrix client");
         // Setup client
         let client_config = ClientConfig::new().store_path(&config.db_path);
@@ -56,8 +55,7 @@ impl MatrixClient {
         client.sync_once(SyncSettings::default()).await?;
 
         debug!("Attempting to parse room ids");
-        let rooms: Vec<RoomId> = config
-            .rooms
+        let rooms: Vec<RoomId> = rooms
             .into_iter()
             .map(|room| RoomId::try_from(room).map_err(|err| err.into()))
             .collect::<Result<Vec<RoomId>>>()?;
