@@ -77,7 +77,6 @@ pub async fn run() -> Result<()> {
     let cli = Cli::from_args();
 
     // Initial setup and config.
-    info!("Logger initialized");
     info!(
         "Opening config at {}",
         std::fs::canonicalize(&cli.config)?
@@ -87,8 +86,6 @@ pub async fn run() -> Result<()> {
 
     let content = std::fs::read_to_string(&cli.config)?;
     let config: Config = serde_yaml::from_str(&content)?;
-
-    info!("Preparing adapter config data");
 
     info!("Setting up database {:?}", config.database);
     let db = database::Database::new(config.database).await?;
@@ -141,12 +138,13 @@ pub async fn run() -> Result<()> {
         }
     }
 
+    info!("Starting escalation background service");
     escalation.run_service().await;
 
     // Starting webhook.
     info!("Starting API server on endpoint {}", config.listener);
     let server = webhook::run_api_server(&config.listener, db).await?;
 
-    info!("Setup completed!");
+    info!("Application setup completed! Listening...");
     server.await.map_err(|err| err.into())
 }
