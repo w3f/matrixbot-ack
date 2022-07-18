@@ -1,4 +1,4 @@
-use crate::adapter::{Adapter, AdapterName};
+use crate::adapter::{Adapter};
 use crate::database::{AcknowlegementResult, Database};
 use crate::primitives::{Command, Notification, UserConfirmation};
 use crate::Result;

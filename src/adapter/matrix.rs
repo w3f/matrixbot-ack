@@ -122,21 +122,22 @@ impl Adapter for MatrixClient {
                     prev.send(content, None).await?;
                 }
 
-                let prefix = if prev.is_some() {
+                // Notify next room about escalation with the actual alert.
+                let next = self
+                    .client
+                    .get_joined_room(next)
+                    .ok_or_else(|| anyhow!("failed to access room {:?}", next))?;
+
+                let prefix = if prev.is_some() || self.rooms.is_last(next.room_id()) {
                     "Escalation occurred:\n".to_string()
                 } else {
                     "Alert occured:\n".to_string()
                 };
 
-                // Notify next room about escalation with the actual alert.
                 let content = AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(
                     format!("{prefix}{}", context.to_string_with_newlines()),
                 ));
 
-                let next = self
-                    .client
-                    .get_joined_room(next)
-                    .ok_or_else(|| anyhow!("failed to access room {:?}", next))?;
                 next.send(content, None).await?;
             }
             Notification::Acknowledged {
