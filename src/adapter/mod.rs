@@ -70,7 +70,6 @@ impl<T: Eq + PartialEq> LevelManager<T> {
     fn is_last(&self, level: &T) -> bool {
         self.levels.last().as_ref().unwrap() == &level
     }
-    // TODO: Rename
     fn level_with_prev(&self, level: usize) -> (Option<&T>, &T) {
         if level > self.levels.len() - 1 {
             (None, self.levels.last().unwrap())

@@ -93,6 +93,8 @@ impl EscalationService {
 
             let adapter_name = adapter.name();
             tokio::spawn(async move {
+                // Continue fetching any messages received on the adapter,
+                // forever.
                 while let Some(action) = adapter.endpoint_request().await {
                     let message = match action.command {
                         Command::Ack(alert_id) => match db
@@ -157,6 +159,10 @@ impl EscalationService {
                             let other_level_idx =
                                 db.get_level_idx(alert_id, other.name()).await.unwrap();
 
+                            // Don't send the notification to the channel that
+                            // acknowledged the alert. That channel already gets
+                            // a `UserConfirmation::AlertAcknowledged(_)`
+                            // message.
                             let acked_on = if other.name() == adapter_name {
                                 Some(action.channel_id)
                             } else {
@@ -200,6 +206,8 @@ impl EscalationService {
                         }
                     }
 
+                    // Send the response directly back to the channel that
+                    // issued the command.
                     match adapter.respond(message, action.channel_id).await {
                         Ok(_) => {}
                         Err(err) => {
