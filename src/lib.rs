@@ -12,7 +12,7 @@ use adapter::matrix::MatrixConfig;
 use adapter::pagerduty::{PagerDutyConfig, PagerDutyLevel};
 use database::DatabaseConfig;
 use structopt::StructOpt;
-use tokio::time::{sleep, Duration};
+use tokio::time::Duration;
 
 use crate::adapter::email::EmailClient;
 use crate::adapter::{MatrixClient, PagerDutyClient};

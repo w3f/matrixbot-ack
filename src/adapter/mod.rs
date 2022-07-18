@@ -91,7 +91,7 @@ impl<T: Eq + PartialEq> LevelManager<T> {
         }
 
         let excl = excluding.unwrap();
-        if levels.len() - 1 > excl {
+        if levels.len() > excl {
             levels.remove(excl);
         }
 
