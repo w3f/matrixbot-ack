@@ -37,12 +37,18 @@ impl EscalationService {
 
             // Notify adapter about escalation
             for alert in &pending.alerts {
+                let level_idx = alert.level_idx(adapter.name());
+
+                if level_idx > 0 {
+                    warn!("Escalation occured for alert Id {}", alert.id);
+                }
+
                 adapter
                     .notify(
                         Notification::Alert {
                             context: alert.clone(),
                         },
-                        alert.level_idx(adapter.name()),
+                        level_idx,
                     )
                     .await?;
 
