@@ -18,6 +18,12 @@ const SEND_ALERT_ENDPOINT: &str = "https://events.pagerduty.com/v2/enqueue";
 const GET_LOG_ENTRIES_ENDPOINT: &str = "https://api.pagerduty.com/log_entries?limit=20";
 const FETCH_LOG_ENTRIES_INTERVAL: u64 = 5;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PagerDutyConfig {
+    api_key: String,
+    payload_source: String,
+}
+
 pub struct PagerDutyClient {
     levels: LevelManager<PagerDutyLevel>,
     config: PagerDutyConfig,
@@ -126,10 +132,9 @@ impl PagerDutyClient {
                         for (alert_id, user) in entries.get_acknowledged() {
                             tx.send(UserAction {
                                 user,
-                                // TODO: Should this be None?
+                                // TODO: Should this be `None`?
                                 channel_id: 0,
-                                // TODO.
-                                is_last_channel: false,
+                                is_last_channel: true,
                                 command: Command::Ack(alert_id),
                             })
                             .unwrap()
@@ -212,8 +217,10 @@ impl LogEntries {
                     let parts: Vec<&str> = summary.split('-').collect();
 
                     if let Some(last) = parts.last().as_ref() {
-                        if last.starts_with("ID#") {
-                            if let Ok(id) = AlertId::from_str(last.replace("ID#", "").as_str()) {
+                        let trimmed = last.trim();
+
+                        if trimmed.starts_with("ID#") {
+                            if let Ok(id) = AlertId::from_str(&trimmed.replace("ID#", "")) {
                                 alert_id = Some(id);
                             };
                         }
@@ -254,12 +261,6 @@ struct LogAgent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct LogEntryIncident {
     summary: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PagerDutyConfig {
-    api_key: String,
-    payload_source: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
