@@ -82,12 +82,16 @@ impl EscalationService {
             let adapter = Arc::clone(adapter);
             let db = self.db.clone();
 
+            // TODO: Rename variable.
             let others: Vec<Arc<Box<dyn Adapter>>> = self
                 .adapters
                 .iter()
-                .filter(|other| other.name() != adapter.name())
+                // TODO: Remove:
+                //.filter(|other| other.name() != adapter.name())
                 .map(Arc::clone)
                 .collect();
+
+            let current_adapter_name = adapter.name();
 
             let adapter_name = adapter.name();
             tokio::spawn(async move {
@@ -152,7 +156,7 @@ impl EscalationService {
                             let other = Arc::clone(other);
 
                             // TODO: Handle unwrap
-                            let other_level_idx = db.get_level_idx(other.name()).await.unwrap();
+                            let mut other_level_idx = db.get_level_idx(other.name()).await.unwrap();
 
                             // Start the notification process in another thread
                             // which will keep retrying in case the process

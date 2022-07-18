@@ -113,7 +113,7 @@ impl Database {
 
         if let Some(doc) = res.next().await {
             let context = doc?;
-            if context.level_idx(adapter) > level_idx && !is_last {
+            if context.level_idx(adapter) - 1 > level_idx && !is_last {
                 return Ok(AcknowlegementResult::OutOfScope);
             }
 
@@ -208,7 +208,7 @@ impl Database {
         let pending = self.db.collection::<AlertContext>(PENDING);
         let now = unix_time();
 
-        pending
+        let res = pending
             .update_one(
                 doc! {
                     "id": to_bson(&id)?,
@@ -223,6 +223,7 @@ impl Database {
                 doc! {
                     "$push": {
                         "adapters": {
+                            "last_notified_tmsp": to_bson(&now)?,
                             "name": to_bson(&adapter)?,
                             "level_idx": 0,
                         }

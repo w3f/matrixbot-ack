@@ -102,7 +102,7 @@ impl Adapter for MatrixClient {
     async fn notify(&self, notification: Notification, level_idx: usize) -> Result<()> {
         match notification {
             Notification::Alert { context } => {
-                let (prev, next) = self.rooms.level_with_prev(context.level_idx(self.name()));
+                let (prev, next) = self.rooms.level_with_prev(level_idx);
 
                 // Notify previous room about escalation.
                 if let Some(prev) = prev {
@@ -123,9 +123,11 @@ impl Adapter for MatrixClient {
                 }
 
                 // Notify next room about escalation with the actual alert.
-                let content = AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(
-                    context.to_string_with_newlines(),
-                ));
+                let content =
+                    AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(format!(
+                        "Escalation occurred:\n{}",
+                        context.to_string_with_newlines()
+                    )));
 
                 let next = self
                     .client

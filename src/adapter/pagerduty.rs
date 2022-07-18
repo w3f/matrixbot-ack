@@ -87,7 +87,7 @@ impl PagerDutyClient {
                     &alert
                 ).await?;
             }
-            Notification::Acknowledged { id: alert_id, acked_by: _} => {
+            Notification::Acknowledged { id: alert_id, acked_by: _, acked_on: _} => {
                 // NOTE: Acknowlegement of alerts always happens on the first
                 // specified integration key.
                 let level = self.levels.single_level(0);
