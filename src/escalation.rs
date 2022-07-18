@@ -135,14 +135,14 @@ impl EscalationService {
                                 }
                             },
                             Err(err) => {
-                                error!("failed to acknowledge alert: {:?}", err);
+                                error!("Failed to acknowledge alert: {:?}", err);
                                 UserConfirmation::InternalError
                             }
                         },
                         Command::Pending => match db.get_pending(None, None).await {
                             Ok(pending) => UserConfirmation::PendingAlerts(pending),
                             Err(err) => {
-                                error!("failed to retrieve pending alerts: {:?}", err);
+                                error!("Failed to retrieve pending alerts: {:?}", err);
                                 UserConfirmation::InternalError
                             }
                         },

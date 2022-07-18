@@ -135,8 +135,9 @@ impl PagerDutyClient {
                         for (alert_id, user) in entries.get_acknowledged() {
                             // Only create user action if the Id was not cached yet.
                             if cache.cache_set(alert_id, ()).is_none() {
-                                // Create user action
                                 debug!("New acknowledgement detected by {}: {}", user, alert_id);
+
+                                // Create user action
                                 tx.send(UserAction {
                                     user,
                                     // Any PagerDuty level is the "last channel".
@@ -149,7 +150,7 @@ impl PagerDutyClient {
                         }
                     }
                     Err(err) => {
-                        error!("failed to fetch PagerDuty log entries: {:?}", err);
+                        error!("Failed to fetch PagerDuty log entries: {:?}", err);
                     }
                 }
 

@@ -74,7 +74,7 @@ impl EmailClient {
 
         tokio::spawn(async move {
             if let Err(err) = Self::import_messages(&address, &client, &tx, max_days).await {
-                error!("failed to import emails: {:?}", err);
+                error!("Failed to import emails: {:?}", err);
             }
 
             sleep(Duration::from_secs(MESSAGE_IMPORT_INTERVAL)).await
