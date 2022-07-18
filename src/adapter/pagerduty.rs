@@ -3,6 +3,7 @@ use crate::primitives::{
     AlertContext, AlertId, Command, Notification, User, UserAction, UserConfirmation,
 };
 use crate::Result;
+use cached::{Cached, TimedCache};
 use reqwest::header::AUTHORIZATION;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -124,20 +125,27 @@ impl PagerDutyClient {
         let client = Arc::clone(&self.client);
         let tx = Arc::clone(&self.tx);
         let api_key = self.config.api_key.to_string();
+        // Timed cache for alert Ids.
+        let mut cache: TimedCache<AlertId, ()> = TimedCache::with_lifespan_and_refresh(3600, true);
 
         tokio::spawn(async move {
             loop {
                 match auth_get::<LogEntries>(GET_LOG_ENTRIES_ENDPOINT, &client, &api_key).await {
                     Ok(entries) => {
                         for (alert_id, user) in entries.get_acknowledged() {
-                            tx.send(UserAction {
-                                user,
-                                // TODO: Should this be `None`?
-                                channel_id: 0,
-                                is_last_channel: true,
-                                command: Command::Ack(alert_id),
-                            })
-                            .unwrap()
+                            // Only create user action if the Id was not cached yet.
+                            if cache.cache_set(alert_id, ()).is_none() {
+                                // Create user action
+                                debug!("New acknowledgement detected by {}: {}", user, alert_id);
+                                tx.send(UserAction {
+                                    user,
+                                    // Any PagerDuty level is the "last channel".
+                                    channel_id: 0,
+                                    is_last_channel: true,
+                                    command: Command::Ack(alert_id),
+                                })
+                                .unwrap()
+                            }
                         }
                     }
                     Err(err) => {
