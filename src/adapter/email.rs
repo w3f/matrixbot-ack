@@ -161,9 +161,16 @@ impl EmailClient {
         unimplemented!()
     }
     async fn _send_message(&self, msg: Message) -> Result<()> {
-        // TODO
-        let _call = self.client.users().messages_send(msg, &self.config.address);
-        unimplemented!()
+        self.client
+            .users()
+            .messages_send(msg, &self.config.address)
+            .upload(
+                std::io::empty(),
+                "application/octet-stream".parse().unwrap(),
+            )
+            .await
+            .map(|_| ())
+            .map_err(|err| err.into())
     }
 }
 
@@ -219,5 +226,24 @@ impl Adapter for EmailClient {
     async fn endpoint_request(&self) -> Option<UserAction> {
         let mut l = self.queue.lock().await;
         l.recv().await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[ignore]
+    #[tokio::test]
+    async fn send_email() {
+        let levels = vec![
+        EmailLevel("fabio@web3.foundation".to_string())
+        ];
+
+        let config = EmailConfig {
+
+        };
+
+        let client = EmailClient::new(config, levels);
     }
 }
