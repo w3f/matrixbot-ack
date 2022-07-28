@@ -1,5 +1,8 @@
 version: 2
 
+orbs:
+  matrix-bot-ack: w3f/matrix-bot-ack
+
 jobs:
   helmLint:
     docker:
@@ -12,6 +15,9 @@ jobs:
   buildImage:
     docker:
       - image: web3f/ci-commons:v3.1.6
+        auth:
+            username: $DOCKER_USER
+            password: $DOCKER_PASSWORD  # context / project UI env-var reference
     resource_class: xlarge  
     steps:
       - checkout
