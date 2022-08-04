@@ -14,7 +14,7 @@ name = "matrixbot"
 path = "src/main.rs"
 
 [dependencies]
-log = "0.4.14"
+log = "0.4.17"
 env_logger = "0.9.0"
 anyhow = "1.0.43"
 serde = "1.0.129"
