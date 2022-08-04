@@ -27,7 +27,7 @@ actix-web = "4.0.0-beta.9"
 url = "2.2.2"
 async-trait = "0.1.51"
 futures = "0.3.17"
-structopt = "0.3.23"
+structopt = "0.3.26"
 md5 = "0.7.0"
 mongodb = { version = "2.0.0-beta", features = ["bson-u2i"] }
 bson = "2.0.0-beta"
