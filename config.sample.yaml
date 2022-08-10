@@ -19,12 +19,11 @@ adapter:
       device_id: matrixbot-some-id
   pager_duty:
     enabled: false
+    # Note: PagerDuty adapter only supports one level.
     levels:
     - integration_key: ABC
       # Possible values: critical, error, warning, info
       payload_severity: warning
-    - integration_key: XYZ
-      payload_severity: critical
     config:
       api_key: abcdefg
       payload_source: "Matrixbot Ack Service"
