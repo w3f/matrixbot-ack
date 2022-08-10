@@ -241,9 +241,12 @@ mod tests {
         ];
 
         let config = EmailConfig {
-
+            address: "alice@email.com".to_string(),
+            max_import_days: 3,
         };
 
-        let client = EmailClient::new(config, levels);
+        let _client = EmailClient::new(config, levels);
+
+        todo!()
     }
 }
