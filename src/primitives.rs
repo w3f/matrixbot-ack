@@ -137,6 +137,12 @@ pub struct PendingAlerts {
     pub alerts: Vec<AlertContext>,
 }
 
+impl PendingAlerts {
+    pub fn is_empty(&self) -> bool {
+        self.alerts.is_empty()
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "adapter", content = "user")]
 pub enum User {
@@ -181,13 +187,17 @@ impl std::fmt::Display for UserConfirmation {
             "{}",
             match self {
                 UserConfirmation::PendingAlerts(pending) => {
-                    let mut string = "Pending alerts:\n".to_string();
-                    pending
-                        .alerts
-                        .iter()
-                        .for_each(|ctx| string.push_str(ctx.to_string_with_newlines().as_str()));
+                    if pending.is_empty() {
+                        "There are no pending alerts".to_string()
+                    } else {
+                        let mut string = "Pending alerts:\n".to_string();
+                        pending
+                            .alerts
+                            .iter()
+                            .for_each(|ctx| string.push_str(ctx.to_string_with_newlines().as_str()));
 
-                    string
+                        string
+                    }
                 }
                 UserConfirmation::AlertOutOfScope => {
                     "The alert already reached the next escalation level.".to_string()
