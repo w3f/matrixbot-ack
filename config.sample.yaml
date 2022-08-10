@@ -28,6 +28,8 @@ adapter:
     config:
       api_key: abcdefg
       payload_source: "Matrixbot Ack Service"
+      # Only send alert to PD on escalation
+      only_on_escalation: true
   email:
     enabled: false
     levels:
