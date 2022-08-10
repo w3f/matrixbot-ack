@@ -23,6 +23,7 @@ const FETCH_LOG_ENTRIES_INTERVAL: u64 = 5;
 pub struct PagerDutyConfig {
     api_key: String,
     payload_source: String,
+    only_on_escalation: bool,
 }
 
 pub struct PagerDutyClient {
@@ -38,8 +39,13 @@ impl Adapter for PagerDutyClient {
     fn name(&self) -> AdapterName {
         AdapterName::PagerDuty
     }
-    async fn notify(&self, notification: Notification, _: usize) -> Result<()> {
-        self.handle(notification).await
+    async fn notify(&self, notification: Notification, level_idx: usize) -> Result<()> {
+        if self.config.only_on_escalation && level_idx == 0 {
+            // Do nothing on initial alert.
+            return Ok(())
+        } else {
+            self.handle(notification).await
+        }
     }
     async fn respond(&self, _: UserConfirmation, _level_idx: usize) -> Result<()> {
         // Ignored, no direct responses on PagerDuty.
@@ -354,6 +360,7 @@ mod tests {
         let config = PagerDutyConfig {
             api_key,
             payload_source: "matrixbot-ack-test".to_string(),
+            only_on_escalation: false,
         };
 
         let level = PagerDutyLevel {
