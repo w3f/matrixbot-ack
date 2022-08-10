@@ -132,10 +132,10 @@ impl PagerDutyClient {
             loop {
                 match auth_get::<LogEntries>(GET_LOG_ENTRIES_ENDPOINT, &client, &api_key).await {
                     Ok(entries) => {
-                        for (alert_id, user) in entries.get_acknowledged() {
+                        for (alert_id, user) in entries.get_resolved() {
                             // Only create user action if the Id was not cached yet.
                             if cache.cache_set(alert_id, ()).is_none() {
-                                debug!("New acknowledgement detected by {}: {}", user, alert_id);
+                                debug!("New resolved entry detected by {}: {}", user, alert_id);
 
                                 // Create user action
                                 tx.send(UserAction {
@@ -201,7 +201,7 @@ struct LogEntries {
 }
 
 impl LogEntries {
-    fn get_acknowledged(&self) -> Vec<(AlertId, User)> {
+    fn get_resolved(&self) -> Vec<(AlertId, User)> {
         let entries: Vec<&LogEntry> = self
             .log_entries
             .iter()
@@ -210,7 +210,7 @@ impl LogEntries {
                 entry
                     .ty
                     .as_ref()
-                    .map(|ty| ty.contains("acknowledge_log_entry"))
+                    .map(|ty| ty.contains("resolve_log_entry"))
                     .unwrap_or(false)
             })
             .collect();
