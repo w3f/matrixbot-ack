@@ -236,9 +236,7 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn send_email() {
-        let levels = vec![
-        EmailLevel("fabio@web3.foundation".to_string())
-        ];
+        let levels = vec![EmailLevel("fabio@web3.foundation".to_string())];
 
         let config = EmailConfig {
             address: "alice@email.com".to_string(),

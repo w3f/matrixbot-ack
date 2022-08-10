@@ -42,7 +42,7 @@ impl Adapter for PagerDutyClient {
     async fn notify(&self, notification: Notification, level_idx: usize) -> Result<()> {
         if self.config.only_on_escalation && level_idx == 0 {
             // Do nothing on initial alert.
-            return Ok(())
+            return Ok(());
         } else {
             self.handle(notification).await
         }
@@ -82,7 +82,11 @@ impl PagerDutyClient {
             Notification::Alert { context: alert } => {
                 // Don't create duplicate entries on PagerDuty. It can already
                 // handle escalations.
-                if alert.has_entry(self.name()) {
+                if self.config.only_on_escalation {
+                    if alert.level_idx(self.name()) > 1 {
+                        return Ok(())
+                    }
+                } else if alert.has_entry(self.name()) {
                     return Ok(())
                 }
 

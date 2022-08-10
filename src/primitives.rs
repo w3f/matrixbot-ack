@@ -191,10 +191,9 @@ impl std::fmt::Display for UserConfirmation {
                         "There are no pending alerts".to_string()
                     } else {
                         let mut string = "Pending alerts:\n".to_string();
-                        pending
-                            .alerts
-                            .iter()
-                            .for_each(|ctx| string.push_str(ctx.to_string_with_newlines().as_str()));
+                        pending.alerts.iter().for_each(|ctx| {
+                            string.push_str(ctx.to_string_with_newlines().as_str())
+                        });
 
                         string
                     }
