@@ -107,10 +107,10 @@ impl PagerDutyClient {
                 ).await?;
             }
             Notification::Acknowledged { id: alert_id, acked_by: _, acked_on: _ } => {
-                // NOTE: Acknowlegement of alerts always happens on the first
-                // specified integration key.
+                // NOTE: Resolve of alerts always happens on the first specified
+                // integration key.
                 let level = self.levels.single_level(0);
-                let ack = new_alert_ack(level.integration_key.to_string(), alert_id);
+                let ack = new_alert_resolve(level.integration_key.to_string(), alert_id);
 
                 // Send authenticated POST request. We don't care about the
                 // return value as long as it succeeds.
@@ -302,10 +302,10 @@ fn new_alert_event(
     }
 }
 
-fn new_alert_ack(key: String, alert_id: AlertId) -> AlertEvent {
+fn new_alert_resolve(key: String, alert_id: AlertId) -> AlertEvent {
     AlertEvent {
         routing_key: key,
-        event_action: EventAction::Acknowledge,
+        event_action: EventAction::Resolve,
         dedup_key: format!("ID#{}", alert_id),
         payload: None,
     }
