@@ -31,8 +31,11 @@ impl EmailClient {
     #[allow(unreachable_code)]
     pub async fn new(config: EmailConfig, levels: Vec<EmailLevel>) -> Result<Self> {
         let _c = config;
+        // TODO: Check whether levels are empty.
         let _l = levels;
-        return Err(anyhow!("The email adapter is currently not supported"));
+        return Err(anyhow!(
+            "The email adapter is not fully implemented yet. Please disable it."
+        ));
 
         let secret: oauth2::ApplicationSecret = Default::default();
         let auth = oauth2::InstalledFlowAuthenticator::builder(

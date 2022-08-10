@@ -58,7 +58,13 @@ impl Adapter for PagerDutyClient {
 }
 
 impl PagerDutyClient {
-    pub async fn new(mut config: PagerDutyConfig, levels: Vec<PagerDutyLevel>) -> Self {
+    pub async fn new(mut config: PagerDutyConfig, levels: Vec<PagerDutyLevel>) -> Result<Self> {
+        if levels.is_empty() {
+            return Err(anyhow!("No level configured for PagerDuty"));
+        } else if levels.len() != 1 {
+            return Err(anyhow!("PagerDuty currently only works with ONE level"));
+        }
+
         config.api_key = format!("Token token={}", config.api_key);
 
         let (tx, user_actions) = unbounded_channel();
@@ -73,7 +79,7 @@ impl PagerDutyClient {
 
         client.run_log_entries().await;
 
-        client
+        Ok(client)
     }
     #[rustfmt::skip]
     async fn handle(&self, notification: Notification) -> Result<()> {
@@ -82,11 +88,10 @@ impl PagerDutyClient {
             Notification::Alert { context: alert } => {
                 // Don't create duplicate entries on PagerDuty. It can already
                 // handle escalations.
-                if self.config.only_on_escalation {
-                    if alert.level_idx(self.name()) > 1 {
-                        return Ok(())
-                    }
-                } else if alert.has_entry(self.name()) {
+                if (!self.config.only_on_escalation && alert.has_entry(self.name())) ||
+                    (self.config.only_on_escalation && alert.level_idx(self.name()) > 1)
+                {
+                    warn!("Skipping alert, PagerDuty was already notified");
                     return Ok(())
                 }
 

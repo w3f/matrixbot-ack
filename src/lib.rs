@@ -115,6 +115,8 @@ pub async fn run() -> Result<()> {
             escalation.register_adapter(matrix);
 
             info!("Matrix adapter setup completed");
+        } else {
+            warn!("Matrix adapter is disabled");
         }
     }
 
@@ -130,10 +132,12 @@ pub async fn run() -> Result<()> {
                     .levels
                     .ok_or_else(|| anyhow!("PagerDuty levels are not configured"))?,
             )
-            .await;
+            .await?;
 
             escalation.register_adapter(pagerduty);
             info!("PagerDuty adapter setup completed");
+        } else {
+            warn!("PagerDuty adapter is disabled");
         }
     }
 
@@ -153,6 +157,8 @@ pub async fn run() -> Result<()> {
 
             escalation.register_adapter(email);
             info!("Email adapter setup completed");
+        } else {
+            warn!("Email adapter is disabled");
         }
     }
 

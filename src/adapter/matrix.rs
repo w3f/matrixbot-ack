@@ -33,7 +33,10 @@ pub struct MatrixClient {
 
 impl MatrixClient {
     pub async fn new(config: MatrixConfig, rooms: Vec<String>) -> Result<Self> {
-        info!("Setting up Matrix client");
+        if rooms.is_empty() {
+            return Err(anyhow!("No rooms configured for Matrix"));
+        }
+
         // Setup client
         let client_config = ClientConfig::new().store_path(&config.db_path);
 
