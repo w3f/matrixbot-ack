@@ -7,9 +7,7 @@ extern crate serde;
 #[macro_use]
 extern crate async_trait;
 
-use actix::clock::sleep;
 use actix::{prelude::*, SystemRegistry};
-use std::time::Duration;
 use structopt::StructOpt;
 
 mod database;
@@ -137,9 +135,5 @@ pub async fn run() -> Result<()> {
     SystemRegistry::set(matrix.start());
 
     info!("Starting API server");
-    webhook::run_api_server(&config.listener).await?;
-
-    loop {
-        sleep(Duration::from_secs(u64::MAX)).await;
-    }
+    webhook::run_api_server(&config.listener).await?.await.map_err(|err| err.into())
 }
