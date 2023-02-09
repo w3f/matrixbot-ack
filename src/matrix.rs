@@ -121,12 +121,8 @@ impl Handler<NotifyAlert> for MatrixClient {
             msg.pop();
             msg.pop();
 
-            let room = client
-                .get_joined_room(&RoomId::parse(current_room_id)?)
-                .ok_or_else(|| anyhow!("failed to retrieve room"))?;
-
-            room.send(RoomMessageEventContent::text_plain(&msg), None)
-                .await?;
+            // Send message to room.
+            send_room(&client, current_room_id, &msg).await?;
 
             Ok(())
         };
@@ -162,29 +158,23 @@ impl Handler<Escalation> for MatrixClient {
 
             // No further rooms to inform if the final room has been reached.
             if !is_last {
+                let msg = format!(
+                    "🚨 ESCALATION OCCURRED! Notifying next room regarding Alerts: {}",
+                    {
+                        let mut list = String::new();
+                        for alert in &notify.alerts {
+                            list.push_str(&format!("ID: {}, ", alert.id.to_string()));
+                        }
+
+                        list.pop();
+                        list.pop();
+                        list
+                    }
+                );
+
                 // Notify current room that missed to acknowledge the alert.
                 debug!("Notifying current room about escalation");
-                let room = client
-                    .get_joined_room(&RoomId::parse(current_room_id)?)
-                    .ok_or_else(|| anyhow!("failed to retrieve joined room"))?;
-
-                room.send(
-                    RoomMessageEventContent::text_plain(&format!(
-                        "🚨 ESCALATION OCCURRED! Notifying next room regarding Alerts: {}",
-                        {
-                            let mut list = String::new();
-                            for alert in &notify.alerts {
-                                list.push_str(&format!("ID: {}, ", alert.id.to_string()));
-                            }
-
-                            list.pop();
-                            list.pop();
-                            list
-                        }
-                    )),
-                    None,
-                )
-                .await?;
+                send_room(&client, current_room_id, &msg).await?;
             }
 
             let mut msg = String::from("🚨 ESCALATION OCCURRED!\n\n");
@@ -209,12 +199,7 @@ impl Handler<Escalation> for MatrixClient {
             msg.pop();
             msg.pop();
 
-            let room = client
-                .get_joined_room(&RoomId::parse(next_room_id)?)
-                .ok_or_else(|| anyhow!("failed to retrieve joined room"))?;
-
-            room.send(RoomMessageEventContent::text_plain(&msg), None)
-                .await?;
+            send_room(&client, next_room_id, &msg).await?;
 
             Ok(is_last)
         };
@@ -314,6 +299,17 @@ impl ClientContext {
             }
         }
     }
+}
+
+async fn send_room(client: &Client, room_str: &str, msg: &str) -> Result<()> {
+    let room = client
+        .get_joined_room(&RoomId::parse(room_str)?)
+        .ok_or_else(|| anyhow!("failed to retrieve joined room"))?;
+
+    room.send(RoomMessageEventContent::text_plain(msg), None)
+        .await?;
+
+    Ok(())
 }
 
 async fn bad_msg(room: &Joined) -> Result<Command> {
