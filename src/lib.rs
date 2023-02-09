@@ -74,7 +74,9 @@ pub async fn run() -> Result<()> {
     let cli = Cli::from_args();
 
     env_logger::builder()
+        // Only show logs for 'system' and 'matrix_sdk'.
         .filter_module("system", log::LevelFilter::Debug)
+        .filter_module("matrix_sdk", log::LevelFilter::Debug)
         .init();
 
     info!("Logger initialized");
