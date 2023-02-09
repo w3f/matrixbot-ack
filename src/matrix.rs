@@ -4,16 +4,14 @@ use crate::processor::{
 use crate::{AlertId, Result};
 use actix::prelude::*;
 use actix::SystemService;
-use matrix_sdk::events::room::message::MessageEventContent;
-use matrix_sdk::events::SyncMessageEvent;
 use matrix_sdk::room::{Joined, Room};
-use matrix_sdk::{Client, ClientConfig, EventHandler, SyncSettings};
-use ruma::events::room::message::{MessageType, TextMessageEventContent};
-use ruma::events::AnyMessageEventContent;
-use ruma::RoomId;
+use matrix_sdk::{Client};
+use matrix_sdk::config::SyncSettings;
+use matrix_sdk::ruma::events::room::message::{MessageType, TextMessageEventContent, OriginalSyncRoomMessageEvent};
+use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
+use matrix_sdk::ruma::RoomId;
 use std::convert::TryFrom;
 use std::sync::Arc;
-use url::Url;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MatrixConfig {
@@ -27,7 +25,7 @@ pub struct MatrixConfig {
 
 #[derive(Clone)]
 pub struct MatrixClient {
-    rooms: Arc<Vec<RoomId>>,
+    rooms: Arc<Vec<String>>,
     client: Arc<Client>,
 }
 
@@ -39,77 +37,37 @@ impl MatrixClient {
     ) -> Result<Self> {
         info!("Setting up Matrix client");
         // Setup client
-        let client_config = ClientConfig::new().store_path(&config.db_path);
-
-        let url = Url::parse(&config.homeserver)?;
-        let client = Client::new_with_config(url, client_config)?;
+        let client = Client::builder()
+            .homeserver_url(&config.homeserver)
+            .sled_store(&config.db_path, None)
+            .build()
+            .await?;
 
         info!("Login with credentials");
         client
-            .login(
-                &config.username,
-                &config.password,
-                Some(&config.device_id),
-                Some(&config.device_name),
-            )
+            .login_username(&config.username, &config.password)
+            .device_id(&config.device_id)
+            .initial_device_display_name(&config.device_name)
             .await?;
+
+        let rooms = Arc::new(rooms);
+
+        // Add event handler.
+        let t_rooms = Arc::clone(&rooms);
+        /*
+        client.add_event_handler(|event: OriginalSyncRoomMessageEvent, room: Room| async move {
+            message_handler(event, room, t_rooms)
+        });
+        */
 
         // Sync up, avoid responding to old messages.
         info!("Syncing client");
-        client.sync_once(SyncSettings::default()).await?;
-
-        debug!("Attempting to parse room ids");
-        let rooms: Vec<RoomId> = rooms
-            .into_iter()
-            .map(|room| RoomId::try_from(room).map_err(|err| err.into()))
-            .collect::<Result<Vec<RoomId>>>()?;
-
-        // Add event handler
-        if handle_user_command {
-            client
-                .set_event_handler(Box::new(Listener {
-                    rooms: rooms.clone(),
-                }))
-                .await;
-        }
-
-        // Start backend syncing service
-        info!("Executing background sync");
-        let settings = SyncSettings::default().token(
-            client
-                .sync_token()
-                .await
-                .ok_or_else(|| anyhow!("Failed to acquire sync token"))?,
-        );
-
-        // Sync in background.
-        let t_client = client.clone();
-        actix::spawn(async move {
-            t_client.clone().sync(settings).await;
-        });
+        client.sync(SyncSettings::default()).await?;
 
         Ok(MatrixClient {
-            rooms: Arc::new(rooms),
+            rooms,
             client: Arc::new(client),
         })
-    }
-}
-
-/// Convenience trait.
-#[async_trait]
-trait SendMsg {
-    async fn send_msg(&self, room_id: &RoomId, msg: &str) -> Result<()>;
-}
-
-// Implement for matrix client.
-#[async_trait]
-impl SendMsg for Client {
-    async fn send_msg(&self, room_id: &RoomId, msg: &str) -> Result<()> {
-        let content = AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(msg));
-
-        self.room_send(room_id, content, None).await?;
-
-        Ok(())
     }
 }
 
@@ -156,7 +114,14 @@ impl Handler<NotifyAlert> for MatrixClient {
             msg.pop();
             msg.pop();
 
-            client.send_msg(current_room_id, &msg).await
+            let room = client.get_joined_room(&RoomId::parse(&current_room_id)?).ok_or(anyhow!("failed to retrieve room"))?;
+            room.send(
+                RoomMessageEventContent::text_plain(&msg),
+                None
+            )
+            .await?;
+
+            Ok(())
         };
 
         Box::pin(f.into_actor(self))
@@ -192,10 +157,9 @@ impl Handler<Escalation> for MatrixClient {
             if !is_last {
                 // Notify current room that missed to acknowledge the alert.
                 debug!("Notifying current room about escalation");
-                client
-                    .send_msg(
-                        current_room_id,
-                        &format!(
+                let room = client.get_joined_room(&RoomId::parse(&current_room_id)?).ok_or(anyhow!("failed to retrieve joined room"))?;
+                room.send(
+                        RoomMessageEventContent::text_plain(&format!(
                             "🚨 ESCALATION OCCURRED! Notifying next room regarding Alerts: {}",
                             {
                                 let mut list = String::new();
@@ -207,9 +171,9 @@ impl Handler<Escalation> for MatrixClient {
                                 list.pop();
                                 list
                             }
-                        ),
-                    )
-                    .await?
+                        )),
+                    None
+                ).await?;
             }
 
             let mut msg = String::from("🚨 ESCALATION OCCURRED!\n\n");
@@ -234,7 +198,11 @@ impl Handler<Escalation> for MatrixClient {
             msg.pop();
             msg.pop();
 
-            client.send_msg(next_room_id, &msg).await?;
+            let room = client.get_joined_room(&RoomId::parse(&next_room_id)?).ok_or(anyhow!("failed to retrieve joined room"))?;
+            room.send(
+                RoomMessageEventContent::text_plain(&msg),
+                None
+            ).await?;
 
             Ok(is_last)
         };
@@ -246,111 +214,91 @@ impl Handler<Escalation> for MatrixClient {
 impl SystemService for MatrixClient {}
 impl Supervised for MatrixClient {}
 
-pub struct Listener {
-    rooms: Vec<RoomId>,
-}
+async fn message_handler(event: OriginalSyncRoomMessageEvent, room: Room, rooms: Arc<Vec<String>>) {
+    if let Room::Joined(room) = room {
+        let res = |room: Joined, event: OriginalSyncRoomMessageEvent, rooms: Arc<Vec<String>>| async move {
+            // Ignore own messages.
+            if &event.sender == room.own_user_id() {
+                return Ok(());
+            }
 
-#[async_trait]
-impl EventHandler for Listener {
-    async fn on_room_message(&self, room: Room, event: &SyncMessageEvent<MessageEventContent>) {
-        if let Room::Joined(room) = room {
-            let res = |room: Joined, event: SyncMessageEvent<MessageEventContent>| async move {
-                // Ignore own messages.
-                if &event.sender == room.own_user_id() {
-                    return Ok(());
-                }
+            let MessageType::Text(text_content) = event.content.msgtype else {
+                return Ok(());
+            };
 
-                let msg_body = if let SyncMessageEvent {
-                    content:
-                        MessageEventContent {
-                            msgtype:
-                                MessageType::Text(TextMessageEventContent { body: msg_body, .. }),
-                            ..
-                        },
-                    ..
-                } = event
-                {
-                    msg_body.to_string()
-                } else {
-                    return Err(anyhow!(
-                        "Received unacceptable message type from {}",
-                        event.sender
-                    ));
-                };
+            debug!("Received message from {}: {:?}", event.sender, text_content);
 
-                debug!("Received message from {}: {}", event.sender, msg_body);
+            // For convenience.
+            let msg_body = text_content.body.replace("  ", " ");
 
-                // For convenience.
-                let msg_body = msg_body.replace("  ", " ");
-
-                let cmd = match msg_body.trim() {
-                    "pending" => Command::Pending,
-                    "help" => Command::Help,
-                    txt => {
-                        if txt.to_lowercase().starts_with("ack") || txt.to_lowercase().starts_with("acknowledge") {
-                            let parts: Vec<&str> = txt.split(' ').collect();
-                            if parts.len() == 2 {
-                                if let Ok(id) = AlertId::from_str(parts[1]) {
-                                    Command::Ack(id, event.sender.to_string())
-                                } else {
-                                    bad_msg(&room).await?
-                                }
+            let cmd = match msg_body.trim() {
+                "pending" => Command::Pending,
+                "help" => Command::Help,
+                txt => {
+                    if txt.to_lowercase().starts_with("ack") || txt.to_lowercase().starts_with("acknowledge") {
+                        let parts: Vec<&str> = txt.split(' ').collect();
+                        if parts.len() == 2 {
+                            if let Ok(id) = AlertId::from_str(parts[1]) {
+                                Command::Ack(id, event.sender.to_string())
                             } else {
                                 bad_msg(&room).await?
                             }
                         } else {
-                            // Ignore casual chatter in rooms.
-                            return Ok(());
+                            bad_msg(&room).await?
                         }
-                    }
-                };
-
-                // Determine the escalation index based on ordering of rooms.
-                let escalation_idx =
-                    if let Some(room_id) = self.rooms.iter().position(|id| id == room.room_id()) {
-                        room_id
                     } else {
-                        // Silent return.
+                        // Ignore casual chatter in rooms.
                         return Ok(());
-                    };
-
-                // Prepare action type.
-                let action = UserAction {
-                    escalation_idx,
-                    command: cmd,
-                };
-
-                // Send action to processor.
-                let confirmation = Processor::from_registry().send(action).await?;
-
-                let content = AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(
-                    confirmation.to_string(),
-                ));
-
-                // Notify the room.
-                debug!("Notifying room");
-                room.send(content, None).await?;
-
-                Result::<()>::Ok(())
+                    }
+                }
             };
 
-            // Only process whitelisted rooms.
-            if !self.rooms.contains(room.room_id()) {
-                return;
-            }
+            // Determine the escalation index based on ordering of rooms.
+            let escalation_idx =
+                if let Some(room_id) = rooms.iter().position(|id| id == room.room_id()) {
+                    room_id
+                } else {
+                    // Silent return.
+                    return Ok(());
+                };
 
-            match res(room, event.clone()).await {
-                Ok(_) => {}
-                Err(err) => error!("{:?}", err),
-            }
+            // Prepare action type.
+            let action = UserAction {
+                escalation_idx,
+                command: cmd,
+            };
+
+            // Send action to processor.
+            let confirmation = Processor::from_registry().send(action).await?;
+
+            let content = RoomMessageEventContent::text_plain(
+                confirmation.to_string(),
+            );
+
+            // Notify the room.
+            debug!("Notifying room");
+            room.send(content, None).await?;
+
+            Result::<()>::Ok(())
+        };
+
+        // Only process whitelisted rooms.
+        let room_id = room.room_id().to_string();
+        if rooms.contains(&room_id) {
+            return;
+        }
+
+        match res(room, event.clone(), Arc::clone(&rooms)).await {
+            Ok(_) => {}
+            Err(err) => error!("{:?}", err),
         }
     }
 }
 
 async fn bad_msg(room: &Joined) -> Result<Command> {
-    let content = AnyMessageEventContent::RoomMessage(MessageEventContent::text_plain(
+    let content = RoomMessageEventContent::text_plain(
         "I don't understand 🤔",
-    ));
+    );
 
     room.send(content, None).await?;
 
