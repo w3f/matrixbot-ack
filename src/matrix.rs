@@ -5,6 +5,7 @@ use crate::{AlertId, Result};
 use actix::prelude::*;
 use actix::SystemService;
 use matrix_sdk::config::SyncSettings;
+use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::room::{Joined, Room};
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use matrix_sdk::ruma::events::room::message::{
@@ -55,12 +56,16 @@ impl MatrixClient {
         let rooms = Arc::new(rooms);
 
         // Add event handler.
-        let t_rooms = Arc::clone(&rooms);
-        /*
-        client.add_event_handler(|event: OriginalSyncRoomMessageEvent, room: Room| async move {
-            message_handler(event, room, t_rooms)
-        });
-        */
+        if handle_user_command {
+            // Add stateful context.
+            client.add_event_handler_context(ClientContext {
+                rooms: Arc::clone(&rooms),
+            });
+
+            client.add_event_handler(|event: OriginalSyncRoomMessageEvent, room: Room, context: Ctx<ClientContext>| async move {
+                context.message_handler(event, room);
+            });
+        }
 
         // Sync up, avoid responding to old messages.
         info!("Syncing client");
@@ -117,8 +122,9 @@ impl Handler<NotifyAlert> for MatrixClient {
             msg.pop();
 
             let room = client
-                .get_joined_room(&RoomId::parse(&current_room_id)?)
-                .ok_or(anyhow!("failed to retrieve room"))?;
+                .get_joined_room(&RoomId::parse(current_room_id)?)
+                .ok_or_else(|| anyhow!("failed to retrieve room"))?;
+
             room.send(RoomMessageEventContent::text_plain(&msg), None)
                 .await?;
 
@@ -159,8 +165,9 @@ impl Handler<Escalation> for MatrixClient {
                 // Notify current room that missed to acknowledge the alert.
                 debug!("Notifying current room about escalation");
                 let room = client
-                    .get_joined_room(&RoomId::parse(&current_room_id)?)
-                    .ok_or(anyhow!("failed to retrieve joined room"))?;
+                    .get_joined_room(&RoomId::parse(current_room_id)?)
+                    .ok_or_else(|| anyhow!("failed to retrieve joined room"))?;
+
                 room.send(
                     RoomMessageEventContent::text_plain(&format!(
                         "🚨 ESCALATION OCCURRED! Notifying next room regarding Alerts: {}",
@@ -203,8 +210,9 @@ impl Handler<Escalation> for MatrixClient {
             msg.pop();
 
             let room = client
-                .get_joined_room(&RoomId::parse(&next_room_id)?)
-                .ok_or(anyhow!("failed to retrieve joined room"))?;
+                .get_joined_room(&RoomId::parse(next_room_id)?)
+                .ok_or_else(|| anyhow!("failed to retrieve joined room"))?;
+
             room.send(RoomMessageEventContent::text_plain(&msg), None)
                 .await?;
 
@@ -218,83 +226,92 @@ impl Handler<Escalation> for MatrixClient {
 impl SystemService for MatrixClient {}
 impl Supervised for MatrixClient {}
 
-async fn message_handler(event: OriginalSyncRoomMessageEvent, room: Room, rooms: Arc<Vec<String>>) {
-    if let Room::Joined(room) = room {
-        let res = |room: Joined, event: OriginalSyncRoomMessageEvent, rooms: Arc<Vec<String>>| async move {
-            // Ignore own messages.
-            if &event.sender == room.own_user_id() {
-                return Ok(());
-            }
+#[derive(Debug, Clone)]
+struct ClientContext {
+    rooms: Arc<Vec<String>>,
+}
 
-            let MessageType::Text(text_content) = event.content.msgtype else {
-                return Ok(());
-            };
+impl ClientContext {
+    async fn message_handler(&self, event: OriginalSyncRoomMessageEvent, room: Room) {
+        if let Room::Joined(room) = room {
+            let res = |room: Joined,
+                       event: OriginalSyncRoomMessageEvent,
+                       rooms: Arc<Vec<String>>| async move {
+                // Ignore own messages.
+                if event.sender == room.own_user_id() {
+                    return Ok(());
+                }
 
-            debug!("Received message from {}: {:?}", event.sender, text_content);
+                let MessageType::Text(text_content) = event.content.msgtype else {
+                    return Ok(());
+                };
 
-            // For convenience.
-            let msg_body = text_content.body.replace("  ", " ");
+                debug!("Received message from {}: {:?}", event.sender, text_content);
 
-            let cmd = match msg_body.trim() {
-                "pending" => Command::Pending,
-                "help" => Command::Help,
-                txt => {
-                    if txt.to_lowercase().starts_with("ack")
-                        || txt.to_lowercase().starts_with("acknowledge")
-                    {
-                        let parts: Vec<&str> = txt.split(' ').collect();
-                        if parts.len() == 2 {
-                            if let Ok(id) = AlertId::from_str(parts[1]) {
-                                Command::Ack(id, event.sender.to_string())
+                // For convenience.
+                let msg_body = text_content.body.replace("  ", " ");
+
+                let cmd = match msg_body.trim() {
+                    "pending" => Command::Pending,
+                    "help" => Command::Help,
+                    txt => {
+                        if txt.to_lowercase().starts_with("ack")
+                            || txt.to_lowercase().starts_with("acknowledge")
+                        {
+                            let parts: Vec<&str> = txt.split(' ').collect();
+                            if parts.len() == 2 {
+                                if let Ok(id) = AlertId::from_str(parts[1]) {
+                                    Command::Ack(id, event.sender.to_string())
+                                } else {
+                                    bad_msg(&room).await?
+                                }
                             } else {
                                 bad_msg(&room).await?
                             }
                         } else {
-                            bad_msg(&room).await?
+                            // Ignore casual chatter in rooms.
+                            return Ok(());
                         }
-                    } else {
-                        // Ignore casual chatter in rooms.
-                        return Ok(());
                     }
-                }
-            };
-
-            // Determine the escalation index based on ordering of rooms.
-            let escalation_idx =
-                if let Some(room_id) = rooms.iter().position(|id| id == room.room_id()) {
-                    room_id
-                } else {
-                    // Silent return.
-                    return Ok(());
                 };
 
-            // Prepare action type.
-            let action = UserAction {
-                escalation_idx,
-                command: cmd,
+                // Determine the escalation index based on ordering of rooms.
+                let escalation_idx =
+                    if let Some(room_id) = rooms.iter().position(|id| id == room.room_id()) {
+                        room_id
+                    } else {
+                        // Silent return.
+                        return Ok(());
+                    };
+
+                // Prepare action type.
+                let action = UserAction {
+                    escalation_idx,
+                    command: cmd,
+                };
+
+                // Send action to processor.
+                let confirmation = Processor::from_registry().send(action).await?;
+
+                let content = RoomMessageEventContent::text_plain(confirmation.to_string());
+
+                // Notify the room.
+                debug!("Notifying room");
+                room.send(content, None).await?;
+
+                Result::<()>::Ok(())
             };
 
-            // Send action to processor.
-            let confirmation = Processor::from_registry().send(action).await?;
+            // Only process whitelisted rooms.
+            let room_id = room.room_id().to_string();
+            if self.rooms.contains(&room_id) {
+                return;
+            }
 
-            let content = RoomMessageEventContent::text_plain(confirmation.to_string());
-
-            // Notify the room.
-            debug!("Notifying room");
-            room.send(content, None).await?;
-
-            Result::<()>::Ok(())
-        };
-
-        // Only process whitelisted rooms.
-        let room_id = room.room_id().to_string();
-        if rooms.contains(&room_id) {
-            return;
-        }
-
-        match res(room, event.clone(), Arc::clone(&rooms)).await {
-            Ok(_) => {}
-            Err(err) => error!("{:?}", err),
+            match res(room, event.clone(), Arc::clone(&self.rooms)).await {
+                Ok(_) => {}
+                Err(err) => error!("{:?}", err),
+            }
         }
     }
 }
