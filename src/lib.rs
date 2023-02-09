@@ -73,15 +73,10 @@ struct Cli {
 pub async fn run() -> Result<()> {
     let cli = Cli::from_args();
 
-    env_logger::builder()
-        // Only show logs for 'system' and 'matrix_sdk'.
-        .filter_module("system", log::LevelFilter::Debug)
-        .filter_module("matrix_sdk", log::LevelFilter::Debug)
-        .init();
+    let mut builder = env_logger::builder();
+    builder.filter_module("system", log::LevelFilter::Debug);
 
-    info!("Logger initialized");
-
-    info!(
+    println!(
         "Opening config at {}",
         std::fs::canonicalize(&cli.config)?
             .to_str()
@@ -90,6 +85,14 @@ pub async fn run() -> Result<()> {
 
     let content = std::fs::read_to_string(&cli.config)?;
     let config: Config = serde_yaml::from_str(&content)?;
+
+    // If enabled, display logs for matrix-sdk.
+    if config.matrix.verbose_logs == Some(true) {
+        builder.filter_module("matrix_sdk", log::LevelFilter::Debug);
+    }
+
+    builder.init();
+    info!("Logger initialized");
 
     if config.rooms.is_empty() {
         return Err(anyhow!("No alert rooms have been configured"));

@@ -2,6 +2,7 @@ database:
   uri: mongodb://localhost:27017
   name: matrixbot
 matrix:
+  verbose_logs: false
   homeserver: https://matrix.org
   username: username
   password: password

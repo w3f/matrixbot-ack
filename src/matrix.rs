@@ -4,19 +4,20 @@ use crate::processor::{
 use crate::{AlertId, Result};
 use actix::prelude::*;
 use actix::SystemService;
+use actix::clock::sleep;
 use matrix_sdk::config::SyncSettings;
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::room::{Joined, Room};
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
-use matrix_sdk::ruma::events::room::message::{
-    MessageType, OriginalSyncRoomMessageEvent,
-};
+use matrix_sdk::ruma::events::room::message::{MessageType, OriginalSyncRoomMessageEvent};
 use matrix_sdk::ruma::RoomId;
 use matrix_sdk::Client;
+use std::time::Duration;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MatrixConfig {
+    pub verbose_logs: Option<bool>,
     homeserver: String,
     username: String,
     password: String,
@@ -27,8 +28,8 @@ pub struct MatrixConfig {
 
 #[derive(Clone)]
 pub struct MatrixClient {
-    rooms: Arc<Vec<String>>,
     client: Arc<Client>,
+    rooms: Arc<Vec<String>>,
 }
 
 impl MatrixClient {
@@ -54,8 +55,14 @@ impl MatrixClient {
 
         let rooms = Arc::new(rooms);
 
+        // Sync once on startup, don't respond to old commands.
+        info!("Running initial sync");
+        let token = client.sync_once(SyncSettings::default()).await?;
+
         // Add event handler.
         if handle_user_command {
+            info!("Adding event handler to Matrix client");
+
             // Add stateful context.
             client.add_event_handler_context(ClientContext {
                 rooms: Arc::clone(&rooms),
@@ -67,13 +74,22 @@ impl MatrixClient {
         }
 
         // Sync up, avoid responding to old messages.
-        info!("Syncing client");
-        client.sync(SyncSettings::default()).await?;
+        info!("Starting background sync");
+        let t_client = client.clone();
+        let settings = SyncSettings::default().token(token.next_batch);
 
-        Ok(MatrixClient {
-            rooms,
-            client: Arc::new(client),
-        })
+        actix::spawn(async move {
+            loop {
+                let settings = settings.clone();
+                if let Err(err) = t_client.sync(settings).await {
+                    error!("Error in background sync: {:?}", err);
+                }
+
+                sleep(Duration::from_secs(5)).await;
+            }
+        });
+
+        Ok(MatrixClient { rooms, client: Arc::new(client) })
     }
 }
 
