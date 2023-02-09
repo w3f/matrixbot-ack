@@ -4,12 +4,14 @@ use crate::processor::{
 use crate::{AlertId, Result};
 use actix::prelude::*;
 use actix::SystemService;
-use matrix_sdk::room::{Joined, Room};
-use matrix_sdk::{Client};
 use matrix_sdk::config::SyncSettings;
-use matrix_sdk::ruma::events::room::message::{MessageType, TextMessageEventContent, OriginalSyncRoomMessageEvent};
+use matrix_sdk::room::{Joined, Room};
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
+use matrix_sdk::ruma::events::room::message::{
+    MessageType, OriginalSyncRoomMessageEvent, TextMessageEventContent,
+};
 use matrix_sdk::ruma::RoomId;
+use matrix_sdk::Client;
 use std::convert::TryFrom;
 use std::sync::Arc;
 
@@ -114,12 +116,11 @@ impl Handler<NotifyAlert> for MatrixClient {
             msg.pop();
             msg.pop();
 
-            let room = client.get_joined_room(&RoomId::parse(&current_room_id)?).ok_or(anyhow!("failed to retrieve room"))?;
-            room.send(
-                RoomMessageEventContent::text_plain(&msg),
-                None
-            )
-            .await?;
+            let room = client
+                .get_joined_room(&RoomId::parse(&current_room_id)?)
+                .ok_or(anyhow!("failed to retrieve room"))?;
+            room.send(RoomMessageEventContent::text_plain(&msg), None)
+                .await?;
 
             Ok(())
         };
@@ -157,23 +158,26 @@ impl Handler<Escalation> for MatrixClient {
             if !is_last {
                 // Notify current room that missed to acknowledge the alert.
                 debug!("Notifying current room about escalation");
-                let room = client.get_joined_room(&RoomId::parse(&current_room_id)?).ok_or(anyhow!("failed to retrieve joined room"))?;
+                let room = client
+                    .get_joined_room(&RoomId::parse(&current_room_id)?)
+                    .ok_or(anyhow!("failed to retrieve joined room"))?;
                 room.send(
-                        RoomMessageEventContent::text_plain(&format!(
-                            "🚨 ESCALATION OCCURRED! Notifying next room regarding Alerts: {}",
-                            {
-                                let mut list = String::new();
-                                for alert in &notify.alerts {
-                                    list.push_str(&format!("ID: {}, ", alert.id.to_string()));
-                                }
-
-                                list.pop();
-                                list.pop();
-                                list
+                    RoomMessageEventContent::text_plain(&format!(
+                        "🚨 ESCALATION OCCURRED! Notifying next room regarding Alerts: {}",
+                        {
+                            let mut list = String::new();
+                            for alert in &notify.alerts {
+                                list.push_str(&format!("ID: {}, ", alert.id.to_string()));
                             }
-                        )),
-                    None
-                ).await?;
+
+                            list.pop();
+                            list.pop();
+                            list
+                        }
+                    )),
+                    None,
+                )
+                .await?;
             }
 
             let mut msg = String::from("🚨 ESCALATION OCCURRED!\n\n");
@@ -198,11 +202,11 @@ impl Handler<Escalation> for MatrixClient {
             msg.pop();
             msg.pop();
 
-            let room = client.get_joined_room(&RoomId::parse(&next_room_id)?).ok_or(anyhow!("failed to retrieve joined room"))?;
-            room.send(
-                RoomMessageEventContent::text_plain(&msg),
-                None
-            ).await?;
+            let room = client
+                .get_joined_room(&RoomId::parse(&next_room_id)?)
+                .ok_or(anyhow!("failed to retrieve joined room"))?;
+            room.send(RoomMessageEventContent::text_plain(&msg), None)
+                .await?;
 
             Ok(is_last)
         };
@@ -235,7 +239,9 @@ async fn message_handler(event: OriginalSyncRoomMessageEvent, room: Room, rooms:
                 "pending" => Command::Pending,
                 "help" => Command::Help,
                 txt => {
-                    if txt.to_lowercase().starts_with("ack") || txt.to_lowercase().starts_with("acknowledge") {
+                    if txt.to_lowercase().starts_with("ack")
+                        || txt.to_lowercase().starts_with("acknowledge")
+                    {
                         let parts: Vec<&str> = txt.split(' ').collect();
                         if parts.len() == 2 {
                             if let Ok(id) = AlertId::from_str(parts[1]) {
@@ -271,9 +277,7 @@ async fn message_handler(event: OriginalSyncRoomMessageEvent, room: Room, rooms:
             // Send action to processor.
             let confirmation = Processor::from_registry().send(action).await?;
 
-            let content = RoomMessageEventContent::text_plain(
-                confirmation.to_string(),
-            );
+            let content = RoomMessageEventContent::text_plain(confirmation.to_string());
 
             // Notify the room.
             debug!("Notifying room");
@@ -296,9 +300,7 @@ async fn message_handler(event: OriginalSyncRoomMessageEvent, room: Room, rooms:
 }
 
 async fn bad_msg(room: &Joined) -> Result<Command> {
-    let content = RoomMessageEventContent::text_plain(
-        "I don't understand 🤔",
-    );
+    let content = RoomMessageEventContent::text_plain("I don't understand 🤔");
 
     room.send(content, None).await?;
 

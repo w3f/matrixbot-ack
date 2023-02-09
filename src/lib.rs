@@ -135,5 +135,8 @@ pub async fn run() -> Result<()> {
     SystemRegistry::set(matrix.start());
 
     info!("Starting API server");
-    webhook::run_api_server(&config.listener).await?.await.map_err(|err| err.into())
+    webhook::run_api_server(&config.listener)
+        .await?
+        .await
+        .map_err(|err| err.into())
 }
