@@ -250,9 +250,11 @@ impl ClientContext {
                     return Ok(());
                 }
 
+                info!("TODO: Got here");
                 let MessageType::Text(text_content) = event.content.msgtype else {
                     return Ok(());
                 };
+                info!("TODO: next");
 
                 debug!("Received message from {}: {:?}", event.sender, text_content);
 
@@ -298,6 +300,8 @@ impl ClientContext {
                     command: cmd,
                 };
 
+                info!("TODO: Sending command");
+
                 // Send action to processor.
                 let confirmation = Processor::from_registry().send(action).await?;
 
@@ -314,9 +318,11 @@ impl ClientContext {
 
             // Only process whitelisted rooms.
             let room_id = room.room_id().to_string();
-            if self.rooms.contains(&room_id) {
+            if !self.rooms.contains(&room_id) {
                 return;
             }
+
+            info!("TODO: Am in room!");
 
             match res(room, event.clone(), Arc::clone(&self.rooms)).await {
                 Ok(_) => {}

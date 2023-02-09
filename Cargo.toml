@@ -20,7 +20,7 @@ anyhow = "1.0.68"
 serde = "1.0.152"
 serde_json = "1.0.91"
 serde_yaml = "0.9.17"
-matrix-sdk = { git = "https://github.com/matrix-org/matrix-rust-sdk.git", rev = "12cbff2"}
+matrix-sdk = { git = "https://github.com/matrix-org/matrix-rust-sdk.git", features = [ "e2e-encryption", "sled" ], rev = "12cbff2"}
 actix = "0.13.0"
 actix-web = "4.3.0"
 futures = "0.3.26"
