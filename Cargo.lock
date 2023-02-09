@@ -2059,7 +2059,6 @@ dependencies = [
  "actix",
  "actix-web",
  "anyhow",
- "async-trait",
  "bson",
  "env_logger",
  "futures",
@@ -2072,7 +2071,6 @@ dependencies = [
  "serde_yaml",
  "structopt",
  "tokio",
- "url",
 ]
 
 [[package]]

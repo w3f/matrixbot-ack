@@ -9,11 +9,10 @@ use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::room::{Joined, Room};
 use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
 use matrix_sdk::ruma::events::room::message::{
-    MessageType, OriginalSyncRoomMessageEvent, TextMessageEventContent,
+    MessageType, OriginalSyncRoomMessageEvent,
 };
 use matrix_sdk::ruma::RoomId;
 use matrix_sdk::Client;
-use std::convert::TryFrom;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,7 +62,7 @@ impl MatrixClient {
             });
 
             client.add_event_handler(|event: OriginalSyncRoomMessageEvent, room: Room, context: Ctx<ClientContext>| async move {
-                context.message_handler(event, room);
+                context.message_handler(event, room).await;
             });
         }
 

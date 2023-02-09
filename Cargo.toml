@@ -23,8 +23,6 @@ serde_yaml = "0.9.17"
 matrix-sdk = { git = "https://github.com/matrix-org/matrix-rust-sdk.git", rev = "12cbff2"}
 actix = "0.13.0"
 actix-web = "4.3.0"
-url = "2.3.1"
-async-trait = "0.1.64"
 futures = "0.3.26"
 structopt = "0.3.26"
 md5 = "0.7.0"

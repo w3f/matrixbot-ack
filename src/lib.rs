@@ -4,8 +4,6 @@ extern crate log;
 extern crate anyhow;
 #[macro_use]
 extern crate serde;
-#[macro_use]
-extern crate async_trait;
 
 use actix::{prelude::*, SystemRegistry};
 use structopt::StructOpt;
