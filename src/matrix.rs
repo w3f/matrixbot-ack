@@ -8,8 +8,8 @@ use actix::clock::sleep;
 use matrix_sdk::config::SyncSettings;
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::room::{Joined, Room};
-use matrix_sdk::ruma::events::room::message::RoomMessageEventContent;
-use matrix_sdk::ruma::events::room::message::{MessageType, OriginalSyncRoomMessageEvent};
+use matrix_sdk::ruma::events::SyncMessageLikeEvent;
+use matrix_sdk::ruma::events::room::message::{MessageType, OriginalSyncRoomMessageEvent, RoomMessageEventContent, SyncRoomMessageEvent};
 use matrix_sdk::ruma::RoomId;
 use matrix_sdk::Client;
 use std::time::Duration;
@@ -53,10 +53,16 @@ impl MatrixClient {
             .initial_device_display_name(&config.device_name)
             .await?;
 
+        info!("Listening to rooms:");
+        for room in &rooms {
+            info!("> {}", room);
+        }
+
         let rooms = Arc::new(rooms);
 
         // Sync once on startup, don't respond to old commands.
         info!("Running initial sync");
+        let client = Arc::new(client);
         let token = client.sync_once(SyncSettings::default()).await?;
 
         // Add event handler.
@@ -68,14 +74,16 @@ impl MatrixClient {
                 rooms: Arc::clone(&rooms),
             });
 
-            client.add_event_handler(|event: OriginalSyncRoomMessageEvent, room: Room, context: Ctx<ClientContext>| async move {
-                context.message_handler(event, room).await;
+            client.add_event_handler(|event: SyncRoomMessageEvent, room: Room, context: Ctx<ClientContext>| async move {
+                if let SyncMessageLikeEvent::Original(original) = event {
+                    context.message_handler(original, room).await;
+                }
             });
         }
 
         // Sync up, avoid responding to old messages.
         info!("Starting background sync");
-        let t_client = client.clone();
+        let t_client = Arc::clone(&client);
         let settings = SyncSettings::default().token(token.next_batch);
 
         actix::spawn(async move {
@@ -89,7 +97,7 @@ impl MatrixClient {
             }
         });
 
-        Ok(MatrixClient { rooms, client: Arc::new(client) })
+        Ok(MatrixClient { rooms, client })
     }
 }
 
@@ -301,6 +309,8 @@ impl ClientContext {
 
                 Result::<()>::Ok(())
             };
+
+            info!("TODO: Called ME!");
 
             // Only process whitelisted rooms.
             let room_id = room.room_id().to_string();
