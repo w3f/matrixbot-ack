@@ -246,7 +246,7 @@ impl Handler<UserAction> for Processor {
             local(db, msg)
                 .await
                 .map_err(|err| {
-                    error!("{:?}", err);
+                    error!("Error when trying to process user command: {:?}", err);
                     UserConfirmation::InternalError
                 })
                 .unwrap()

@@ -341,7 +341,7 @@ impl EventHandler for Listener {
 
             match res(room, event.clone()).await {
                 Ok(_) => {}
-                Err(err) => error!("{:?}", err),
+                Err(err) => error!("Error when trying to process Matrix message {:?}", err),
             }
         }
     }
