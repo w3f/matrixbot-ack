@@ -274,10 +274,7 @@ impl Handler<InsertAlerts> for Processor {
 
             // Only store alerts that should escalate.
             if should_escalate {
-                db.insert_alerts(&alerts).await.map_err(|err| {
-                    error!("Failed to insert alerts into database: {:?}", err);
-                    err
-                })?;
+                db.insert_alerts(&alerts).await?;
             }
 
             // Notify rooms about all alerts.
