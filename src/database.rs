@@ -154,7 +154,7 @@ impl Database {
             let now = unix_time();
             doc! {
                 "last_notified": {
-                    "$lt": now - escalation_window,
+                    "$lt": (now - escalation_window) as i64,
                 }
             }
         } else {
