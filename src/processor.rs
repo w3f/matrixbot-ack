@@ -168,7 +168,7 @@ impl Actor for Processor {
                     let lock = Arc::clone(&lock);
 
                     actix::spawn(async move {
-                        // Immediately exits if the lock cannot be acquired.
+                        // Immediately exit if the lock cannot be acquired.
                         if let Ok(locked) = lock.try_lock() {
                             // Lock acquired and will remain locked until
                             // `_l` goes out of scope.
