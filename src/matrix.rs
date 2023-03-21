@@ -287,7 +287,9 @@ impl EventHandler for Listener {
                     "pending" => Command::Pending,
                     "help" => Command::Help,
                     txt => {
-                        if txt.to_lowercase().starts_with("ack") || txt.to_lowercase().starts_with("acknowledge") {
+                        if txt.to_lowercase().starts_with("ack")
+                            || txt.to_lowercase().starts_with("acknowledge")
+                        {
                             let parts: Vec<&str> = txt.split(' ').collect();
                             if parts.len() == 2 {
                                 if let Ok(id) = AlertId::from_str(parts[1]) {

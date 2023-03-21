@@ -157,7 +157,7 @@ pub async fn run() -> Result<()> {
     // On shutdown signal, shutdown service.
     while let Some(_) = recv.recv().await {
         warn!("Shutting down service...");
-        return Ok(())
+        return Ok(());
     }
 
     Ok(())

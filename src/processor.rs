@@ -3,10 +3,10 @@ use crate::matrix::MatrixClient;
 use crate::webhook::Alert;
 use crate::{unix_time, AlertId, Result};
 use actix::prelude::*;
-use tokio::sync::Mutex;
-use tokio::sync::mpsc::UnboundedSender;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::Mutex;
 
 const CRON_JOB_INTERVAL: u64 = 5;
 
@@ -56,16 +56,8 @@ impl ToString for AlertContextTrimmed {
         ",
             self.0.labels.alert_name,
             self.0.labels.severity,
-            self.0
-                .annotations
-                .message
-                .as_deref()
-                .unwrap_or("N/A"),
-            self.0
-                .annotations
-                .description
-                .as_deref()
-                .unwrap_or("N/A")
+            self.0.annotations.message.as_deref().unwrap_or("N/A"),
+            self.0.annotations.description.as_deref().unwrap_or("N/A")
         )
     }
 }
@@ -83,11 +75,7 @@ impl ToString for AlertContext {
             self.id.to_string(),
             self.alert.labels.alert_name,
             self.alert.labels.severity,
-            self.alert
-                .annotations
-                .message
-                .as_deref()
-                .unwrap_or("N/A"),
+            self.alert.annotations.message.as_deref().unwrap_or("N/A"),
             self.alert
                 .annotations
                 .description
@@ -103,11 +91,16 @@ pub struct Processor {
     should_escalate: bool,
     // Ensures that only one escalation task is running at the time.
     escalation_lock: Arc<Mutex<()>>,
-    shutdown_indicator: UnboundedSender<()>
+    shutdown_indicator: UnboundedSender<()>,
 }
 
 impl Processor {
-    pub fn new(db: Option<Database>, escalation_window: u64, should_escalate: bool, shutdown_indicator: UnboundedSender<()>) -> Self {
+    pub fn new(
+        db: Option<Database>,
+        escalation_window: u64,
+        should_escalate: bool,
+        shutdown_indicator: UnboundedSender<()>,
+    ) -> Self {
         Processor {
             db: db.map(Arc::new),
             escalation_window,
@@ -186,7 +179,7 @@ impl Actor for Processor {
                                     error!("{:?}", err);
                                     // Shutdown entire service.
                                     shutdown_indicator.send(()).unwrap();
-                                },
+                                }
                             }
                         }
                     });
