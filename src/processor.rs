@@ -4,6 +4,7 @@ use crate::webhook::Alert;
 use crate::{unix_time, AlertId, Result};
 use actix::prelude::*;
 use tokio::sync::Mutex;
+use tokio::sync::mpsc::UnboundedSender;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -102,15 +103,17 @@ pub struct Processor {
     should_escalate: bool,
     // Ensures that only one escalation task is running at the time.
     escalation_lock: Arc<Mutex<()>>,
+    shutdown_indicator: UnboundedSender<()>
 }
 
 impl Processor {
-    pub fn new(db: Option<Database>, escalation_window: u64, should_escalate: bool) -> Self {
+    pub fn new(db: Option<Database>, escalation_window: u64, should_escalate: bool, shutdown_indicator: UnboundedSender<()>) -> Self {
         Processor {
             db: db.map(Arc::new),
             escalation_window,
             should_escalate,
             escalation_lock: Default::default(),
+            shutdown_indicator,
         }
     }
     fn db(&self) -> Arc<Database> {
@@ -160,12 +163,15 @@ impl Actor for Processor {
             };
 
             let lock = Arc::clone(&self.escalation_lock);
+            let shutdown_indicator = self.shutdown_indicator.clone();
+
             ctx.run_interval(
                 Duration::from_secs(CRON_JOB_INTERVAL),
                 move |_proc, _ctx| {
                     // Acquire new handles for async task.
                     let db = Arc::clone(&db);
                     let lock = Arc::clone(&lock);
+                    let shutdown_indicator = shutdown_indicator.clone();
 
                     actix::spawn(async move {
                         // Immediately exit if the lock cannot be acquired.
@@ -176,7 +182,11 @@ impl Actor for Processor {
 
                             match local(db, escalation_window).await {
                                 Ok(_) => {}
-                                Err(err) => error!("{:?}", err),
+                                Err(err) => {
+                                    error!("{:?}", err);
+                                    // Shutdown entire service.
+                                    shutdown_indicator.send(()).unwrap();
+                                },
                             }
                         }
                     });

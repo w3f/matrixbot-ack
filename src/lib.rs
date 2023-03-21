@@ -9,6 +9,7 @@ extern crate async_trait;
 
 use actix::{prelude::*, SystemRegistry};
 use structopt::StructOpt;
+use tokio::sync::mpsc::unbounded_channel;
 
 mod database;
 mod matrix;
@@ -126,8 +127,13 @@ pub async fn run() -> Result<()> {
         None
     };
 
+    // Setup channels for shutdown signals. The Processor and the API server
+    // task (below) hold the _sender_. Any message sent to it indicates a full shutdown
+    // of the service, which is handled at the end of this function.
+    let (tx, mut recv) = unbounded_channel();
+
     info!("Adding message processor to system registry");
-    let proc = processor::Processor::new(opt_db, escalation_window, should_escalate);
+    let proc = processor::Processor::new(opt_db, escalation_window, should_escalate, tx.clone());
     SystemRegistry::set(proc.start());
 
     info!("Initializing Matrix client");
@@ -137,7 +143,22 @@ pub async fn run() -> Result<()> {
     SystemRegistry::set(matrix.start());
 
     info!("Starting API server");
-    webhook::run_api_server(&config.listener).await?.await?;
+    let tx_api = tx.clone();
+    let server = webhook::run_api_server(&config.listener).await?;
+
+    // Run server in seperate task, send a shutdown signal in case of an error.
+    tokio::spawn(async move {
+        if let Err(err) = server.await {
+            error!("Failed to run API server: {:?}", err);
+            tx_api.send(()).unwrap();
+        }
+    });
+
+    // On shutdown signal, shutdown service.
+    while let Some(_) = recv.recv().await {
+        warn!("Shutting down service...");
+        return Ok(())
+    }
 
     Ok(())
 }
