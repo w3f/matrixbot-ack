@@ -21,11 +21,11 @@ pub struct AlertContext {
 impl AlertContext {
     pub fn new(alert: Alert, id: AlertId, should_escalate: bool) -> Self {
         AlertContext {
-            id: id,
-            alert: alert,
+            id,
+            alert,
             escalation_idx: 0,
             last_notified: unix_time(),
-            should_escalate: should_escalate,
+            should_escalate,
         }
     }
     pub fn should_escalate(&self) -> bool {
@@ -58,15 +58,13 @@ impl ToString for AlertContextTrimmed {
             self.0
                 .annotations
                 .message
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or(&"N/A"),
+                .as_deref()
+                .unwrap_or("N/A"),
             self.0
                 .annotations
                 .description
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or(&"N/A")
+                .as_deref()
+                .unwrap_or("N/A")
         )
     }
 }
@@ -87,15 +85,13 @@ impl ToString for AlertContext {
             self.alert
                 .annotations
                 .message
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or(&"N/A"),
+                .as_deref()
+                .unwrap_or("N/A"),
             self.alert
                 .annotations
                 .description
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or(&"N/A")
+                .as_deref()
+                .unwrap_or("N/A")
         )
     }
 }
@@ -111,9 +107,9 @@ pub struct Processor {
 impl Processor {
     pub fn new(db: Option<Database>, escalation_window: u64, should_escalate: bool) -> Self {
         Processor {
-            db: db.map(|db| Arc::new(db)),
-            escalation_window: escalation_window,
-            should_escalate: should_escalate,
+            db: db.map(Arc::new),
+            escalation_window,
+            should_escalate,
             escalation_lock: Default::default(),
         }
     }
@@ -242,7 +238,7 @@ impl Handler<UserAction> for Processor {
                     Command::Pending => db
                         .get_pending(None)
                         .await
-                        .map(|ctxs| UserConfirmation::PendingAlerts(ctxs)),
+                        .map(UserConfirmation::PendingAlerts),
                     Command::Help => Ok(UserConfirmation::Help),
                 }
             }
@@ -286,8 +282,8 @@ impl Handler<InsertAlerts> for Processor {
 
             // Notify rooms about all alerts.
             debug!("Notifying rooms about new alerts");
-            let _ = MatrixClient::from_registry()
-                .send(NotifyAlert { alerts: alerts })
+            MatrixClient::from_registry()
+                .send(NotifyAlert { alerts })
                 .await??;
 
             Ok(())
@@ -312,7 +308,7 @@ impl ToString for UserConfirmation {
         match self {
             UserConfirmation::PendingAlerts(alerts) => {
                 if alerts.is_empty() {
-                    return format!("No pending alerts!");
+                    return String::from("No pending alerts!");
                 }
 
                 let mut content = String::from("Pending alerts:\n");
@@ -323,19 +319,19 @@ impl ToString for UserConfirmation {
                 content
             }
             UserConfirmation::AlertOutOfScope => {
-                format!("The alert has already reached the next escalation level. It cannot be acknowledged!")
+                String::from("The alert has already reached the next escalation level. It cannot be acknowledged!")
             }
             UserConfirmation::AlertAcknowledged(id) => {
                 format!("Alert {} has been acknowledged.", id.to_string())
             }
             UserConfirmation::AlertNotFound => {
-                format!("The alert Id has not been found!")
+                String::from("The alert Id has not been found!")
             }
             UserConfirmation::Help => {
-                format!("ack <ID> - Acknowledge an alert by id\npending - Show pending alerts\nhelp - Show this help message")
+                String::from("ack <ID> - Acknowledge an alert by id\npending - Show pending alerts\nhelp - Show this help message")
             }
             UserConfirmation::InternalError => {
-                format!("There was an internal error. Please contact the admin.")
+                String::from("There was an internal error. Please contact the admin.")
             }
         }
     }
