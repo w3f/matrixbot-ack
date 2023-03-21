@@ -4,6 +4,7 @@ use crate::{unix_time, AlertId, Result};
 // TODO: Can this be avoided somehow?
 use bson::{doc, to_bson};
 use futures::stream::StreamExt;
+use mongodb::IndexModel;
 use mongodb::{
     options::{FindOneAndUpdateOptions, ReplaceOptions, ReturnDocument},
     Client, Database as MongoDb,
@@ -41,11 +42,23 @@ struct PendingAlertsEntry(HashMap<AlertId, Alert>);
 
 impl Database {
     pub async fn new(config: DatabaseConfig) -> Result<Self> {
-        Ok(Database {
-            db: Client::with_uri_str(config.uri)
-                .await?
-                .database(&config.name),
-        })
+        let db = Client::with_uri_str(config.uri)
+            .await?
+            .database(&config.name);
+
+        // Create index for fields `id` and `last_notified`.
+        let index_model = IndexModel::builder()
+            .keys(doc! {
+                "id": 1,
+                "last_notified": 1,
+            })
+            .build();
+
+        db.collection::<AlertContext>(PENDING)
+            .create_index(index_model, None)
+            .await?;
+
+        Ok(Database { db })
     }
     /// Simply checks if a connection could be established to the database.
     pub async fn connectivity_check(&self) -> Result<()> {
