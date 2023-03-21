@@ -7,9 +7,7 @@ extern crate serde;
 #[macro_use]
 extern crate async_trait;
 
-use actix::clock::sleep;
 use actix::{prelude::*, SystemRegistry};
-use std::time::Duration;
 use structopt::StructOpt;
 
 mod database;
@@ -87,7 +85,7 @@ pub async fn run() -> Result<()> {
         "Opening config at {}",
         std::fs::canonicalize(&cli.config)?
             .to_str()
-            .ok_or(anyhow!("Path to config is not valid unicode"))?
+            .ok_or_else(|| anyhow!("Path to config is not valid unicode"))?
     );
 
     let content = std::fs::read_to_string(&cli.config)?;
@@ -139,9 +137,7 @@ pub async fn run() -> Result<()> {
     SystemRegistry::set(matrix.start());
 
     info!("Starting API server");
-    webhook::run_api_server(&config.listener).await?;
+    webhook::run_api_server(&config.listener).await?.await?;
 
-    loop {
-        sleep(Duration::from_secs(u64::MAX)).await;
-    }
+    Ok(())
 }

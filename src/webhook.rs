@@ -1,6 +1,7 @@
 use crate::processor::{InsertAlerts, Processor};
 use crate::Result;
 use actix::prelude::*;
+use actix_web::dev::Server;
 use actix_web::{web, App, HttpResponse, HttpServer};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -22,7 +23,7 @@ pub struct Labels {
     pub alert_name: String,
 }
 
-pub async fn run_api_server(endpoint: &str) -> Result<()> {
+pub async fn run_api_server(endpoint: &str) -> Result<Server> {
     let server = HttpServer::new(move || {
         App::new()
             .route("/healthcheck", web::get().to(healthcheck))
@@ -30,8 +31,7 @@ pub async fn run_api_server(endpoint: &str) -> Result<()> {
     })
     .bind(endpoint)?;
 
-    server.run();
-    Ok(())
+    Ok(server.run())
 }
 
 async fn healthcheck() -> HttpResponse {
