@@ -44,7 +44,7 @@ impl MatrixClient {
         let url = Url::parse(&config.homeserver)?;
         let client = Client::new_with_config(url, client_config)?;
 
-        info!("Login with credentials");
+        info!("Logging in with credentials...");
         client
             .login(
                 &config.username,
