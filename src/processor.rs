@@ -3,9 +3,10 @@ use crate::matrix::MatrixClient;
 use crate::webhook::Alert;
 use crate::{unix_time, AlertId, Result};
 use actix::prelude::*;
-use tokio::sync::Mutex;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::Mutex;
 
 const CRON_JOB_INTERVAL: u64 = 5;
 
@@ -21,11 +22,11 @@ pub struct AlertContext {
 impl AlertContext {
     pub fn new(alert: Alert, id: AlertId, should_escalate: bool) -> Self {
         AlertContext {
-            id: id,
-            alert: alert,
+            id,
+            alert,
             escalation_idx: 0,
             last_notified: unix_time(),
-            should_escalate: should_escalate,
+            should_escalate,
         }
     }
     pub fn should_escalate(&self) -> bool {
@@ -55,18 +56,8 @@ impl ToString for AlertContextTrimmed {
         ",
             self.0.labels.alert_name,
             self.0.labels.severity,
-            self.0
-                .annotations
-                .message
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or(&"N/A"),
-            self.0
-                .annotations
-                .description
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or(&"N/A")
+            self.0.annotations.message.as_deref().unwrap_or("N/A"),
+            self.0.annotations.description.as_deref().unwrap_or("N/A")
         )
     }
 }
@@ -84,18 +75,12 @@ impl ToString for AlertContext {
             self.id.to_string(),
             self.alert.labels.alert_name,
             self.alert.labels.severity,
-            self.alert
-                .annotations
-                .message
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or(&"N/A"),
+            self.alert.annotations.message.as_deref().unwrap_or("N/A"),
             self.alert
                 .annotations
                 .description
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or(&"N/A")
+                .as_deref()
+                .unwrap_or("N/A")
         )
     }
 }
@@ -106,15 +91,22 @@ pub struct Processor {
     should_escalate: bool,
     // Ensures that only one escalation task is running at the time.
     escalation_lock: Arc<Mutex<()>>,
+    shutdown_indicator: UnboundedSender<()>,
 }
 
 impl Processor {
-    pub fn new(db: Option<Database>, escalation_window: u64, should_escalate: bool) -> Self {
+    pub fn new(
+        db: Option<Database>,
+        escalation_window: u64,
+        should_escalate: bool,
+        shutdown_indicator: UnboundedSender<()>,
+    ) -> Self {
         Processor {
-            db: db.map(|db| Arc::new(db)),
-            escalation_window: escalation_window,
-            should_escalate: should_escalate,
+            db: db.map(Arc::new),
+            escalation_window,
+            should_escalate,
             escalation_lock: Default::default(),
+            shutdown_indicator,
         }
     }
     fn db(&self) -> Arc<Database> {
@@ -164,15 +156,18 @@ impl Actor for Processor {
             };
 
             let lock = Arc::clone(&self.escalation_lock);
+            let shutdown_indicator = self.shutdown_indicator.clone();
+
             ctx.run_interval(
                 Duration::from_secs(CRON_JOB_INTERVAL),
                 move |_proc, _ctx| {
                     // Acquire new handles for async task.
                     let db = Arc::clone(&db);
                     let lock = Arc::clone(&lock);
+                    let shutdown_indicator = shutdown_indicator.clone();
 
                     actix::spawn(async move {
-                        // Immediately exits if the lock cannot be acquired.
+                        // Immediately exit if the lock cannot be acquired.
                         if let Ok(locked) = lock.try_lock() {
                             // Lock acquired and will remain locked until
                             // `_l` goes out of scope.
@@ -180,7 +175,11 @@ impl Actor for Processor {
 
                             match local(db, escalation_window).await {
                                 Ok(_) => {}
-                                Err(err) => error!("{:?}", err),
+                                Err(err) => {
+                                    error!("{:?}", err);
+                                    // Shutdown entire service.
+                                    shutdown_indicator.send(()).unwrap();
+                                }
                             }
                         }
                     });
@@ -242,7 +241,7 @@ impl Handler<UserAction> for Processor {
                     Command::Pending => db
                         .get_pending(None)
                         .await
-                        .map(|ctxs| UserConfirmation::PendingAlerts(ctxs)),
+                        .map(UserConfirmation::PendingAlerts),
                     Command::Help => Ok(UserConfirmation::Help),
                 }
             }
@@ -250,7 +249,7 @@ impl Handler<UserAction> for Processor {
             local(db, msg)
                 .await
                 .map_err(|err| {
-                    error!("{:?}", err);
+                    error!("Error when trying to process user command: {:?}", err);
                     UserConfirmation::InternalError
                 })
                 .unwrap()
@@ -278,16 +277,13 @@ impl Handler<InsertAlerts> for Processor {
 
             // Only store alerts that should escalate.
             if should_escalate {
-                db.insert_alerts(&alerts).await.map_err(|err| {
-                    error!("Failed to insert alerts into database: {:?}", err);
-                    err
-                })?;
+                db.insert_alerts(&alerts).await?;
             }
 
             // Notify rooms about all alerts.
             debug!("Notifying rooms about new alerts");
-            let _ = MatrixClient::from_registry()
-                .send(NotifyAlert { alerts: alerts })
+            MatrixClient::from_registry()
+                .send(NotifyAlert { alerts })
                 .await??;
 
             Ok(())
@@ -312,7 +308,7 @@ impl ToString for UserConfirmation {
         match self {
             UserConfirmation::PendingAlerts(alerts) => {
                 if alerts.is_empty() {
-                    return format!("No pending alerts!");
+                    return String::from("No pending alerts!");
                 }
 
                 let mut content = String::from("Pending alerts:\n");
@@ -323,19 +319,19 @@ impl ToString for UserConfirmation {
                 content
             }
             UserConfirmation::AlertOutOfScope => {
-                format!("The alert has already reached the next escalation level. It cannot be acknowledged!")
+                String::from("The alert has already reached the next escalation level. It cannot be acknowledged!")
             }
             UserConfirmation::AlertAcknowledged(id) => {
                 format!("Alert {} has been acknowledged.", id.to_string())
             }
             UserConfirmation::AlertNotFound => {
-                format!("The alert Id has not been found!")
+                String::from("The alert Id has not been found!")
             }
             UserConfirmation::Help => {
-                format!("ack <ID> - Acknowledge an alert by id\npending - Show pending alerts\nhelp - Show this help message")
+                String::from("ack <ID> - Acknowledge an alert by id\npending - Show pending alerts\nhelp - Show this help message")
             }
             UserConfirmation::InternalError => {
-                format!("There was an internal error. Please contact the admin.")
+                String::from("There was an internal error. Please contact the admin.")
             }
         }
     }

@@ -7,10 +7,9 @@ extern crate serde;
 #[macro_use]
 extern crate async_trait;
 
-use actix::clock::sleep;
 use actix::{prelude::*, SystemRegistry};
-use std::time::Duration;
 use structopt::StructOpt;
+use tokio::sync::mpsc::unbounded_channel;
 
 mod database;
 mod matrix;
@@ -87,7 +86,7 @@ pub async fn run() -> Result<()> {
         "Opening config at {}",
         std::fs::canonicalize(&cli.config)?
             .to_str()
-            .ok_or(anyhow!("Path to config is not valid unicode"))?
+            .ok_or_else(|| anyhow!("Path to config is not valid unicode"))?
     );
 
     let content = std::fs::read_to_string(&cli.config)?;
@@ -120,14 +119,21 @@ pub async fn run() -> Result<()> {
     let opt_db = if let Some(db_conf) = config.database {
         info!("Setting up database {:?}", db_conf);
         let db = database::Database::new(db_conf).await?;
+        db.connectivity_check().await?;
+
         Some(db)
     } else {
         warn!("Skipping database setup");
         None
     };
 
+    // Setup channels for shutdown signals. The Processor and the API server
+    // task (below) hold the _sender_. Any message sent to it indicates a full shutdown
+    // of the service, which is handled at the end of this function.
+    let (tx, mut recv) = unbounded_channel();
+
     info!("Adding message processor to system registry");
-    let proc = processor::Processor::new(opt_db, escalation_window, should_escalate);
+    let proc = processor::Processor::new(opt_db, escalation_window, should_escalate, tx.clone());
     SystemRegistry::set(proc.start());
 
     info!("Initializing Matrix client");
@@ -137,9 +143,22 @@ pub async fn run() -> Result<()> {
     SystemRegistry::set(matrix.start());
 
     info!("Starting API server");
-    webhook::run_api_server(&config.listener).await?;
+    let tx_api = tx.clone();
+    let server = webhook::run_api_server(&config.listener).await?;
 
-    loop {
-        sleep(Duration::from_secs(u64::MAX)).await;
+    // Run server in seperate task, send a shutdown signal in case of an error.
+    tokio::spawn(async move {
+        if let Err(err) = server.await {
+            error!("Failed to run API server: {:?}", err);
+            tx_api.send(()).unwrap();
+        }
+    });
+
+    // On shutdown signal, shutdown service.
+    while let Some(_) = recv.recv().await {
+        warn!("Shutting down service...");
+        return Ok(());
     }
+
+    Ok(())
 }

@@ -4,15 +4,16 @@ use crate::{unix_time, AlertId, Result};
 // TODO: Can this be avoided somehow?
 use bson::{doc, to_bson};
 use futures::stream::StreamExt;
+use mongodb::IndexModel;
 use mongodb::{
     options::{FindOneAndUpdateOptions, ReplaceOptions, ReturnDocument},
     Client, Database as MongoDb,
 };
 use std::collections::HashMap;
 
-const PENDING: &'static str = "pending";
-const HISTORY: &'static str = "history";
-const ID_CURSOR: &'static str = "id_cursor";
+const PENDING: &str = "pending";
+const HISTORY: &str = "history";
+const ID_CURSOR: &str = "id_cursor";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseConfig {
@@ -41,11 +42,31 @@ struct PendingAlertsEntry(HashMap<AlertId, Alert>);
 
 impl Database {
     pub async fn new(config: DatabaseConfig) -> Result<Self> {
-        Ok(Database {
-            db: Client::with_uri_str(config.uri)
-                .await?
-                .database(&config.name),
-        })
+        let db = Client::with_uri_str(config.uri)
+            .await?
+            .database(&config.name);
+
+        // Create index for fields `id` and `last_notified`.
+        let index_model = IndexModel::builder()
+            .keys(doc! {
+                "id": 1,
+                "last_notified": 1,
+            })
+            .build();
+
+        db.collection::<AlertContext>(PENDING)
+            .create_index(index_model, None)
+            .await?;
+
+        Ok(Database { db })
+    }
+    /// Simply checks if a connection could be established to the database.
+    pub async fn connectivity_check(&self) -> Result<()> {
+        self.db
+            .list_collection_names(None)
+            .await
+            .map_err(|err| anyhow!("Failed to connect to database: {:?}", err))
+            .map(|_| ())
     }
     pub async fn insert_alerts(&self, alerts: &[AlertContext]) -> Result<()> {
         if alerts.is_empty() {
@@ -122,8 +143,8 @@ impl Database {
                 history
                     .insert_one(
                         AlertAcknowledged {
-                            alert: alert,
-                            acked_by: acked_by,
+                            alert,
+                            acked_by,
                             acked_timestamp: unix_time(),
                         },
                         None,
@@ -154,7 +175,7 @@ impl Database {
             let now = unix_time();
             doc! {
                 "last_notified": {
-                    "$lt": now - escalation_window,
+                    "$lt": (now - escalation_window) as i64,
                 }
             }
         } else {
