@@ -120,6 +120,8 @@ pub async fn run() -> Result<()> {
     let opt_db = if let Some(db_conf) = config.database {
         info!("Setting up database {:?}", db_conf);
         let db = database::Database::new(db_conf).await?;
+        db.connectivity_check().await?;
+
         Some(db)
     } else {
         warn!("Skipping database setup");

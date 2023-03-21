@@ -47,6 +47,14 @@ impl Database {
                 .database(&config.name),
         })
     }
+    /// Simply checks if a connection could be established to the database.
+    pub async fn connectivity_check(&self) -> Result<()> {
+        self.db
+            .list_collection_names(None)
+            .await
+            .map_err(|err| anyhow!("Failed to connect to database: {:?}", err))
+            .map(|_| ())
+    }
     pub async fn insert_alerts(&self, alerts: &[AlertContext]) -> Result<()> {
         if alerts.is_empty() {
             return Ok(());
