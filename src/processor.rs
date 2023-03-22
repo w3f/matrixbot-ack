@@ -8,8 +8,6 @@ use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Mutex;
 
-const CRON_JOB_INTERVAL: u64 = 5;
-
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AlertContext {
     pub id: AlertId,
@@ -91,6 +89,7 @@ pub struct Processor {
     should_escalate: bool,
     // Ensures that only one escalation task is running at the time.
     escalation_lock: Arc<Mutex<()>>,
+    check_frequency: u64,
     shutdown_indicator: UnboundedSender<()>,
 }
 
@@ -99,6 +98,7 @@ impl Processor {
         db: Option<Database>,
         escalation_window: u64,
         should_escalate: bool,
+        check_frequency: u64,
         shutdown_indicator: UnboundedSender<()>,
     ) -> Self {
         Processor {
@@ -106,6 +106,7 @@ impl Processor {
             escalation_window,
             should_escalate,
             escalation_lock: Default::default(),
+            check_frequency,
             shutdown_indicator,
         }
     }
@@ -159,7 +160,7 @@ impl Actor for Processor {
             let shutdown_indicator = self.shutdown_indicator.clone();
 
             ctx.run_interval(
-                Duration::from_secs(CRON_JOB_INTERVAL),
+                Duration::from_secs(self.check_frequency),
                 move |_proc, _ctx| {
                     // Acquire new handles for async task.
                     let db = Arc::clone(&db);

@@ -64,6 +64,7 @@ struct Config {
 struct EscalationConfig {
     enabled: bool,
     escalation_window: u64,
+    check_frequency: u64,
 }
 
 #[derive(StructOpt, Debug)]
@@ -110,6 +111,12 @@ pub async fn run() -> Result<()> {
         .unwrap_or(MIN_ESCALATION_WINDOW)
         .max(MIN_ESCALATION_WINDOW);
 
+    let check_frequency = config
+        .escalation
+        .as_ref()
+        .map(|c| c.check_frequency)
+        .unwrap_or(20);
+
     if should_escalate && config.database.is_none() {
         return Err(anyhow!(
             "Escalations require a database configuration, which isn't provided"
@@ -133,7 +140,13 @@ pub async fn run() -> Result<()> {
     let (tx, mut recv) = unbounded_channel();
 
     info!("Adding message processor to system registry");
-    let proc = processor::Processor::new(opt_db, escalation_window, should_escalate, tx.clone());
+    let proc = processor::Processor::new(
+        opt_db,
+        escalation_window,
+        should_escalate,
+        check_frequency,
+        tx.clone(),
+    );
     SystemRegistry::set(proc.start());
 
     info!("Initializing Matrix client");
