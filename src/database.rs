@@ -49,8 +49,8 @@ impl Database {
         // Create index for fields `id` and `last_notified`.
         let index_model = IndexModel::builder()
             .keys(doc! {
-                "id": 1,
                 "last_notified": 1,
+                "id": 1,
             })
             .build();
 
