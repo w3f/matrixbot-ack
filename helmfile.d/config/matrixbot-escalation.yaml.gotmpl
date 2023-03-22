@@ -24,6 +24,7 @@ config:
   escalation:
     enabled: true
     escalation_window: {{ env "ESCALATION_WINDOW" }}
+    check_frequency: 20
   rooms:
     - {{ env "ESCALATION_ROOM_1" | quote }}
     - {{ env "ESCALATION_ROOM_2" | quote }}

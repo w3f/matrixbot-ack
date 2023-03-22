@@ -22,5 +22,6 @@ config:
   escalation:
     enabled: false
     escalation_window: 0
+    check_frequency: 20
   rooms:
     - {{ env "ALERT_ROOM_1" | quote }}
