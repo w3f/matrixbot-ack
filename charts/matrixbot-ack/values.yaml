@@ -20,6 +20,7 @@ config:
   escalation:
     enabled: true
     escalation_window: 3600 # one hour
+    check_frequency: 20
   rooms:
     - "!abcdef:matrix.org"
     - "!ghijkl:matrix.org"
@@ -28,6 +29,6 @@ resources:
   requests:
     cpu: "50m"
     memory: "50Mi"
-  limits:
-    cpu: "150m"
-    memory: "150Mi"
+  #limits:
+  #  cpu: "150m"
+  #  memory: "150Mi"
